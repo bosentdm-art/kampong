@@ -1,0 +1,24 @@
+# Paths are relative to the project root so the project moves between machines.
+paths:
+  raw: data/raw
+  processed: data/processed
+  models: models
+  reports: reports
+
+# Change to "gpu" on the RTX 5070 PC (needs a GPU build of the library).
+device: cpu
+
+# data.gov.sg dataset IDs for HDB resale flat prices.
+# Verified at download time; see src/download_data.py.
+datasets:
+  resale_2017_onwards: d_8b84c4ee58e3cfc0ece0d773c8ca6abc
+  resale_2015_2016: d_ea9ed51da2787afaf8e51f827c304208
+  resale_2012_2014: d_2d5ff9ea31397b66239f245f57751537
+  resale_2000_2012: d_43f493c6c50d54243cc1eab0df142d6a
+  resale_1990_1999: d_ebc5ab87086db484f88045b47411ebc5
+
+# Location datasets (data.gov.sg). IDs are checked by src/download_amenities.py.
+amenities:
+  mrt_exits: d_b39d3a0871985372d7e1637193335da5
+  hawker_centres: d_4a086da0a5553be1d89383cd90d07ecd
+  schools: d_688b934f82c1059ed0a6993d2a829089
