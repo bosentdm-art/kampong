@@ -82,6 +82,7 @@ def main():
                     cells.append(dict(origin=t0, h=h, rule=rule, w=w, n=len(e), mae=np.abs(e).mean(), bias=np.median(e)))
 
     cell = pd.DataFrame(cells)
+    pd.to_pickle(errors, PROC / "backtest_errors.pkl")  # (origin, h, rule, w) -> block errors; reused by backtest_macro.py
     cell.to_csv(ROOT / "reports/backtest_forecast_cells.csv", index=False)
     pd.set_option("display.width", 200)
 

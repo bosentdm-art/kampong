@@ -168,3 +168,19 @@ realestateai/
 - Honest range widths (80%): about x0.7 to x1.5 at 5 years, wider beyond. Survivorship:
   blocks demolished since are missing from old origins, so history is slightly rosy.
 - Recalibrate (`python src/backtest_forecast.py`, ~7 min) about once a year, not monthly.
+
+## Macro inputs (2026-11): tested, not adopted
+- `src/macro.py` downloads World Bank (GDP growth, inflation, lending and real rates,
+  population, real GDP per capita) and FRED/BIS Singapore property prices.
+  `src/backtest_macro.py` adds each as a nudge to the assumed growth rate, fits the weight
+  on all start years but one, and scores on the one left out; a shuffle test checks chance.
+- Result (10 start years, baseline mean abs log error 0.190): valuation gaps (real price,
+  price-to-income, BIS property) made it slightly WORSE (+2 to +3%); population growth
+  +0.4%; real rate -2.4% (shuffle p 0.11); GDP growth -2.5% (p 0.07); 3-year change in the
+  lending rate -4.0% (p 0.01). The last one is driven by one or two start years (most
+  values are ~0 because the rate is administered), has the economically wrong sign
+  (rising rates -> higher growth), is one of 7 tests, and its data ends in 2021.
+  Not adopted. Ranges are not materially narrower with any macro input.
+- Why: ~10 independent start years cannot support extra predictors. The wide ranges are
+  real market-wide uncertainty, not a modelling gap. Realistic levers: show 3-5 year
+  outlook more prominently, offer user-set growth scenarios, or accept the ranges.
