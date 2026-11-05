@@ -6,3 +6,4 @@ models/
 .ipynb_checkpoints/
 .env
 reports/*.csv
+.claude/

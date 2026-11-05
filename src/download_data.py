@@ -33,14 +33,14 @@ def get_with_backoff(url, attempts=6):
     return r
 
 
-def get_download_url(dataset_id, retries=10):
+def get_download_url(dataset_id, retries=12):
     """Start a download and poll until data.gov.sg returns the file URL."""
     r = get_with_backoff(API.format(id=dataset_id, action="initiate-download"))
     body = r.json()
     if body.get("data", {}).get("url"):
         return body["data"]["url"]
     for _ in range(retries):
-        time.sleep(3)
+        time.sleep(5)  # data.gov.sg prepares the file; this can take a few minutes
         r = get_with_backoff(API.format(id=dataset_id, action="poll-download"))
         url = r.json().get("data", {}).get("url")
         if url:
@@ -48,12 +48,45 @@ def get_download_url(dataset_id, retries=10):
     raise RuntimeError(f"No download URL for {dataset_id}")
 
 
+PAGED = "https://data.gov.sg/api/action/datastore_search?resource_id={id}&limit=10000&offset={off}&sort=_id%20asc"
+
+
+def fetch_paged(dataset_id, out):
+    """Fallback when the file link stalls: page through the query API and rebuild the CSV.
+
+    Writes to a temporary file first and refuses to replace an existing file with a much smaller one."""
+    import pandas as pd
+
+    rows, off = [], 0
+    while True:
+        result = get_with_backoff(PAGED.format(id=dataset_id, off=off)).json()["result"]
+        rows += result["records"]
+        off += len(result["records"])
+        if not result["records"] or off >= result["total"]:
+            break
+        time.sleep(2)
+    df = pd.DataFrame(rows).drop(columns=["_id"], errors="ignore")
+    if len(df) < result["total"]:
+        raise RuntimeError(f"paged download incomplete: {len(df)} of {result['total']} rows")
+    if out.exists() and len(df) < 0.95 * len(pd.read_csv(out)):
+        raise RuntimeError("paged download is much smaller than the existing file; keeping the old one")
+    tmp = out.with_suffix(".tmp")
+    df.to_csv(tmp, index=False)
+    tmp.replace(out)
+    print(f"saved  {out.name} via paged query ({len(df)} rows)")
+
+
 def download(name, dataset_id, out_dir, force):
     out = out_dir / f"{name}.csv"
     if out.exists() and not force:
         print(f"skip   {name} (already downloaded)")
         return out
-    url = get_download_url(dataset_id)
+    try:
+        url = get_download_url(dataset_id)
+    except Exception as e:
+        print(f"download link failed ({e}); falling back to the paged query API")
+        fetch_paged(dataset_id, out)
+        return out
     with requests.get(url, stream=True, timeout=300) as r:
         r.raise_for_status()
         with open(out, "wb") as f:
@@ -66,6 +99,7 @@ def download(name, dataset_id, out_dir, force):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="re-download existing files")
+    parser.add_argument("--only", nargs="+", metavar="NAME", help="only these dataset names from config.yaml")
     args = parser.parse_args()
 
     cfg = load_config()
@@ -74,6 +108,8 @@ def main():
 
     failed = []
     for name, dataset_id in cfg["datasets"].items():
+        if args.only and name not in args.only:
+            continue
         try:
             download(name, dataset_id, out_dir, args.force)
             time.sleep(5)  # be gentle with the API

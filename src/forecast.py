@@ -18,6 +18,7 @@ It is a rough guide, not a guarantee: see PLAN.md for the caveats.
 
 Run `python src/forecast.py` for a demo on real recent sales.
 """
+import functools
 import json
 
 import lightgbm as lgb
@@ -59,13 +60,15 @@ def lease_value():
 
 def model_error_band():
     """(q10, q90) of log(actual / predicted) for the model on the 2026 test months."""
-    r = pd.read_csv(ROOT / "reports/lgbm_refit_test_predictions.csv")
+    prod = ROOT / "reports/prod_holdout_predictions.csv"
+    r = pd.read_csv(prod if prod.exists() else ROOT / "reports/lgbm_refit_test_predictions.csv")
     e = np.log(r["resale_price"] / r["pred"])
     return float(e.quantile(0.10)), float(e.quantile(0.90))
 
 
 def price_today(spec, row, when):
-    booster = lgb.Booster(model_file=str(ROOT / "models/lgbm_refit.txt"))
+    prod = ROOT / "models/lgbm_prod.txt"
+    booster = lgb.Booster(model_file=str(prod if prod.exists() else ROOT / "models/lgbm_refit.txt"))
     x = pd.DataFrame([{**{k: row[k] for k in FEATS if k in row}, **spec}])
     x["remaining_lease_years"] = 99 - (when - spec["lease_commence_date"])
     x["month_idx"] = round((when - 2017) * 12)  # same convention as training: year + (month-1)/12
@@ -75,10 +78,26 @@ def price_today(spec, row, when):
     return float(np.exp(booster.predict(x[FEATS])[0])), float(x.loc[0, "remaining_lease_years"])
 
 
-def forecast(spec, when=2026 + 9 / 12, horizons=(5, 10, 15, 20)):  # Oct 2026
-    feats = pd.read_parquet(PROC / "resale_features.parquet",
-                            columns=["block", "street_name", "lat", "lon", "dist_mrt", "n_mrt_exits_500m", "dist_hawker",
-                                     "dist_primary_school", "n_primary_1km", "n_primary_2km", "dist_cbd"])
+@functools.lru_cache(maxsize=1)
+def block_table():
+    """One row of location features per block (about 10,000 rows)."""
+    cols = ["block", "street_name", "lat", "lon", "dist_mrt", "n_mrt_exits_500m", "dist_hawker",
+            "dist_primary_school", "n_primary_1km", "n_primary_2km", "dist_cbd"]
+    return pd.read_parquet(PROC / "resale_features.parquet", columns=cols).drop_duplicates(["block", "street_name"])
+
+
+def default_when():
+    """Valuation date = the month the production model was trained through (year + (month-1)/12)."""
+    meta = ROOT / "models/lgbm_prod.json"
+    if meta.exists():
+        y, m = json.loads(meta.read_text())["trained_through"].split("-")
+        return int(y) + (int(m) - 1) / 12
+    return 2026 + 9 / 12  # Oct 2026, the refit model's last month
+
+
+def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
+    when = default_when() if when is None else when
+    feats = block_table()
     hit = feats[(feats["block"] == spec["block"]) & (feats["street_name"] == spec["street_name"])]
     if hit.empty:
         raise ValueError("block not found (demolished or never geocoded)")

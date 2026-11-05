@@ -134,3 +134,15 @@ realestateai/
 ## Open items
 - Confirm dataset coverage, API limits, and licence terms before step 1.
 - Confirm the RTX 5070 machine's specs when it is time to move.
+
+## Latest (2026-11)
+- Monthly retraining: `src/update.py` runs download, clean, geocode new blocks,
+  features and `src/train_production.py` in about 160s. Production model:
+  `models/lgbm_prod.txt` (+ `.json` metadata), fixed settings (recency half-life
+  36 months, monotone lease, 1,281 rounds), trained through the latest complete
+  month. Built-in holdout (last 6 months): median error 2.83%.
+- data.gov.sg's download link stalled (status stuck at STARTING); added a
+  fallback to the paged query API with a guard against partial results.
+- Local app: `app.py` (Streamlit). Price today with an 80% range, recent block
+  sales, and the scenario table with its warning. Tested in the browser pane.
+- Re-tune (`train_model.py`, especially the number of rounds) every few months.
