@@ -69,7 +69,8 @@ def load_models():
     return [lgb.Booster(model_file=str(f)) for f in files]
 
 
-def price_today(spec, row, when):
+def feature_frame(spec, row, when):
+    """One-row feature table for a flat, in the column order the production models were trained on."""
     x = pd.DataFrame([{**{k: row[k] for k in FEATS if k in row}, **spec}])
     x["remaining_lease_years"] = 99 - (when - spec["lease_commence_date"])
     x["month_idx"] = round((when - 2017) * 12)  # same convention as training: year + (month-1)/12
@@ -77,7 +78,12 @@ def price_today(spec, row, when):
     x["storey_low"], x["storey_high"] = spec["storey_mid"] - 1, spec["storey_mid"] + 1  # ranges are 3 storeys wide
     for c in CATS:
         x[c] = x[c].astype("category")
-    price = float(np.exp(np.mean([b.predict(x[FEATS])[0] for b in load_models()])))
+    return x[FEATS]
+
+
+def price_today(spec, row, when):
+    x = feature_frame(spec, row, when)
+    price = float(np.exp(np.mean([b.predict(x)[0] for b in load_models()])))
     return price, float(x.loc[0, "remaining_lease_years"])
 
 
@@ -140,7 +146,7 @@ def band_for(h):
     return down, float(np.mean(long)), up, down50, up50
 
 
-def forecast(spec, when=None, horizons=(5, 10, 15, 20), growth=None):
+def forecast(spec, when=None, horizons=(5, 10, 15, 20), growth=None, today=None):
     when = default_when() if when is None else when
     feats = block_table()
     hit = feats[(feats["block"] == spec["block"]) & (feats["street_name"] == spec["street_name"])]
@@ -153,8 +159,11 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20), growth=None):
     custom = growth is not None  # user-set annual growth rate (e.g. 0.035): a scenario, so no bias shift is applied
     if custom:
         g = float(np.log1p(growth))
-    m10, m90 = model_error_band()  # log errors of today's price
-    m25, m75 = model_error_band(0.25, 0.75)
+    if today:  # flat-specific fair value and error offsets from advice.assess(...)["today"]
+        v0, m10, m90, m25, m75 = today["fair"], today["m10"], today["m90"], today["m25"], today["m75"]
+    else:
+        m10, m90 = model_error_band()  # log errors of today's price
+        m25, m75 = model_error_band(0.25, 0.75)
 
     out = []
     for h in horizons:

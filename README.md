@@ -28,3 +28,9 @@ download step falls back to its paged query API automatically.
 ## How well does it work?
 - Price today: median error about 2.8% on months the model had not seen (baseline: 5.1%).
 - Forecasts: scenarios only. The lease-decay effect failed back-testing (see PLAN.md).
+
+## Check flats you know
+Add rows to `cases/known_cases.csv` (or point `listing_file` at a text file of a pasted listing), then:
+```
+.venv\Scripts\python src\score_cases.py
+```

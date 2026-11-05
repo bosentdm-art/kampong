@@ -197,3 +197,38 @@ realestateai/
   value equal to it reproduces the default 5-year central exactly; higher growth now always
   gives a higher value at every horizon.
 - Streamlit reads a bare $...$ pair as maths: dollar signs in markdown text are escaped.
+
+## Flat-specific ranges, asking-price check, reliability badge (2026-11)
+- `src/oos_residuals.py`: walks forward in 4-month chunks from 2021-01, training only on earlier
+  sales, so every error is genuinely out of sample (156k rows, median error ~2.6-3.1% per chunk).
+- `src/range_model.py`: LightGBM quantile models (5/10/25/50/75/90/95%) of log(actual/predicted),
+  plus data-richness inputs (sales in the block in 24 months, gap to recent comparables).
+  Validation (train < 2025-07, test after): 80% band covers 80.2%, 50% band 51.5% after a x1.16
+  widening. By segment vs the old single band: lease <=55y 64%->78%, cheapest fifth 66%->75%,
+  3-room 73%->80%, executive 73%->80%. Still slightly under for the shortest leases / cheapest.
+- A learned bias correction (q50) made point accuracy WORSE (2.64% -> 2.79%): the cheap/dear
+  bias shifts over time. Not used; fair value = the point model's estimate.
+- Reliability badge from the 80% band width (High <=0.12, Medium <=0.15 log units): High 62% of
+  flats, median error 2.4%, 97% within 10%; Medium 24%, 3.3%, 92.5%; Low 14%, 4.0%, 87%.
+- `src/advice.py` assess(): fair value, 50%/80% ranges, asking-price percentile and verdict,
+  offer guide (open = 25th pct price, aim = fair value, walk away = 75th pct), notes (short
+  lease, thin block history, unusual size, comps disagree). Barebones UI in `app.py`;
+  `update.py` now also runs the walk-forward and range steps.
+- Test case: 85 Whampoa Dr listing (3-room Improved, 818 sqft = 76 sqm, TOP 1973, asking
+  $420,000, floor not stated). Block's recent 3-room sales are all 65 sqm ($341-350k).
+
+## Listings, scoring, big verdicts (2026-11)
+- No PropertyGuru crawler: their terms forbid automated collection. Instead `src/listing_parser.py`
+  turns PASTED listing text into flat details (block/street matched to HDB data, abbreviations
+  handled, lease start taken from HDB data). For automation at scale: licensed data (PropertyGuru,
+  SRX, 99.co business feeds).
+- `src/score_cases.py` + `cases/known_cases.csv`: score flats you know (hand-entered or a pasted
+  listing file). Reports fair value, ranges, reliability, verdict; with an actual price also error,
+  inside 50/80% ranges, whether the verdict was borne out; flags sales that may be in training.
+  Gotcha fixed: numpy bools in an object column sum as logical OR (3 trues averaged to 33%).
+- Deal verdicts (on the PRICE, not buy/don't buy), from the asking price's percentile among
+  comparable sales: GREAT DEAL (<10%), GOOD DEAL (<30%), FAIR PRICE (<65%), PRICEY (<90%),
+  OVERPRICED (90%+ or beyond the range); "LIKELY" prefix when reliability is Low. Big coloured
+  banner in the app; paste-a-listing box fills in the flat's details.
+- Test listing (85 Whampoa Dr, $420k, 76 sqm): LIKELY PRICEY at mid floor (+8.6%), LIKELY
+  OVERPRICED if the HDB area is 65 sqm (+21%).

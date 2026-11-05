@@ -2,6 +2,7 @@
 
   1. download the latest HDB resale file     4. rebuild location features
   2. clean and combine                       5. retrain the production model + holdout check
+  6. walk-forward out-of-sample errors (new chunks only), then the flat-specific range models
   3. geocode any new blocks (needs ONEMAP_TOKEN in .env; skipped with a warning if it fails)
 
 A step that fails stops the run, except geocoding: without it, sales in brand-new blocks are
@@ -19,6 +20,8 @@ STEPS = [
     ("geocode new blocks", ["geocode_blocks.py"], False),
     ("build location features", ["build_features.py"], True),
     ("retrain production model", ["train_production.py"], True),
+    ("walk-forward errors for ranges", ["oos_residuals.py"], True),
+    ("flat-specific range models", ["range_model.py"], True),
 ]
 
 

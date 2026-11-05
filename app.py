@@ -14,7 +14,9 @@ import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
+import advice as adv  # noqa: E402
 import forecast as fc  # noqa: E402
+import listing_parser as lp  # noqa: E402
 
 st.set_page_config(page_title="HDB resale estimate", page_icon="🏠", layout="centered")
 
@@ -43,45 +45,90 @@ st.title("HDB resale estimate")
 st.caption(f"Model trained on sales through {meta['trained_through']}. On the six most recent months it was held out "
            f"from, the median error was {meta['holdout_median_error']:.1%}.")
 
-town = st.selectbox("Town", sorted(d["town"].unique()))
+listing_text = st.text_area("Paste a listing's text (optional)", height=90,
+                            help="Copy the text of a listing page and paste it here; the flat's details are filled in for you.")
+p = lp.parse(listing_text) if listing_text.strip() else {}
+if listing_text.strip():
+    if p.get("block"):
+        found = ", ".join(x for x in [f"blk {p['block']} {p['street_name']}", p.get("flat_type"), p.get("flat_model"),
+                                      f"{p['floor_area_sqm']:.0f} sqm" if p.get("floor_area_sqm") else None,
+                                      f"asking ${p['asking']:,}" if p.get("asking") else None] if x)
+        st.success("Found: " + found.replace("$", chr(92) + "$") + ". Check the storey range below: listings rarely state it.")
+    else:
+        st.warning("Couldn't match this listing to an HDB block. Fill in the details below.")
+
+
+def pick(label, options, wanted=None, **kw):
+    options = list(options)
+    return st.selectbox(label, options, index=options.index(wanted) if wanted in options else 0, **kw)
+
+
+town = pick("Town", sorted(d["town"].unique()), p.get("town"))
 dt = d[d["town"] == town]
-street = st.selectbox("Street", sorted(dt["street_name"].unique()))
+street = pick("Street", sorted(dt["street_name"].unique()), p.get("street_name"))
 ds = dt[dt["street_name"] == street]
-block = st.selectbox("Block", sorted(ds["block"].unique(), key=block_key))
+block = pick("Block", sorted(ds["block"].unique(), key=block_key), p.get("block"))
 db = ds[ds["block"] == block]
-flat_type = st.selectbox("Flat type", sorted(db["flat_type"].unique()))
+flat_type = pick("Flat type", sorted(db["flat_type"].unique()), p.get("flat_type"))
 dbt = db[db["flat_type"] == flat_type]
 
-k = f"{town}|{street}|{block}|{flat_type}"  # changing the flat resets the defaults below
+k = f"{town}|{street}|{block}|{flat_type}|{hash(listing_text)}"  # changing the flat or the listing resets the defaults below
 col1, col2 = st.columns(2)
 with col1:
-    flat_model = st.selectbox("Flat model", dbt["flat_model"].value_counts().index.tolist(), key=f"model_{k}")
-    area = st.number_input("Floor area (sqm)", 20.0, 400.0, float(dbt["floor_area_sqm"].median()), 1.0, key=f"area_{k}")
+    flat_model = pick("Flat model", dbt["flat_model"].value_counts().index, p.get("flat_model"), key=f"model_{k}")
+    area = st.number_input("Floor area (sqm)", 20.0, 400.0, float(p.get("floor_area_sqm") or dbt["floor_area_sqm"].median()), 1.0,
+                           key=f"area_{k}")
 with col2:
     ranges = sorted(d["storey_range"].unique())
     storey = st.selectbox("Storey range", ranges, index=ranges.index(dbt["storey_range"].mode().iloc[0]), key=f"storey_{k}")
     lease_year = st.number_input("Lease start year", 1960, 2026, int(dbt["lease_commence_date"].mode().iloc[0]), 1,
                                  key=f"lease_{k}")
 
+asking = st.number_input("Asking price, if you have one ($)", 0, 5_000_000, int(p.get("asking") or 0), 1000, key=f"ask_{k}",
+                         help="Leave at 0 to skip the asking-price check.")
+
 low, high = [int(x) for x in re.findall(r"\d+", storey)]
 spec = dict(flat_type=flat_type, town=town, flat_model=flat_model, block=block, street_name=street,
             floor_area_sqm=float(area), storey_mid=(low + high) / 2, lease_commence_date=int(lease_year))
 try:
-    res = fc.forecast(spec, horizons=(3, 5, 10, 15, 20))
-except ValueError as e:
-    st.error(str(e))
+    a = adv.assess(spec, asking=asking or None)
+    res = fc.forecast(spec, horizons=(3, 5, 10, 15, 20), today=a["today"])
+except (ValueError, FileNotFoundError) as e:
+    st.error(f"{e}. If a model file is missing, run `python src/update.py` first.")
     st.stop()
 
 v0 = res["v0"]
-b_lo, b_hi = res["band"]
-st.divider()
-st.subheader("Estimated price today")
-st.metric("Estimate", f"${v0:,.0f}")
 usd = lambda x: f"\\${x:,.0f}"  # a bare $ pair is read as maths by Streamlit's markdown
-st.write(f"Most sales (8 in 10) land between **{usd(v0 * (1 + b_lo))}** and **{usd(v0 * (1 + b_hi))}**. "
-         f"Remaining lease: {res['lease_now']:.0f} years.")
-st.caption("Based on size, floor range, lease, location and recent market level. It cannot see renovation, the exact "
-           "floor, view or condition, so a flat that is much better or worse than its neighbours will be missed.")
+st.divider()
+# (word colour, background, side bar): bright green, green, yellow, orange, red.
+# Yellow words are hard to read on a light background, so FAIR PRICE uses a yellow bar and tint with a dark gold word.
+TONES = {"great": ("#0f9d3a", "#dcfce7", "#22c55e"), "good": ("#166534", "#ecf7ee", "#15803d"),
+         "fair": ("#8a6100", "#fef9c3", "#eab308"), "pricey": ("#c2410c", "#ffedd5", "#f97316"),
+         "bad": ("#b42318", "#fde9e7", "#dc2626")}
+if "asking" in a:
+    k_ = a["asking"]
+    fg, bg, bar = TONES[k_["tone"]]
+    st.markdown(f"<div style='background:{bg};border-left:12px solid {bar};padding:18px 24px;border-radius:12px;margin:6px 0 14px'>"
+                f"<div style='font-size:52px;font-weight:800;letter-spacing:1px;color:{fg};line-height:1.05'>{k_['verdict']}</div>"
+                f"<div style='font-size:19px;margin-top:8px;color:#1f2328'>{k_['headline']} Asking &#36;{k_['price']:,.0f} is "
+                f"<b>{k_['vs_fair']:+.1%}</b> versus our fair value of &#36;{a['fair']:,.0f}.</div></div>", unsafe_allow_html=True)
+st.subheader("Fair value today")
+col_a, col_b = st.columns([3, 2])
+col_a.metric("Fair value", f"${a['fair']:,.0f}")
+col_b.markdown("Reliability  \n" + {"High": ":green[**High**]", "Medium": ":orange[**Medium**]", "Low": ":red[**Low**]"}[a["badge"]])
+st.write(f"Likely range (50% of sales): **{usd(a['lo50'])} - {usd(a['hi50'])}**  \n"
+         f"Wide range (80% of sales): **{usd(a['lo80'])} - {usd(a['hi80'])}**  \n"
+         f"Remaining lease: {a['lease_now']:.0f} years.")
+for n in a["notes"]:
+    st.write("- " + n.replace("$", chr(92) + "$"))
+st.caption("Reliability reflects how closely estimates for similar flats matched real sales in back-tests. "
+           "The estimate cannot see renovation, the exact floor, view or condition.")
+
+if "asking" in a:
+    o = a["offer"]
+    st.subheader("Offer guide")
+    st.write(f"Open around **{usd(o['opening'])}**, aim for **{usd(o['target'])}**, walk away above **{usd(o['walk_away'])}**.")
+    st.caption("From comparable-sale prices, not advice. Renovation, view and urgency can justify a different price.")
 
 recent = dbt[dbt["sale_date"] >= dbt["sale_date"].max() - pd.DateOffset(months=12)].sort_values("sale_date", ascending=False)
 st.subheader("Recent sales of this flat type in the block")

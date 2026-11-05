@@ -1,0 +1,6 @@
+name,listing_file,block,street_name,flat_type,flat_model,floor_area_sqm,storey_range,lease_commence_date,asking_price,actual_price,actual_date,notes
+"Whampoa listing, floor unknown (mid assumed)",cases/sample_listing.txt,,,,,,07 TO 09,,,,,asking from listing; floor not stated
+"Whampoa listing, if HDB area is 65 sqm",cases/sample_listing.txt,,,,,65,07 TO 09,,,,,block's 3-room flats are all 65 sqm in the data
+public sale Woodlands,,694C,WOODLANDS DR 62,5 ROOM,IMPROVED,113.0,07 TO 09,2018.0,,795000.0,2026-10,sanity row: already in training data
+public sale Geylang,,83A,CIRCUIT RD,4 ROOM,MODEL A,96.0,10 TO 12,2020.0,,1060000.0,2026-10,sanity row: already in training data
+public sale Hougang,,15,HOUGANG AVE 3,4 ROOM,IMPROVED,82.0,04 TO 06,1975.0,,430000.0,2026-10,sanity row: already in training data
