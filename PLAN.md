@@ -82,6 +82,45 @@ realestateai/
   unexplained. Whole training script runs in about a minute on the laptop, so
   no GPU is needed. Retrain regularly.
 
+- Step 5 stage A done (`src/forecast_components.py`): split a forecast into
+  market level x lease decay. Pooled 1990+ lease curve was non-monotone
+  (rejected). Fitted on 2016+: value vs a 90-year flat is 88% at 80 yrs, 76% at
+  60, 64% at 50, 53% at 40. Long market index (1990+) uses that curve as a fixed
+  offset: 10-year annualised growth p10 +1.3%, median +4.6%, p90 +11.2%.
+  Caveats: only ~3 independent decades; curve assumed stable over time;
+  nothing below 38 years of lease in the data.
+- Region check: lease decay differs by distance-from-CBD tercile (cut-offs
+  10.75km / 14.74km): at 60 yrs left value vs a 90-yr flat is 72% near, 77% mid,
+  80% far; market growth differs little (10y median 5.2/4.6/4.4%). Mid-band
+  curve rebounded below 45 yrs, so curves are forced non-increasing and
+  extended with the 60-50 yr slope below 50 yrs; <45 yrs is flagged.
+- Step 5 stage B done (`src/forecast.py`): V0 x exp(g*h) x lease ratio. First
+  version used market-growth percentiles from the 1990+ index and gave absurd
+  ranges (1990s boom: ~3.7x in 6 years). Replaced by explicit growth scenarios
+  (0% stress, 2% recent, 4% long-run) because 10-year growth ranged +1% to +11%
+  a year by period, and 20-year growth cannot honestly be forecast. The lease
+  effect is shown on its own; the low/high band is only the model's error today.
+- Step 5 stage C done (`src/backtest.py`, `reports/backtest_lease_curve.csv`):
+  lease curve fitted on the 6 years before each origin (2010/2013/2016/2018),
+  then block-level realised price change over 5/8/10 yrs regressed on the change
+  the curve predicts (slope 1 = calibrated). RESULT: NOT VALIDATED. Slopes
+  0.56/0.34/0.05 (2010), -0.30/-0.34/0.02 (2013), 0.02/0.12/0.06 (2016),
+  0.73/0.73 (2018); mean about 0.2; correlation 0.05-0.3. The curve overstates
+  value loss on average. Region split not supported either (slopes noisy, near
+  often negative). Likely cause: flat age and estate maturity/location are tied
+  together, so public data cannot separate lease decay from location trends.
+  Consequences: today's price (2.83% model) is unaffected; the lease effect in
+  `forecast.py` is an upper bound, now labelled with a warning.
+- Step 5 cautious version done: one pooled lease curve (region split dropped),
+  lease effect applied at 0% / 50% / 100% strength, market growth 0% / 2% / 4%.
+  Output per horizon: low = flat market + full curve, central = 2% + half the
+  curve, high = 4% + no lease decay. Example: 4-room Tampines (58 yrs left,
+  $632k today) in 10 years: $525k / $703k / $943k.
+- Status: valuation today is validated (2.83% median error); long-run forecasts
+  are wide scenarios, not predictions. Open options: better lease-effect
+  identification (repeat sales with neighbourhood controls), station opening
+  years, or a simple web app for today's price.
+
 ## Storage budget
 | Stage | Estimate |
 |---|---|
