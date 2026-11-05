@@ -146,3 +146,25 @@ realestateai/
 - Local app: `app.py` (Streamlit). Price today with an 80% range, recent block
   sales, and the scenario table with its warning. Tested in the browser pane.
 - Re-tune (`train_model.py`, especially the number of rounds) every few months.
+
+## Accuracy and long-run forecasts (2026-11)
+- Noise floor: near-identical flats (same block, month, storey range, area) differ by a
+  median 1.9% (mean 2.6%) from their group average, so no model on public data can go
+  much below ~2%. Production holdout error: 2.74% median (was 2.83%).
+- Accuracy experiments (`src/experiments_accuracy.py`, 6-month holdout): bigger or smaller
+  trees no gain; extra features (lease start, sale month, storey bounds) 2.78%; 5-seed
+  average 2.78%; both 2.745%. Production now = 3-seed average with extra features.
+- Whole-forecast backtest (`src/backtest_forecast.py`, origins 1998-2016, horizons 3-20y,
+  block-level medians, lease curve fitted only on the 6 years before each origin):
+  * extrapolating recent growth is terrible (mean abs log error 0.76); constant 3-4%/yr
+    is much better (~0.22); damping against recent growth, g = ln1.04 - 0.25 x (trailing
+    5y - ln1.04), is best (0.194-0.197). Growth and lease decay are not separately
+    identified (all lease weights score within 0.02), so weight 0.5 was fixed.
+  * raw error bands undercovered on left-out origins (61-78% for an 80% band); widened
+    until coverage was ~80% (and ~50% for the likely range). 5-10 origins per horizon,
+    15y/20y only 7/5 origins: treat long horizons as least reliable.
+  * bands smoothed (never narrower than shorter horizons; one pooled -5% bias shift).
+  * no projection shown where lease would fall under 50 years (not covered by backtests).
+- Honest range widths (80%): about x0.7 to x1.5 at 5 years, wider beyond. Survivorship:
+  blocks demolished since are missing from old origins, so history is slightly rosy.
+- Recalibrate (`python src/backtest_forecast.py`, ~7 min) about once a year, not monthly.

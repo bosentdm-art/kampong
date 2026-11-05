@@ -1,5 +1,9 @@
 """Production model: retrain on every sale up to the latest complete month.
 
+The model is an average of three LightGBM models (different random seeds) on the base features plus
+lease start year, sale month and storey bounds: about 0.1 points better than a single model on the
+holdout (2.75% vs 2.86% median error). Experiments are in experiments_accuracy.py.
+
 Settings are fixed from the tuning in train_model.py: recency weights (36-month half-life),
 price may not rise as the remaining lease falls, 1,281 rounds. Re-tune now and then with
 train_model.py (the number of rounds in particular) rather than every month.
@@ -7,7 +11,7 @@ train_model.py (the number of rounds in particular) rather than every month.
 Also runs a holdout check: train through six months before the latest month, test on those
 six months. That gives the error figure and the error band used by forecast.py and the app.
 
-Outputs: models/lgbm_prod.txt, models/lgbm_prod.json, reports/prod_holdout_predictions.csv
+Outputs: models/lgbm_prod_0..2.txt, models/lgbm_prod.json, reports/prod_holdout_predictions.csv
 """
 import json
 
@@ -19,9 +23,11 @@ from geocode_blocks import ROOT
 from train_model import CATS, NUM
 
 ROUNDS = 1281
+SEEDS = (0, 1, 2)
+EXTRA = ["lease_commence_date", "sale_month", "storey_low", "storey_high"]
 HALF_LIFE_MONTHS = 36
 HOLDOUT_MONTHS = 6
-FEATS = CATS + [c for c in NUM if c != "flat_age_years"] + ["month_idx"]
+FEATS = CATS + [c for c in NUM if c != "flat_age_years"] + ["month_idx"] + EXTRA
 MONO = [1 if c == "remaining_lease_years" else 0 for c in FEATS]
 PARAMS = dict(objective="regression", learning_rate=0.05, num_leaves=127, min_child_samples=50,
               feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0,
@@ -37,9 +43,15 @@ def latest_complete_month(df):
 
 
 def fit(d, ref_date):
+    """Return one fitted model per seed."""
     months_back = (ref_date - d["sale_date"]).dt.days / 30.44
     w = 0.5 ** (months_back / HALF_LIFE_MONTHS)
-    return lgb.LGBMRegressor(**PARAMS).fit(d[FEATS], np.log(d["resale_price"]), sample_weight=w)
+    y = np.log(d["resale_price"])
+    return [lgb.LGBMRegressor(**PARAMS, random_state=s).fit(d[FEATS], y, sample_weight=w) for s in SEEDS]
+
+
+def predict(models, x):
+    return np.exp(np.mean([m.predict(x[FEATS]) for m in models], axis=0))
 
 
 def main():
@@ -56,8 +68,7 @@ def main():
     # holdout check
     first_hold = last - pd.DateOffset(months=HOLDOUT_MONTHS - 1)
     train, test = df[df["sale_date"] < first_hold], df[df["sale_date"] >= first_hold]
-    m = fit(train, first_hold)
-    pred = np.exp(m.predict(test[FEATS]))
+    pred = predict(fit(train, first_hold), test)
     ape = (pred - test["resale_price"]).abs() / test["resale_price"]
     print(f"holdout {first_hold:%Y-%m}..{last:%Y-%m} ({len(test)} sales): median error {ape.median():.2%}, "
           f"mean {ape.mean():.2%}, within 10% {(ape <= .10).mean():.1%}")
@@ -68,13 +79,16 @@ def main():
                   "pred": pred}).to_csv(ROOT / "reports/prod_holdout_predictions.csv", index=False)
 
     # production fit on everything
-    model = fit(df, last + pd.DateOffset(months=1))
+    models = fit(df, last + pd.DateOffset(months=1))
     (ROOT / "models").mkdir(exist_ok=True)
-    model.booster_.save_model(str(ROOT / "models/lgbm_prod.txt"))
-    meta = dict(trained_through=f"{last:%Y-%m}", rows=int(len(df)), rounds=ROUNDS,
+    for old in (ROOT / "models").glob("lgbm_prod*.txt"):
+        old.unlink()
+    for i, m in enumerate(models):
+        m.booster_.save_model(str(ROOT / f"models/lgbm_prod_{i}.txt"))
+    meta = dict(trained_through=f"{last:%Y-%m}", rows=int(len(df)), rounds=ROUNDS, models=len(models),
                 holdout_median_error=round(float(ape.median()), 4), holdout_mean_error=round(float(ape.mean()), 4))
     (ROOT / "models/lgbm_prod.json").write_text(json.dumps(meta, indent=2))
-    print("saved models/lgbm_prod.txt", meta)
+    print("saved models/lgbm_prod_*.txt", meta)
 
 
 if __name__ == "__main__":

@@ -1,20 +1,18 @@
-"""Step 5, stage B: resale-value forecast for one HDB flat.
+"""Step 5: resale-value forecast for one HDB flat, calibrated by backtesting.
 
-value(h) = V0 x exp(g x h) x lease ratio
+central(h) = V0 x exp(g x h) x exp(w x lease effect) x exp(median backtest error at h)
 
-  V0           today's price from the LightGBM refit model (models/lgbm_refit.txt)
-  g            a market growth SCENARIO per year (0% stress, 2% recent regime, 4% long-run).
-               Nobody can forecast 20-year market growth: 10-year windows since 1990
-               ranged from about +1% to +11% a year depending on the period, so we show
-               scenarios instead of pretending to a probability.
-  lease ratio  value at the lease left in h years / value at the lease left now, from the
-               distance-from-CBD band's lease-decay curve (fitted on 2016+ sales).
-               A backtest (src/backtest.py) found the curve overstates value loss (slope ~0.2, 1.0 = right),
-               so it is applied at 0%, 50% and 100% strength. No distance-from-CBD split: not validated.
+  V0           today's price from the production model (average of 3 LightGBM models)
+  g            annual log growth: 4% nudged against recent growth (g = ln1.04 + k x (trailing 5y - ln1.04),
+               k = -0.25 chosen by backtest: markets mean-revert, so extrapolating momentum fails badly)
+  lease effect log value change from the pooled lease-decay curve (fitted on 2016+ sales), applied at weight w
+  band         10th to 90th percentile of the errors this method made on block-level prices from
+               start years 1998-2016, widened until it covered ~80% of outcomes on start years left out
+               (src/backtest_forecast.py -> data/processed/forecast_calibration.json), combined in
+               quadrature with the model's own error on today's price.
 
-The low / high band is only the model's error on today's price (10th and 90th percentile of
-actual / predicted on the 2026 test months). It does not widen with the horizon.
-It is a rough guide, not a guarantee: see PLAN.md for the caveats.
+No projection is shown where the lease would fall under 50 years: the backtests only cover flats that stay above
+about that, so any number there would have no evidence behind it.
 
 Run `python src/forecast.py` for a demo on real recent sales.
 """
@@ -31,10 +29,8 @@ PROC = ROOT / "data/processed"
 CATS = ["flat_type", "town", "flat_model"]
 FEATS = CATS + ["floor_area_sqm", "storey_mid", "remaining_lease_years", "lat", "lon", "dist_mrt",
                 "n_mrt_exits_500m", "dist_hawker", "dist_primary_school", "n_primary_1km", "n_primary_2km",
-                "dist_cbd", "month_idx"]
-SCENARIOS = {"stress 0%/yr": 0.00, "recent 2%/yr": 0.02, "long-run 4%/yr": 0.04}
-LEASE_STRENGTH = {"no decay": 0.0, "half curve": 0.5, "full curve": 1.0}
-EXTRAPOLATED_BELOW = 45  # years of lease: below this the data is too thin to trust the curve
+                "dist_cbd", "month_idx", "lease_commence_date", "sale_month", "storey_low", "storey_high"]
+NO_PROJECTION_BELOW = 50  # years of lease: the backtests only cover flats that stay above about 50 years
 
 
 def region_of(dist_cbd_m):
@@ -58,24 +54,31 @@ def lease_value():
     return f
 
 
-def model_error_band():
-    """(q10, q90) of log(actual / predicted) for the model on the 2026 test months."""
-    prod = ROOT / "reports/prod_holdout_predictions.csv"
-    r = pd.read_csv(prod if prod.exists() else ROOT / "reports/lgbm_refit_test_predictions.csv")
+def model_error_band(lo_q=0.10, hi_q=0.90):
+    """(lo, hi) quantiles of log(actual / predicted) for today's price, from the production holdout."""
+    r = pd.read_csv(ROOT / "reports/prod_holdout_predictions.csv")
     e = np.log(r["resale_price"] / r["pred"])
-    return float(e.quantile(0.10)), float(e.quantile(0.90))
+    return float(e.quantile(lo_q)), float(e.quantile(hi_q))
+
+
+@functools.lru_cache(maxsize=1)
+def load_models():
+    files = sorted((ROOT / "models").glob("lgbm_prod_*.txt"))
+    if not files:
+        raise FileNotFoundError("no production model found; run python src/update.py")
+    return [lgb.Booster(model_file=str(f)) for f in files]
 
 
 def price_today(spec, row, when):
-    prod = ROOT / "models/lgbm_prod.txt"
-    booster = lgb.Booster(model_file=str(prod if prod.exists() else ROOT / "models/lgbm_refit.txt"))
     x = pd.DataFrame([{**{k: row[k] for k in FEATS if k in row}, **spec}])
     x["remaining_lease_years"] = 99 - (when - spec["lease_commence_date"])
     x["month_idx"] = round((when - 2017) * 12)  # same convention as training: year + (month-1)/12
-    x["storey_mid"] = spec["storey_mid"]
+    x["sale_month"] = round((when % 1) * 12) + 1
+    x["storey_low"], x["storey_high"] = spec["storey_mid"] - 1, spec["storey_mid"] + 1  # ranges are 3 storeys wide
     for c in CATS:
         x[c] = x[c].astype("category")
-    return float(np.exp(booster.predict(x[FEATS])[0])), float(x.loc[0, "remaining_lease_years"])
+    price = float(np.exp(np.mean([b.predict(x[FEATS])[0] for b in load_models()])))
+    return price, float(x.loc[0, "remaining_lease_years"])
 
 
 @functools.lru_cache(maxsize=1)
@@ -95,6 +98,48 @@ def default_when():
     return 2026 + 9 / 12  # Oct 2026, the refit model's last month
 
 
+@functools.lru_cache(maxsize=1)
+def calibration():
+    return json.loads((PROC / "forecast_calibration.json").read_text())
+
+
+@functools.lru_cache(maxsize=1)
+def monthly_prices():
+    d = pd.read_parquet(PROC / "resale_features.parquet", columns=["sale_year", "sale_month", "price_per_sqm"])
+    d["m"] = d["sale_year"] * 12 + d["sale_month"] - 1
+    return d[["m", "price_per_sqm"]]
+
+
+def growth_now(when):
+    """Annual log growth to assume: ln(1+base) nudged by k x (trailing 5y growth - ln(1+base))."""
+    cal = calibration()
+    end = int(round(when * 12)) + 0  # month number of the valuation month, year*12 + (month-1)
+    d = monthly_prices()
+    p1 = d.loc[(d["m"] > end - 12) & (d["m"] <= end), "price_per_sqm"].median()
+    p0 = d.loc[(d["m"] > end - 72) & (d["m"] <= end - 60), "price_per_sqm"].median()
+    trailing = float(np.log(p1 / p0) / 5)
+    base = np.log1p(cal["base_growth"])
+    return base + (cal["damping"] or 0.0) * (trailing - base), trailing
+
+
+def band_for(h):
+    """Smoothed calibration for horizon h: (80% down, bias shift, 80% up, 50% down, 50% up), all in log units.
+
+    The backtest has only 5 to 10 start years per horizon, so raw bands are erratic (a 5-year band can be
+    wider than a 10-year band). Two smoothing rules: a band is never narrower than the bands of shorter
+    horizons, and the bias shift is one pooled value (mean over horizons of 5+ years), not one per horizon."""
+    bands = calibration()["bands"]
+    down = up = down50 = up50 = 0.0
+    for k in sorted(bands, key=int):
+        if int(k) <= h:
+            down = max(down, bands[k]["q50"] - bands[k]["q10"])
+            up = max(up, bands[k]["q90"] - bands[k]["q50"])
+            down50 = max(down50, bands[k]["q50"] - bands[k]["l25"])
+            up50 = max(up50, bands[k]["l75"] - bands[k]["q50"])
+    long = [bands[k]["q50"] for k in bands if int(k) >= 5]
+    return down, float(np.mean(long)), up, down50, up50
+
+
 def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
     when = default_when() if when is None else when
     feats = block_table()
@@ -103,7 +148,10 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
         raise ValueError("block not found (demolished or never geocoded)")
     v0, lease0 = price_today(spec, hit.iloc[0].to_dict(), when)
     f = lease_value()
-    q10, q90 = model_error_band()
+    cal = calibration()
+    g, trailing = growth_now(when)
+    m10, m90 = model_error_band()  # log errors of today's price
+    m25, m75 = model_error_band(0.25, 0.75)
 
     out = []
     for h in horizons:
@@ -111,30 +159,37 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
         if L_h <= 0:
             out.append({"years": h, "lease_left": round(L_h, 1), "note": "lease ends before this horizon"})
             continue
-        lr = float(f(L_h) - f(lease0))  # log value change from the lease alone, full curve
-        grid = {(g_name, l_name): v0 * np.exp(w * lr) * np.exp(g * h)
-                for g_name, g in SCENARIOS.items() for l_name, w in LEASE_STRENGTH.items()}
-        out.append({"years": h, "lease_left": round(L_h, 1), "lease_full": np.exp(lr) - 1, "grid": grid,
-                    "note": "extrapolated lease curve" if L_h < EXTRAPOLATED_BELOW else ""})
-    return {"v0": v0, "lease_now": lease0, "band": (np.exp(q10) - 1, np.exp(q90) - 1), "rows": out}
+        if L_h < NO_PROJECTION_BELOW:
+            out.append({"years": h, "lease_left": round(L_h, 1),
+                        "note": f"not projected: lease would be under {NO_PROJECTION_BELOW} years"})
+            continue
+        lease_log = float(f(L_h) - f(lease0))
+        down, shift, up, down50, up50 = band_for(h)
+        centre = np.log(v0) + g * h + cal["lease_weight"] * lease_log + shift
+        lo = np.hypot(down, m10)  # the two error sources are treated as independent
+        hi = np.hypot(up, m90)
+        out.append({"years": h, "lease_left": round(L_h, 1), "central": float(np.exp(centre)),
+                    "low": float(np.exp(centre - lo)), "high": float(np.exp(centre + hi)),
+                    "likely_low": float(np.exp(centre - np.hypot(down50, m25))),
+                    "likely_high": float(np.exp(centre + np.hypot(up50, m75))),
+                    "note": ""})
+    return {"v0": v0, "lease_now": lease0, "band": (np.exp(m10) - 1, np.exp(m90) - 1),
+            "growth": g, "trailing": trailing, "rows": out}
 
 
 def show(res):
     lo, hi = res["band"]
-    print(f"Model value today: ${res['v0']:,.0f} (typical error {lo:+.1%} to {hi:+.1%}) | lease left: {res['lease_now']:.1f} yrs")
-    print("WARNING: the lease effect is NOT validated. A backtest (src/backtest.py) found the fitted curve overstates")
-    print("         value loss (calibration slope about 0.2, where 1.0 = correct), so it is applied at 0%, 50%, 100%.")
-    print("low = flat market + full lease curve | central = 2%/yr + half the curve | high = 4%/yr + no lease decay")
+    print(f"Model value today: ${res['v0']:,.0f} (typical error {lo:+.1%} to {hi:+.1%}) | lease left: {res['lease_now']:.1f} yrs"
+          f" | assumed growth {np.expm1(res['growth']):+.1%}/yr (recent 5y: {np.expm1(res['trailing']):+.1%}/yr)")
+    print("Likely = 50% range, wide = 80% range; both from back-tests of this method on 1998-2016 start years.")
     print()
-    print(f"{'years':>5} {'lease':>6} {'full-curve effect':>18} {'low':>11} {'central':>11} {'high':>11}  note")
+    print(f"{'years':>5} {'lease':>6} {'wide low':>11} {'likely low':>11} {'central':>11} {'likely high':>12} {'wide high':>11}  note")
     for r in res["rows"]:
-        if "grid" not in r:
+        if "central" not in r:
             print(f"{r['years']:>5} {r['lease_left']:>6}  {r['note']}")
             continue
-        g = r["grid"]
-        print(f"{r['years']:>5} {r['lease_left']:>6.1f} {r['lease_full']:>+18.0%} "
-              f"{g[('stress 0%/yr', 'full curve')]:>11,.0f} {g[('recent 2%/yr', 'half curve')]:>11,.0f} "
-              f"{g[('long-run 4%/yr', 'no decay')]:>11,.0f}  {r['note']}")
+        print(f"{r['years']:>5} {r['lease_left']:>6.1f} {r['low']:>11,.0f} {r['likely_low']:>11,.0f} {r['central']:>11,.0f} "
+              f"{r['likely_high']:>12,.0f} {r['high']:>11,.0f}  {r['note']}")
 
 
 if __name__ == "__main__":

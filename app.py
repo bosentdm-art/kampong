@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -93,23 +94,23 @@ else:
         hide_index=True, use_container_width=True,
         column_config={"Price ($)": st.column_config.NumberColumn(format="dollar")})
 
-with st.expander("What could it be worth later? (scenarios, not predictions)"):
-    st.warning("Nobody can predict 20 years of market movement, and the lease-decay effect could not be confirmed in "
-               "back-testing: the fitted curve overstated value loss, so it is applied at 0%, 50% and 100% strength.")
-    rows = []
-    for r in res["rows"]:
-        if "grid" not in r:
-            rows.append({"In years": r["years"], "Lease left": r["lease_left"], "Note": r["note"]})
-            continue
-        g = r["grid"]
-        rows.append({"In years": r["years"], "Lease left": r["lease_left"],
-                     "Lease effect, full curve": f"{r['lease_full']:+.0%}",
-                     "Low ($)": f"{g[('stress 0%/yr', 'full curve')]:,.0f}",
-                     "Central ($)": f"{g[('recent 2%/yr', 'half curve')]:,.0f}",
-                     "High ($)": f"{g[('long-run 4%/yr', 'no decay')]:,.0f}",
-                     "Note": r["note"]})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-    st.caption("Low = flat market and the full lease curve. Central = 2% a year growth and half the curve. "
-               "High = 4% a year growth and no lease decay. Years with under 45 years of lease left use an extrapolated curve.")
+st.subheader("Projected value")
 
-st.caption("Not a valuation for loans, sales or legal purposes. Estimates come from public HDB transaction data.")
+
+def short(x):
+    return f"${x / 1e6:.2f}m" if x >= 1e6 else f"${x / 1e3:,.0f}k"
+
+
+rows = []
+for r in res["rows"]:
+    if "central" not in r:
+        rows.append({"In years": r["years"], "Lease left (yrs)": r["lease_left"], "Note": r["note"]})
+        continue
+    rows.append({"In years": r["years"], "Lease left (yrs)": r["lease_left"], "Central": short(r["central"]),
+                 "Likely range": f"{short(r['likely_low'])} - {short(r['likely_high'])}",
+                 "Wide range": f"{short(r['low'])} - {short(r['high'])}", "Note": r["note"]})
+st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+st.caption(f"Projections, not guarantees. Assumes about {np.expm1(res['growth']):.1%} a year market growth plus lease decay. "
+           "Likely range = 50% and wide range = 80% of outcomes in back-tests of this method on past start years. "
+           "No figure is shown where the lease would fall under 50 years, which the back-tests do not cover. "
+           "Not a valuation for loans, sales or legal purposes. Based on public HDB transaction data.")
