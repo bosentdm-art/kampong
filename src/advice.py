@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 import forecast as fc
+import listing_parser as lp
 import range_model as rm
 from geocode_blocks import ROOT
 
@@ -76,7 +77,12 @@ def assess(spec, asking=None, when=None):
     if len(b) >= 5:
         usual = float(b["floor_area_sqm"].median())
         if abs(np.log(spec["floor_area_sqm"] / usual)) > 0.10:
-            notes.append(f"Size ({spec['floor_area_sqm']:.0f} sqm) differs from this block's usual {usual:.0f} sqm for this flat type.")
+            allb = lp.blocks()
+            same = allb[(allb["block"] == spec["block"]) & (allb["street_name"] == spec["street_name"]) &
+                        (allb["flat_type"] == spec["flat_type"]) & ((allb["floor_area_sqm"] - spec["floor_area_sqm"]).abs() <= 1)]
+            seen = f" ({len(same)} recorded sales at about this size)" if len(same) else ""
+            notes.append(f"Less common size here: {spec['floor_area_sqm']:.0f} sqm{seen}, against the usual {usual:.0f} sqm, "
+                         "so there are fewer direct comparisons.")
     if not np.isnan(comps) and abs(np.log(comps / fair)) > 0.08:
         notes.append(f"Recent sales in this block point to about {money(comps)}, {comps / fair - 1:+.0%} from our fair value.")
 
@@ -92,6 +98,38 @@ def assess(spec, asking=None, when=None):
         pct = float(np.interp(r, qs, meta["quantiles"]))
         beyond = "below" if r < qs[0] else "above" if r > qs[-1] else None
         out["asking"] = dict(price=asking, vs_fair=asking / fair - 1, percentile=pct, beyond=beyond, **deal_label(pct, beyond, badge))
+    return out
+
+
+def input_checks(spec):
+    """Compare the entered size, lease start and floor with HDB's records for this block.
+
+    Returns a list of dicts: field, message, and for size the block's usual area (`usual`) so the caller can show
+    what the fair value would be at that size. Wrong inputs are the easiest way to get a wrong verdict."""
+    out = []
+    allb = lp.blocks()
+    b = allb[(allb["block"] == spec["block"]) & (allb["street_name"] == spec["street_name"])]
+    bt = b[b["flat_type"] == spec["flat_type"]]
+    if bt.empty:
+        out.append(dict(field="flat_type", message=f"HDB records show no sales of {spec['flat_type']} flats in this block."))
+    else:
+        lo, hi, usual = bt["floor_area_sqm"].min(), bt["floor_area_sqm"].max(), float(bt["floor_area_sqm"].median())
+        area = spec["floor_area_sqm"]
+        if area < lo - 1 or area > hi + 1:
+            seen = f"{lo:.0f} sqm" if lo == hi else f"{lo:.0f} to {hi:.0f} sqm"
+            out.append(dict(field="floor_area_sqm", usual=usual,
+                            message=f"{spec['flat_type'].title()} flats in this block are {seen} in HDB records; you entered {area:.0f} sqm. "
+                                    "Check the HDB-registered floor area: listings sometimes include extensions or round differently."))
+    leases = sorted(int(x) for x in b["lease_commence_date"].unique())
+    if leases and spec["lease_commence_date"] not in leases:
+        out.append(dict(field="lease_commence_date",
+                        message=f"HDB records give this block's lease start as {', '.join(map(str, leases))}; you entered {spec['lease_commence_date']}."))
+    h = sales_history()
+    hb = h[(h["block"] == spec["block"]) & (h["street_name"] == spec["street_name"])]
+    if len(hb):
+        top = max(int(r.split(" TO ")[1]) for r in hb["storey_range"].unique() if " TO " in r)
+        if spec["storey_mid"] - 1 > top:
+            out.append(dict(field="storey_mid", message=f"No sale in this block since 2017 was above storey {top}; check the floor you entered."))
     return out
 
 

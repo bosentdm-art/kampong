@@ -71,7 +71,8 @@ def main():
         rec.update(flat=f"blk {spec['block']} {spec['street_name']}, {spec['flat_type']} {spec['flat_model']}, "
                         f"{spec['floor_area_sqm']:.0f} sqm, storey ~{spec['storey_mid']:.0f}, lease {spec['lease_commence_date']}",
                    fair=round(a["fair"]), lo50=round(a["lo50"]), hi50=round(a["hi50"]), lo80=round(a["lo80"]), hi80=round(a["hi80"]),
-                   reliability=a["badge"], notes=" | ".join(a["notes"]))
+                   reliability=a["badge"], notes=" | ".join(a["notes"]),
+                   input_checks=" | ".join(c["message"] for c in adv.input_checks(spec)))
         if "asking" in a:
             rec.update(asking=round(asking), verdict=a["asking"]["verdict"], vs_fair=round(a["asking"]["vs_fair"], 4),
                        walk_away=round(a["offer"]["walk_away"]))

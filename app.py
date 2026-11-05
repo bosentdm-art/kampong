@@ -98,8 +98,16 @@ except (ValueError, FileNotFoundError) as e:
     st.stop()
 
 v0 = res["v0"]
+checks = adv.input_checks(spec)
 usd = lambda x: f"\\${x:,.0f}"  # a bare $ pair is read as maths by Streamlit's markdown
 st.divider()
+for c in checks:
+    msg = c["message"]
+    if c["field"] == "floor_area_sqm":
+        alt = adv.assess({**spec, "floor_area_sqm": c["usual"]}, asking=asking or None)
+        msg += f" At {c['usual']:.0f} sqm our fair value would be ${alt['fair']:,.0f}"
+        msg += (f", and this asking price would read {alt['asking']['verdict']}." if "asking" in alt else ".")
+    st.warning("Check your input: " + msg.replace("$", chr(92) + "$"))
 # (word colour, background, side bar): bright green, green, yellow, orange, red.
 # Yellow words are hard to read on a light background, so FAIR PRICE uses a yellow bar and tint with a dark gold word.
 TONES = {"great": ("#0f9d3a", "#dcfce7", "#22c55e"), "good": ("#166534", "#ecf7ee", "#15803d"),
@@ -138,7 +146,7 @@ else:
     t = recent.head(12).assign(Month=lambda x: x["sale_date"].dt.strftime("%Y-%m"))
     st.dataframe(t[["Month", "storey_range", "floor_area_sqm", "flat_model", "resale_price"]].rename(columns={
         "storey_range": "Storey", "floor_area_sqm": "Area (sqm)", "flat_model": "Model", "resale_price": "Price ($)"}),
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
         column_config={"Price ($)": st.column_config.NumberColumn(format="dollar")})
 
 def short(x):
@@ -176,7 +184,7 @@ with st.expander("Longer horizons (10, 15 and 20 years)"):
             rows.append({"In years": h, "Lease left (yrs)": r["lease_left"], "Central": short(r["central"]),
                          "Likely range": f"{short(r['likely_low'])} - {short(r['likely_high'])}",
                          "Wide range": f"{short(r['low'])} - {short(r['high'])}", "Note": ""})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     st.caption("These rest on fewer past start years, so they are the least reliable figures here.")
 
 if own:
