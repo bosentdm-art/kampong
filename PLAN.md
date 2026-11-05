@@ -184,3 +184,16 @@ realestateai/
 - Why: ~10 independent start years cannot support extra predictors. The wide ranges are
   real market-wide uncertainty, not a modelling gap. Realistic levers: show 3-5 year
   outlook more prominently, offer user-set growth scenarios, or accept the ranges.
+
+## App layout and growth slider (2026-11)
+- Outlook leads with 3 and 5 years (central, likely 50% range, wide 80% range); 10/15/20 years
+  sit behind "Longer horizons" with a note that they rest on fewer past start years.
+- Optional "Use my own market growth assumption" slider (0-8% a year, starts at the model's
+  effective rate). Custom mode = scenario: no calibrated bias shift, ranges keep the back-test
+  spread around the user's number, and the caption says so.
+- Consistency check: the default includes a small calibrated level correction (~-5%), which
+  first made a 2% user setting give a HIGHER 3-year value than the 3.5% default. Fixed by
+  starting the slider at the model's effective growth (growth + shift/5 = 2.4%), so a user
+  value equal to it reproduces the default 5-year central exactly; higher growth now always
+  gives a higher value at every horizon.
+- Streamlit reads a bare $...$ pair as maths: dollar signs in markdown text are escaped.

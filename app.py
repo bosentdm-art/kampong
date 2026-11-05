@@ -67,7 +67,7 @@ low, high = [int(x) for x in re.findall(r"\d+", storey)]
 spec = dict(flat_type=flat_type, town=town, flat_model=flat_model, block=block, street_name=street,
             floor_area_sqm=float(area), storey_mid=(low + high) / 2, lease_commence_date=int(lease_year))
 try:
-    res = fc.forecast(spec)
+    res = fc.forecast(spec, horizons=(3, 5, 10, 15, 20))
 except ValueError as e:
     st.error(str(e))
     st.stop()
@@ -94,23 +94,49 @@ else:
         hide_index=True, use_container_width=True,
         column_config={"Price ($)": st.column_config.NumberColumn(format="dollar")})
 
-st.subheader("Projected value")
-
-
 def short(x):
     return f"${x / 1e6:.2f}m" if x >= 1e6 else f"${x / 1e3:,.0f}k"
 
 
-rows = []
-for r in res["rows"]:
-    if "central" not in r:
-        rows.append({"In years": r["years"], "Lease left (yrs)": r["lease_left"], "Note": r["note"]})
-        continue
-    rows.append({"In years": r["years"], "Lease left (yrs)": r["lease_left"], "Central": short(r["central"]),
-                 "Likely range": f"{short(r['likely_low'])} - {short(r['likely_high'])}",
-                 "Wide range": f"{short(r['low'])} - {short(r['high'])}", "Note": r["note"]})
-st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
-st.caption(f"Projections, not guarantees. Assumes about {np.expm1(res['growth']):.1%} a year market growth plus lease decay. "
-           "Likely range = 50% and wide range = 80% of outcomes in back-tests of this method on past start years. "
-           "No figure is shown where the lease would fall under 50 years, which the back-tests do not cover. "
+st.subheader("Outlook")
+default_rate = float(np.expm1(res["growth_effective"]))
+own = st.checkbox("Use my own market growth assumption", value=False,
+                  help="Replaces the model's assumption. Ranges keep the same spread as in back-tests, around your number.")
+if own:
+    rate = st.slider("Market growth per year (%)", 0.0, 8.0, float(np.clip(round(default_rate * 400) / 4, 0.0, 8.0)), 0.25) / 100
+    res = fc.forecast(spec, horizons=(3, 5, 10, 15, 20), growth=rate)
+
+by_h = {r["years"]: r for r in res["rows"]}
+for col, h in zip(st.columns(2), (3, 5)):
+    r = by_h[h]
+    with col:
+        st.markdown(f"**In {h} years**")
+        if "central" not in r:
+            st.write(f"Not projected: {r['note'].replace('not projected: ', '')}.")
+            continue
+        st.metric("Central", short(r["central"]), f"{r['central'] / v0 - 1:+.0%} vs today", delta_color="off")
+        md = lambda x: short(x).replace("$", chr(92) + "$")  # a bare $ pair is read as maths by Streamlit's markdown
+        st.write(f"Likely range: {md(r['likely_low'])} - {md(r['likely_high'])}")
+        st.write(f"Wide range: {md(r['low'])} - {md(r['high'])}")
+
+with st.expander("Longer horizons (10, 15 and 20 years)"):
+    rows = []
+    for h in (10, 15, 20):
+        r = by_h[h]
+        if "central" not in r:
+            rows.append({"In years": h, "Lease left (yrs)": r["lease_left"], "Note": r["note"]})
+        else:
+            rows.append({"In years": h, "Lease left (yrs)": r["lease_left"], "Central": short(r["central"]),
+                         "Likely range": f"{short(r['likely_low'])} - {short(r['likely_high'])}",
+                         "Wide range": f"{short(r['low'])} - {short(r['high'])}", "Note": ""})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.caption("These rest on fewer past start years, so they are the least reliable figures here.")
+
+if own:
+    st.caption(f"Your scenario: {rate:.2%} a year market growth plus lease decay. Ranges show the usual spread from back-tests "
+               "around your number, not a prediction of your assumption. ")
+else:
+    st.caption(f"Projections, not guarantees. The model's central case works out to about {default_rate:.1%} a year market growth plus "
+               "lease decay. Likely range = 50% and wide range = 80% of outcomes in back-tests on past start years.")
+st.caption("No figure is shown where the lease would fall under 50 years, which the back-tests do not cover. "
            "Not a valuation for loans, sales or legal purposes. Based on public HDB transaction data.")

@@ -140,7 +140,7 @@ def band_for(h):
     return down, float(np.mean(long)), up, down50, up50
 
 
-def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
+def forecast(spec, when=None, horizons=(5, 10, 15, 20), growth=None):
     when = default_when() if when is None else when
     feats = block_table()
     hit = feats[(feats["block"] == spec["block"]) & (feats["street_name"] == spec["street_name"])]
@@ -150,6 +150,9 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
     f = lease_value()
     cal = calibration()
     g, trailing = growth_now(when)
+    custom = growth is not None  # user-set annual growth rate (e.g. 0.035): a scenario, so no bias shift is applied
+    if custom:
+        g = float(np.log1p(growth))
     m10, m90 = model_error_band()  # log errors of today's price
     m25, m75 = model_error_band(0.25, 0.75)
 
@@ -165,7 +168,7 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
             continue
         lease_log = float(f(L_h) - f(lease0))
         down, shift, up, down50, up50 = band_for(h)
-        centre = np.log(v0) + g * h + cal["lease_weight"] * lease_log + shift
+        centre = np.log(v0) + g * h + cal["lease_weight"] * lease_log + (0.0 if custom else shift)
         lo = np.hypot(down, m10)  # the two error sources are treated as independent
         hi = np.hypot(up, m90)
         out.append({"years": h, "lease_left": round(L_h, 1), "central": float(np.exp(centre)),
@@ -174,7 +177,11 @@ def forecast(spec, when=None, horizons=(5, 10, 15, 20)):
                     "likely_high": float(np.exp(centre + np.hypot(up50, m75))),
                     "note": ""})
     return {"v0": v0, "lease_now": lease0, "band": (np.exp(m10) - 1, np.exp(m90) - 1),
-            "growth": g, "trailing": trailing, "rows": out}
+            "growth": g, "trailing": trailing, "custom": custom,
+            # the default's central case includes a small calibrated level correction; this is the growth rate that
+            # reproduces it at 5 years, so a user-set growth equal to it gives (about) the same 5-year central value
+            "growth_effective": g if custom else g + band_for(5)[1] / 5,
+            "rows": out}
 
 
 def show(res):
