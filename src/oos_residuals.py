@@ -21,7 +21,7 @@ from train_production import FEATS, HALF_LIFE_MONTHS, PARAMS, latest_complete_mo
 START = pd.Timestamp("2021-01-01")
 CHUNK_MONTHS = 4
 OUT = ROOT / "data/processed/oos"
-KEEP = ["sale_date", "resale_price", "pred", "floor_area_sqm", "storey_mid", "remaining_lease_years", "lease_commence_date",
+KEEP = ["sale_date", "block", "street_name", "resale_price", "pred", "floor_area_sqm", "storey_mid", "remaining_lease_years", "lease_commence_date",
         "dist_cbd", "dist_mrt", "n_block_24m", "comps_est", "n_block_12m", "flat_type", "town", "flat_model"]
 
 

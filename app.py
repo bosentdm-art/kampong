@@ -15,6 +15,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 import advice as adv  # noqa: E402
+import explain as ex  # noqa: E402
 import forecast as fc  # noqa: E402
 import listing_parser as lp  # noqa: E402
 
@@ -99,6 +100,8 @@ except (ValueError, FileNotFoundError) as e:
 
 v0 = res["v0"]
 checks = adv.input_checks(spec)
+base, effects, _ = ex.drivers(spec)
+what_ifs = ex.what_if(spec)
 usd = lambda x: f"\\${x:,.0f}"  # a bare $ pair is read as maths by Streamlit's markdown
 st.divider()
 for c in checks:
@@ -120,6 +123,14 @@ if "asking" in a:
                 f"<div style='font-size:52px;font-weight:800;letter-spacing:1px;color:{fg};line-height:1.05'>{k_['verdict']}</div>"
                 f"<div style='font-size:19px;margin-top:8px;color:#1f2328'>{k_['headline']} Asking &#36;{k_['price']:,.0f} is "
                 f"<b>{k_['vs_fair']:+.1%}</b> versus our fair value of &#36;{a['fair']:,.0f}.</div></div>", unsafe_allow_html=True)
+NOUN = {"Location and surroundings": "its location", "Lease and age": "its lease and age", "Size": "its size",
+        "Floor level": "its floor", "Flat type and model": "its flat type and model"}
+top = sorted(effects.items(), key=lambda kv: -abs(kv[1]))[:2]
+said = " and ".join(f"{NOUN[g]} {'adds' if e >= 0 else 'takes off'} {abs(e):.0%}" for g, e in top)
+first = (f"**{a['asking']['verdict']}**: the asking price is {a['asking']['vs_fair']:+.0%} versus our fair value of {usd(a['fair'])}."
+         if "asking" in a else f"Our fair value is **{usd(a['fair'])}**.")
+st.info(f"**In short.** {first} Compared with the average HDB resale flat today ({usd(base)}), {said}. "
+        f"Confidence in this estimate: **{a['badge']}**.")
 st.subheader("Fair value today")
 col_a, col_b = st.columns([3, 2])
 col_a.metric("Fair value", f"${a['fair']:,.0f}")
@@ -131,6 +142,13 @@ for n in a["notes"]:
     st.write("- " + n.replace("$", chr(92) + "$"))
 st.caption("Reliability reflects how closely estimates for similar flats matched real sales in back-tests. "
            "The estimate cannot see renovation, the exact floor, view or condition.")
+
+st.subheader("Why this price")
+st.write(f"Starting from the average HDB resale flat today ({usd(base)}), the model adjusts for this flat:")
+drv = pd.DataFrame([{"Factor": g, "Effect on price": f"{e:+.1%}"} for g, e in sorted(effects.items(), key=lambda kv: -abs(kv[1]))])
+st.dataframe(drv, hide_index=True, width="stretch")
+st.write("What if: " + ";  ".join(f"{k} **{v:+.1%}**" for k, v in what_ifs.items()))
+st.caption("These are patterns the model learned from past sales, not guarantees. The effects multiply together to give the fair value.")
 
 if "asking" in a:
     o = a["offer"]

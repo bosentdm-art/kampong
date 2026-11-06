@@ -232,3 +232,15 @@ realestateai/
   banner in the app; paste-a-listing box fills in the flat's details.
 - Test listing (85 Whampoa Dr, $420k, 76 sqm): LIKELY PRICEY at mid floor (+8.6%), LIKELY
   OVERPRICED if the HDB area is 65 sqm (+21%).
+
+## Adjusted comparables (tested, not adopted) and price explanations (2026-11)
+- `src/experiments_comps.py`: blend each flat's estimate with what its block's recent sales say
+  (model-adjusted comparables = the comps' out-of-sample errors, shrunk by count). Tuned on
+  2023-24, tested on 2025-26 (46,889 sales): model only 2.624% median / 96.2% within 10%;
+  + block comps 2.616% / 95.9%; + same-size comps 2.639% / 95.8%. No real gain: the model
+  already captures block effects. Not adopted. (Walk-forward files now keep block and street.)
+- App: "In short" summary under the verdict (verdict, fair value, two biggest price drivers,
+  confidence) and a "Why this price" section (driver effects vs the average HDB flat today,
+  what-ifs). Size what-ifs are limited to sizes recorded for that flat type in the town.
+  Known quirk: the model's size effect can be lopsided near rare sizes (e.g. 3-room 76 -> 81 sqm
+  +10.5%, 76 -> 71 sqm -3.0%); it is what the model learned, shown as a pattern, not a guarantee.

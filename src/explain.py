@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 import forecast as fc
+import listing_parser as lp
 
 GROUPS = {
     "Location and surroundings": ["lat", "lon", "town", "dist_mrt", "n_mrt_exits_500m", "dist_hawker", "dist_primary_school",
@@ -42,8 +43,15 @@ def what_if(spec, when=None):
     row = fc.block_table().query("block == @spec['block'] and street_name == @spec['street_name']").iloc[0].to_dict()
     v0 = fc.price_today(spec, row, when)[0]
     cases = {"3 storeys higher": dict(storey_mid=spec["storey_mid"] + 3), "3 storeys lower": dict(storey_mid=max(spec["storey_mid"] - 3, 2)),
-             "10 sqm larger": dict(floor_area_sqm=spec["floor_area_sqm"] + 10), "10 years newer lease": dict(lease_commence_date=spec["lease_commence_date"] + 10)}
-    return {k: fc.price_today({**spec, **v}, row, when)[0] / v0 - 1 for k, v in cases.items()}
+             "5 sqm larger": dict(floor_area_sqm=spec["floor_area_sqm"] + 5), "5 sqm smaller": dict(floor_area_sqm=spec["floor_area_sqm"] - 5),
+             "10 years newer lease": dict(lease_commence_date=spec["lease_commence_date"] + 10)}
+    # only show a size change that stays within sizes recorded for this flat type in this town (otherwise it is extrapolation)
+    allb = lp.blocks()
+    sizes = allb[(allb["town"] == spec["town"]) & (allb["flat_type"] == spec["flat_type"])]["floor_area_sqm"]
+    ok = lambda v: "floor_area_sqm" not in v or (len(sizes) and sizes.min() <= v["floor_area_sqm"] <= sizes.max())
+    if spec["storey_mid"] <= 2:
+        cases.pop("3 storeys lower")
+    return {k: fc.price_today({**spec, **v}, row, when)[0] / v0 - 1 for k, v in cases.items() if ok(v)}
 
 
 if __name__ == "__main__":
