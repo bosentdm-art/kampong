@@ -49,7 +49,7 @@
   .panel > .hd { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:4px 10px; }
   .panel > .bd { padding:12px; }
   label { display:block; }
-  select, input[type=number], textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:6px 8px; border-radius:0; }
+  select, input[type=number], input[type=text], textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:6px 8px; border-radius:0; }
   textarea { resize:vertical; min-height:38px; }
   .msg { margin-top:8px; min-height:1.4em; }
 
@@ -93,6 +93,11 @@
   .tabs button { font:inherit; letter-spacing:inherit; text-transform:uppercase; background:none; border:0; color:var(--dim); cursor:pointer; padding:0 18px 0 0; }
   .tabs button.on { color:var(--fg); text-decoration:underline; text-underline-offset:4px; }
   .tabbody { min-height:150px; }
+  .askrow { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:end; margin-top:10px; }
+  .bubble { white-space:pre-wrap; border:1px solid var(--line); background:var(--panel); padding:10px 14px; margin:8px 0; max-width:820px; font-size:16px; }
+  .bubble.you { margin-left:auto; background:var(--bg); color:var(--dim); max-width:520px; }
+  .bubble .src { display:block; margin-top:8px; font-size:12px; color:var(--dim); }
+  #askLog { max-height:300px; overflow:auto; }
   .life-top { display:flex; gap:28px; align-items:center; flex-wrap:wrap; }
   .life-top input { width:96px; margin-top:4px; }
   .life { position:relative; height:18px; margin:30px 0 30px; border:1px solid var(--line); } .life i { position:absolute; left:0; top:0; bottom:0; transition:width .15s; }
@@ -196,7 +201,7 @@
         </section>
         <section class="panel wide">
           <div class="hd cap"><span class="tabs" id="tabs">
-            <button data-tab="options" class="on">Your options</button><button data-tab="life" class="buyer">Will it last you?</button>
+            <button data-tab="options" class="on">Your options</button><button data-tab="ask">Ask Oikos</button><button data-tab="life" class="buyer">Will it last you?</button>
             <button data-tab="sales" class="pro">Recent sales</button><button data-tab="whatif" class="pro">What if</button><button data-tab="why" class="pro">Reliability</button>
             <button data-tab="outlook" class="pro">Outlook</button><button data-tab="trend" class="pro">Trend</button><button data-tab="deals" class="buyer">Bargains nearby</button></span></div>
           <div class="bd tabbody">
@@ -206,6 +211,14 @@
                 <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
               <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div><div class="pro" id="lifeRows"></div>
               <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
+            </div>
+            <div data-pane="ask" hidden>
+              <div id="askLog"><div class="dim" id="askHint">Ask anything about this flat: "Explain my options", "What if I offer $380k?", "Is the lease a problem for me?"</div></div>
+              <div class="askrow">
+                <label><span class="cap dim">Your question</span><input id="askQ" type="text" maxlength="500" placeholder="e.g. What if I offer $380k?"></label>
+                <button class="btn" id="askBtn" type="button">Ask</button><button class="btn ghost" id="explainBtn" type="button">Explain my options</button>
+              </div>
+              <div class="fine" style="margin-top:8px">Written by an AI from the numbers on this page. It can explain and compare; it cannot see renovation, view or the exact floor, and it does not tell you what to buy or sell.</div>
             </div>
             <div data-pane="sales" id="paneSales" hidden></div><div data-pane="whatif" id="paneWhatif" hidden></div><div data-pane="why" id="paneWhy" hidden></div><div data-pane="outlook" id="paneOutlook" hidden></div>
             <div data-pane="trend" hidden><div id="trendText"></div><svg id="trend" viewBox="0 0 700 120" width="100%" style="max-width:720px;margin-top:6px" role="img" aria-label="Price per square metre by year"></svg></div>
@@ -346,6 +359,7 @@ $("newBtn").addEventListener("click", () => { F = null; $("result").hidden = tru
 
 // ---- the result: everything that depends only on the flat
 function show() {
+  askHistory = []; $("askLog").replaceChildren(h("div", { className: "dim", id: "askHint" }, "Ask anything about this flat: \"Explain my options\", \"What if I offer $380k?\", \"Is the lease a problem for me?\""));
   const f = F.flat, fair = F.fair, q = l => qOf(F, l), lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
   const a = $("ask"); a.min = lo; a.max = hi; a.value = Math.min(hi, Math.max(lo, F.price || Math.round(fair / 1000) * 1000));
   $("checks").replaceChildren(...F.checks.map(c => h("div", { className: "warn" }, h("b", {}, "Check your input: "), ...rich(c))));
@@ -472,6 +486,30 @@ function drawTrend(g, text, t, flatType, town) {
   values.forEach((v, i) => { sv("rect", { x: x(i) - 3, y: y(v) - 3, width: 6, height: 6, fill: "var(--panel)", stroke: "var(--fg)" }, g);
     if (i % 2 === 0 || i === last) sv("text", { x: x(i), y: 116, "font-size": 10, "text-anchor": "middle", style: "fill:var(--dim)" }, g).textContent = years[i]; });
 }
+
+// ---- Ask Oikos: a model explains this flat's numbers; the server checks every figure and falls back to rule-based text
+let askHistory = [];
+const REASONS = { no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
+                  too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
+async function askOikos(question) {
+  const btns = [$("askBtn"), $("explainBtn")], log = $("askLog");
+  $("askHint")?.remove(); btns.forEach(b => b.disabled = true);
+  if (question) log.append(h("div", { className: "bubble you" }, question));
+  const wait = h("div", { className: "bubble dim" }, "Thinking..."); log.append(wait); log.scrollTop = log.scrollHeight;
+  try {
+    const f = F.flat, r = await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
+      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: +$("ask").value, role: root.role, age: age(),
+      question: question || null, history: askHistory.slice(-6) });
+    const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
+    wait.replaceWith(h("div", { className: "bubble" }, ...rich(r.text), h("span", { className: "src" },
+      r.source === "model" ? "Written by an AI from this page's numbers. Every figure was checked against them." : "Rule-based answer (" + why + ")")));
+    askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
+  } catch (e) { wait.replaceWith(h("div", { className: "bubble dim" }, "Could not get an answer: " + e.message)); }
+  finally { btns.forEach(b => b.disabled = false); log.scrollTop = log.scrollHeight; }
+}
+$("explainBtn").addEventListener("click", () => askOikos(null));
+$("askBtn").addEventListener("click", () => { const q = $("askQ").value.trim(); if (q) { $("askQ").value = ""; askOikos(q); } });
+$("askQ").addEventListener("keydown", e => { if (e.key === "Enter") $("askBtn").click(); });
 
 // ---- tabs
 function selectTab(name) {

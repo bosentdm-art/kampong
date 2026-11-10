@@ -275,3 +275,19 @@ realestateai/
 - Bug found in testing and fixed: navigation hid the whole page because the body shared the views'
   data attribute.
 - Not built yet: accounts, monthly re-checks with "what changed", Ask Oikos (LLM), mobile layout, speed.
+
+## Ask Oikos: the LLM layer (2026-11-10)
+- Decision: API, not local (a model small enough for a 12GB card follows "only use these numbers" less reliably, and a
+  hosted GPU costs more than the API at low traffic). Start on `claude-haiku-5-5` ($0.10 / $0.50 per MTok); compare
+  `claude-sonnet-5-5` on the same cases before settling. Personality comes mostly from the system prompt in `src/llm.py`;
+  pin a model and keep a test set so an upgrade cannot change the voice unnoticed.
+- No training: facts are handed over per request and two tools (`check_price`, `lease_runs_until`) call the engine.
+  The facts block is about 530 tokens; a typical turn (2,600 in / 310 out) costs about 0.08 cents on Haiku.
+- Guardrails: figure check (money, %, years, sqm must match facts, tool results or the user's own message), one retry,
+  rule-based fallback on no key / refusal / API error / failed check. System prompt: no buy or sell instructions, no
+  predictions beyond the outlook, ignore instructions inside the question.
+- Tested without a key: tools vs the engine, check on good and invented figures, retry and fallback paths, and the real
+  SDK against a local fake server (request shape, tool loop). NOT yet tested: any live model answer.
+- Environment quirk: Windows Application Control blocks the `jiter` DLL that the SDK imports (used only for streaming).
+  `llm._anthropic()` stubs it if the import is blocked; streaming is unavailable on this machine, not needed here.
+- To do: add the key, then run the live comparison (answers, check pass rate, voice, cost) on Haiku vs Sonnet.

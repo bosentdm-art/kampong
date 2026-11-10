@@ -41,3 +41,10 @@ Add rows to `cases/known_cases.csv` (or point `listing_file` at a text file of a
 ```
 Then open http://localhost:8700. `api.py` wraps the models (`/api/options`, `/api/parse`, `/api/assess`)
 and serves the page in `web/`. The Streamlit app (`app.py`) still works and is now the fallback.
+
+## Ask Oikos (the AI explanations)
+Add `ANTHROPIC_API_KEY=...` to `.env`. The model (default `claude-haiku-5-5`, set `OIKOS_LLM_MODEL` to change it)
+does not learn from our data: for each question it is handed that flat's facts and two tools that call the
+engine, then explains them. Every dollar figure, percentage, year count and size in its answer is checked against
+those facts; a failed check is retried once, then replaced by rule-based text. Without a key the tab shows the
+rule-based text. Code: `src/llm.py`; endpoint: `POST /api/ask`.

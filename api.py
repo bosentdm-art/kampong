@@ -30,6 +30,7 @@ import advice as adv  # noqa: E402
 import explain as ex  # noqa: E402
 import forecast as fc  # noqa: E402
 import listing_parser as lp  # noqa: E402
+import llm  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -150,8 +151,11 @@ def trend(town, flat_type):
     return dict(years=t.index.tolist(), values=t["median"].round().tolist(), last_year_through=meta()["trained_through"])
 
 
-@app.post("/api/assess")
-def assess(f: Flat):
+@functools.lru_cache(maxsize=64)
+def facts_for(town, street_name, block, flat_type, flat_model, floor_area_sqm, storey_range, lease_commence_date, price):
+    """All the facts for one flat and price. Cached, so follow-up questions to Ask Oikos do not recompute them."""
+    f = Flat(town=town, street_name=street_name, block=block, flat_type=flat_type, flat_model=flat_model, floor_area_sqm=floor_area_sqm,
+             storey_range=storey_range, lease_commence_date=lease_commence_date, price=price)
     nums = [int(x) for x in re.findall(r"\d+", f.storey_range)]
     if len(nums) < 2:
         raise HTTPException(422, "storey_range must look like '07 TO 09'")
@@ -176,6 +180,34 @@ def assess(f: Flat):
         average_flat=base, drivers=[[g, e] for g, e in effects.items()], what_ifs=[[k, v] for k, v in ex.what_if(spec).items()],
         recent=recent, outlook=[{k: v for k, v in r.items()} for r in out["rows"]], growth=math.expm1(out["growth_effective"]),
         deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta()))
+
+
+
+@app.post("/api/assess")
+def assess(f: Flat):
+    return facts_for(*flat_key(f))
+
+
+def flat_key(f):
+    return (f.town, f.street_name, f.block, f.flat_type, f.flat_model, float(f.floor_area_sqm), f.storey_range, int(f.lease_commence_date), f.price or None)
+
+
+class Ask(Flat):
+    role: str = "buyer"
+    age: float = 35
+    question: str | None = None
+    history: list[dict] | None = None
+
+
+@app.post("/api/ask")
+def ask(a: Ask):
+    """Ask Oikos: a short plain-English explanation of this flat's options, written by a model from the facts."""
+    if a.role not in ("buyer", "seller"):
+        raise HTTPException(422, "role must be buyer or seller")
+    facts = facts_for(*flat_key(a))
+    price = a.price or facts["fair"]
+    out = llm.explain(facts, a.role, a.age, price, a.question, a.history)
+    return clean(out)
 
 
 @app.get("/api/deals")
