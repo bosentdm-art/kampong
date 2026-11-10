@@ -263,3 +263,15 @@ realestateai/
 - To do: speed (/api/assess takes about 3.5s warm, 7s cold: cache per-block lookups); seller tone
   thresholds live only in the front end and buyer ones are duplicated from advice.deal_label; hosting;
   legal review of verdict and guide wording; LLM explanations (see docs/UX_PLAN.md); mobile layout.
+
+## Oikos becomes an application (2026-11-10)
+- `web/index.html` rebuilt as an app shell: fixed left navigation (Check a flat, My flats, Compare, Deals,
+  Market) with role, detail and theme settings; one view at a time in the workspace.
+- Check: a three-step start (you, the flat, the price), then a result that fits one screen at 1440x900
+  with tabs (Your options, Will it last you?, Bargains nearby; Pro adds Recent sales, What if, Reliability,
+  Outlook, Trend). Top bar actions: Save flat, Get the brief (print-ready one-pager), New check.
+- My flats: saved in the browser (no accounts), with status, notes and a Compare tick. Compare: up to
+  three flats side by side. Deals and Market: by town, from new `/api/deals` and `/api/trend`.
+- Bug found in testing and fixed: navigation hid the whole page because the body shared the views'
+  data attribute.
+- Not built yet: accounts, monthly re-checks with "what changed", Ask Oikos (LLM), mobile layout, speed.

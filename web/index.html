@@ -7,203 +7,232 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  /* Labels and numbers use the mono font; anything a person has to READ as a sentence uses the plain one.
-     --hl marks dates and times so they stand out from the surrounding text. */
+  /* Oikos application shell: fixed navigation on the left, one view at a time on the right.
+     Sentences use the plain font, labels and numbers the mono one. .hl marks dates and times, .hm marks figures. */
   :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; }
   [data-theme="light"] { --bg:#f3f3ef; --fg:#0c0d0e; --dim:#5f6468; --line:#0c0d0e; --panel:#ffffff; --accent:#e2401c; --grid:rgba(0,0,0,.045); --pos:#15803d; --neg:#b42318; --hl:#1d4ed8; --hlbg:#e3ebff; --mk:#ffe97a; }
   [data-theme="dark"]  { --bg:#06080a; --fg:#e8eef0; --dim:#8a979d; --line:#2a3840; --panel:#0b1014; --accent:#5ef2d6; --grid:rgba(94,242,214,.05); --pos:#4ade80; --neg:#fb7185; --hl:#7dd3fc; --hlbg:#0f2a3a; --mk:#4a3f00; }
   [data-theme="blue"]  { --bg:#f6f8ff; --fg:#1f3fae; --dim:#5f76c4; --line:#1f3fae; --panel:#ffffff; --accent:#1f3fae; --grid:rgba(31,63,174,.08); --pos:#15803d; --neg:#b42318; --hl:#b45309; --hlbg:#fff1d6; --mk:#dbe4ff; }
   * { box-sizing: border-box; }
-  body { font-variant-numeric:tabular-nums; margin:0; background:var(--bg); color:var(--fg); font-family:var(--disp); font-size:15px; line-height:1.5;
+  html, body { height:100%; }
+  body { margin:0; display:grid; grid-template-columns:232px 1fr; background:var(--bg); color:var(--fg); font-family:var(--disp); font-size:15px; line-height:1.5; font-variant-numeric:tabular-nums;
          background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size:40px 40px; }
-  .frame { max-width:1480px; margin:0 auto; padding:18px 28px 40px; }
   .cap { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:12px; }
   .dim { color:var(--dim); }
-  .hm { font-weight:700; background:var(--mk); padding:0 3px; white-space:nowrap; }
   .hl { color:var(--hl); background:var(--hlbg); font-weight:700; padding:0 5px; white-space:nowrap; }
-  .num, b.num, .kv b, td:last-child { font-family:var(--mono); }
-  header { display:grid; grid-template-columns:1fr auto 1fr; align-items:start; gap:12px; padding-bottom:14px; border-bottom:1px solid var(--line); }
-  .brand { font-weight:700; letter-spacing:.18em; font-size:16px; }
-  .right { text-align:right; }
-  .themes button { font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; background:none; color:var(--dim); border:1px solid var(--line); padding:2px 7px; cursor:pointer; margin-left:4px; }
-  .themes button.on { color:var(--bg); background:var(--fg); border-color:var(--fg); }
-  .role button { font-size:12px; padding:5px 16px; margin:0; }
+  .hm { font-weight:700; background:var(--mk); padding:0 3px; white-space:nowrap; }
+  .fine { font-size:13px; color:var(--dim); }
+  [hidden] { display:none !important; }
+
+  /* navigation */
+  .nav { display:flex; flex-direction:column; gap:18px; padding:18px 16px; border-right:1px solid var(--line); background:var(--panel); height:100vh; position:sticky; top:0; overflow:auto; }
+  .brand { font-weight:700; letter-spacing:.18em; font-size:18px; }
+  #nav { display:grid; gap:4px; }
+  #nav button { font:inherit; font-size:15px; text-align:left; padding:8px 10px; background:none; color:var(--fg); border:1px solid transparent; cursor:pointer; display:flex; justify-content:space-between; }
+  #nav button:hover { border-color:var(--line); }
+  #nav button.on { background:var(--fg); color:var(--bg); font-weight:700; }
+  .navfoot { margin-top:auto; display:grid; gap:6px; }
+  .seg { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+  .seg button { font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; background:none; color:var(--dim); border:1px solid var(--line); padding:3px 8px; cursor:pointer; }
+  .seg button.on { color:var(--bg); background:var(--fg); border-color:var(--fg); }
+  .seg.big button { font-family:var(--disp); font-size:17px; font-weight:700; text-transform:none; letter-spacing:0; padding:12px 16px; flex:1; color:var(--fg); }
+  .seg.big button.on { color:var(--bg); }
+
+  /* workspace */
+  .work { display:flex; flex-direction:column; height:100vh; min-width:0; }
+  .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:var(--panel); min-height:62px; }
+  .bartitle { font-weight:700; font-size:17px; }
+  .view { flex:1; overflow:auto; padding:20px 24px 28px; }
+  .btn { font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; padding:9px 14px; border:1px solid var(--fg); background:var(--fg); color:var(--bg); }
+  .btn.ghost { background:none; color:var(--fg); } .btn:disabled { opacity:.5; cursor:wait; } .btn + .btn { margin-left:6px; }
   .panel { border:1px solid var(--line); background:var(--panel); }
   .panel > .hd { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:4px 10px; }
   .panel > .bd { padding:12px; }
-  .form { margin-top:18px; }
-  .form .row { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; align-items:end; }
-  .form label { display:block; }
-  .form select, .form input, .form textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:6px 8px; border-radius:0; }
-  .form textarea { resize:vertical; min-height:38px; }
-  .btn { font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; padding:9px 14px; border:1px solid var(--fg); background:var(--fg); color:var(--bg); }
-  .btn.ghost { background:none; color:var(--fg); }
+  label { display:block; }
+  select, input[type=number], textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:6px 8px; border-radius:0; }
+  textarea { resize:vertical; min-height:38px; }
   .msg { margin-top:8px; min-height:1.4em; }
-  .warn { grid-column:1 / -1; border:1px solid var(--line); border-left:10px solid #eab308; background:var(--panel); padding:8px 12px; }
-  main { display:grid; grid-template-columns:repeat(12, 1fr); gap:28px 20px; margin-top:22px; }
-  .hero { grid-column:1 / span 5; } .spec { grid-column:6 / span 4; } .side { grid-column:10 / span 3; display:grid; gap:14px; align-content:start; }
-  .wide { grid-column:1 / -1; }
-  h1 { font-weight:700; font-size:clamp(54px, 6.6vw, 108px); line-height:.92; letter-spacing:-.02em; margin:16px 0 18px; text-transform:uppercase; }
-  .sub { font-size:19px; line-height:1.4; max-width:30em; }
-  .gap { display:inline-block; margin-top:14px; padding:4px 10px; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.08em; color:#06080a; }
-  .ask { margin-top:22px; border:1px solid var(--line); background:var(--panel); padding:12px 14px; max-width:460px; }
-  .ask .row { display:flex; justify-content:space-between; align-items:baseline; }
-  .ask output { font-size:26px; font-weight:700; }
-  input[type=range] { width:100%; accent-color:var(--accent); margin:8px 0 0; padding:0; border:0; }
-  .big { font-weight:700; font-size:38px; line-height:1; }
-  .kv { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px dashed var(--line); }
-  .kv b { white-space:nowrap; }
+
+  /* start */
+  .lead { font-size:34px; font-weight:700; margin:6px 0 18px; }
+  .steps { display:grid; grid-template-columns:1fr 1.6fr 1fr; gap:18px; align-items:start; }
+  .steps .bd { display:grid; gap:10px; }
+  .pick { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .bigin { font-size:24px !important; font-weight:700; }
+
+  /* result */
+  .result { display:grid; grid-template-columns:5fr 4fr 3fr; gap:18px 20px; }
+  .side { display:grid; gap:12px; align-content:start; } .wide { grid-column:1 / -1; }
+  h1 { font-weight:700; font-size:clamp(44px, 5.2vw, 84px); line-height:.94; letter-spacing:-.02em; margin:8px 0 12px; text-transform:uppercase; }
+  .sub { font-size:18px; line-height:1.4; }
+  .gap { display:inline-block; margin-top:10px; padding:4px 10px; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.08em; color:#06080a; }
+  .ask { margin-top:14px; border:1px solid var(--line); background:var(--panel); padding:10px 14px; max-width:460px; }
+  .ask .row { display:flex; justify-content:space-between; align-items:baseline; } .ask output { font-size:24px; font-weight:700; }
+  input[type=range] { width:100%; accent-color:var(--accent); margin:6px 0 0; }
+  .spec svg { max-height:300px; display:block; margin:0 auto; }
+  .big { font-weight:700; font-size:34px; line-height:1; }
+  .kv { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px dashed var(--line); } .kv b { white-space:nowrap; font-family:var(--mono); }
   .meter { display:flex; gap:3px; margin:8px 0 2px; } .meter i { height:10px; flex:1; border:1px solid var(--line); } .meter i.on { background:var(--fg); }
   ul { margin:6px 0 0; padding-left:18px; } li { margin:3px 0; }
   svg text { font-family:var(--mono); fill:var(--fg); }
-  .rbar { position:relative; height:22px; margin:14px 0 4px; } .rbar i { position:absolute; }
+  .rbar { position:relative; height:22px; margin:12px 0 4px; } .rbar i { position:absolute; }
   .rbar .w { top:10px; height:2px; background:var(--dim); } .rbar .l { top:6px; height:10px; background:var(--fg); }
   .rbar .f { top:6px; height:10px; width:2px; background:var(--panel); } .rbar .a { top:0; height:22px; width:3px; background:var(--accent); transition:left .15s; }
-  .track { position:relative; height:26px; margin:34px 0 26px; border:1px solid var(--line); }
+  .track { position:relative; height:24px; margin:30px 0 24px; border:1px solid var(--line); }
   .mark { position:absolute; top:-9px; bottom:-9px; width:3px; background:var(--fg); transform:translateX(-1px); transition:left .15s; }
   .mark span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 8px; background:var(--fg); color:var(--bg); font-family:var(--mono); font-size:12px; font-weight:700; }
   .tick { position:absolute; top:100%; transform:translateX(-50%); padding-top:6px; white-space:nowrap; font-family:var(--mono); font-size:12px; }
   .tick::before { content:""; position:absolute; top:0; left:50%; height:5px; border-left:1px solid var(--fg); }
-  .zone { position:absolute; top:5px; transform:translateX(-50%); color:#06080a; font-family:var(--mono); font-weight:700; font-size:10px; letter-spacing:.1em; white-space:nowrap; }
+  .zone { position:absolute; top:4px; transform:translateX(-50%); color:#06080a; font-family:var(--mono); font-weight:700; font-size:10px; letter-spacing:.1em; white-space:nowrap; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px 0; }
   .card { padding:2px 18px; border-left:1px dashed var(--line); } .card:first-child { border-left:0; padding-left:0; }
-  .ot { font-weight:700; font-size:18px; margin:3px 0 5px; }
-  .card .big { color:var(--pos); font-size:32px; }
-  table { width:100%; max-width:760px; border-collapse:collapse; } td, th { text-align:left; padding:5px 8px 5px 0; border-top:1px dashed var(--line); font-weight:400; } th { color:var(--dim); border-top:0; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.1em; }
-  td:last-child, th:last-child { text-align:right; padding-right:0; }
+  .ot { font-weight:700; font-size:18px; margin:3px 0 5px; } .card .big { color:var(--pos); font-size:30px; }
+  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:6px 10px 6px 0; border-top:1px dashed var(--line); font-weight:400; vertical-align:top; }
+  th { color:var(--dim); border-top:0; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .num td:last-child, .num th:last-child { text-align:right; padding-right:0; font-family:var(--mono); } .num { max-width:760px; }
   .tabs button { font:inherit; letter-spacing:inherit; text-transform:uppercase; background:none; border:0; color:var(--dim); cursor:pointer; padding:0 18px 0 0; }
   .tabs button.on { color:var(--fg); text-decoration:underline; text-underline-offset:4px; }
-  .detail .bd { min-height:132px; }
-  .fine { font-size:13px; color:var(--dim); }
+  .tabbody { min-height:150px; }
   .life-top { display:flex; gap:28px; align-items:center; flex-wrap:wrap; }
-  .life-top input { display:block; width:96px; margin-top:4px; font-family:var(--disp); font-size:24px; font-weight:700; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:4px 8px; }
-  .life { position:relative; height:18px; margin:30px 0 30px; border:1px solid var(--line); }
-  .life i { position:absolute; left:0; top:0; bottom:0; transition:width .15s; }
+  .life-top input { width:96px; margin-top:4px; }
+  .life { position:relative; height:18px; margin:30px 0 30px; border:1px solid var(--line); } .life i { position:absolute; left:0; top:0; bottom:0; transition:width .15s; }
+  .warn { border:1px solid var(--line); border-left:10px solid #eab308; background:var(--panel); padding:8px 12px; margin-bottom:8px; }
+
+  /* my flats, compare */
+  .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; }
+  .vword { font-weight:700; font-size:26px; text-transform:uppercase; line-height:1.05; }
+  .fcard .bd { display:grid; gap:6px; }
+  .cmp td:first-child, .cmp th:first-child { color:var(--dim); width:210px; } .cmp th { font-family:var(--disp); font-size:16px; text-transform:none; letter-spacing:0; color:var(--fg); font-weight:700; }
+  .empty { padding:40px 0; font-size:18px; }
+  .toast { position:fixed; right:24px; bottom:24px; background:var(--fg); color:var(--bg); padding:10px 16px; font-weight:700; z-index:9; }
+
   [data-mode="simple"] .pro, [data-mode="pro"] .simple { display:none; }
   [data-role="buyer"] .seller, [data-role="seller"] .buyer { display:none; }
-  [hidden] { display:none !important; }
-  @media (max-width: 1100px) {  /* stack the three columns on narrow windows */
-    .hero, .spec, .side { grid-column:1 / -1; } .spec { max-width:560px; }
-    header { grid-template-columns:1fr; } .right { text-align:left; }
+  #brief { display:none; }
+  @media (max-width: 1150px) { body { grid-template-columns:1fr; } .nav { height:auto; position:static; border-right:0; border-bottom:1px solid var(--line); } .work { height:auto; } .result, .steps { grid-template-columns:1fr; } }
+  @media print {  /* the brief is the only thing that prints */
+    body { display:block; background:#fff; color:#000; } body > *:not(#brief) { display:none !important; }
+    #brief { display:block; padding:0 8mm; font-size:12pt; } #brief h2 { font-size:26pt; margin:0 0 4pt; text-transform:uppercase; } #brief h3 { margin:14pt 0 4pt; font-size:11pt; text-transform:uppercase; letter-spacing:.08em; border-bottom:1px solid #000; }
+    #brief .hm, #brief .hl { background:none; color:#000; padding:0; } #brief .kv { border-top:1px dotted #999; }
   }
 </style>
 </head>
 <body>
-<div class="frame">
-  <header>
-    <div><div class="brand">OIKOS</div><div class="cap dim">HDB resale price check</div></div>
-    <div class="themes role"><button data-r="buyer" class="on">I'm buying</button><button data-r="seller">I'm selling</button></div>
-    <div class="right">
-      <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
-      <div class="themes" style="margin-top:6px"><button data-m="simple" class="on">Simple</button><button data-m="pro">Pro</button>
-        <span class="dim">/</span> <button data-t="light" class="on">Light</button><button data-t="dark">Dark</button><button data-t="blue">Blueprint</button></div>
+<aside class="nav">
+  <div><div class="brand">OIKOS</div><div class="cap dim">HDB resale price check</div></div>
+  <nav id="nav">
+    <button data-go="check">Check a flat</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
+    <button data-go="compare">Compare</button><button data-go="deals">Deals</button><button data-go="market">Market</button>
+  </nav>
+  <div class="navfoot">
+    <div class="cap dim">I am</div><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div>
+    <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
+    <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button><button data-t="blue">Blueprint</button></div>
+    <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
+    <div class="fine">Indicative estimates, not valuations. Data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; locations from OneMap (SLA). Not affiliated with HDB or any government agency.</div>
+  </div>
+</aside>
+
+<div class="work">
+  <div class="bar">
+    <div><div class="cap dim" id="crumb"></div><div class="bartitle" id="flatcap"></div></div>
+    <div id="actions" hidden><button class="btn" id="saveBtn" type="button">Save flat</button><button class="btn ghost" id="briefBtn" type="button">Get the brief</button><button class="btn ghost" id="newBtn" type="button">New check</button></div>
+  </div>
+
+  <!-- CHECK -->
+  <div class="view" data-view="check">
+    <div id="start">
+      <div class="lead">Is the price right? <span class="dim">Three steps.</span></div>
+      <div class="steps">
+        <section class="panel"><div class="hd cap"><span>01 You</span></div><div class="bd">
+          <div class="seg big"><button data-r="buyer">I'm buying</button><button data-r="seller">I'm selling</button></div>
+          <label class="buyer"><span class="cap dim">Your age (for the lease check)</span><input id="age0" class="bigin" type="number" min="21" max="90" step="1" value="35"></label>
+          <div class="fine seller">We'll check your listing price against what comparable flats sold for.</div>
+        </div></section>
+        <section class="panel"><div class="hd cap"><span>02 The flat</span><span class="dim">Paste a listing, or pick it</span></div><div class="bd">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
+            <label><span class="cap dim">Listing text (optional)</span><textarea id="paste" rows="1" placeholder="Copy the text of a listing page and paste it here"></textarea></label>
+            <button class="btn ghost" id="readBtn" type="button">Read listing</button></div>
+          <div class="fine" id="parseMsg"></div>
+          <div class="pick">
+            <label><span class="cap dim">Town</span><select id="town"></select></label><label><span class="cap dim">Street</span><select id="street"></select></label>
+            <label><span class="cap dim">Block</span><select id="block"></select></label><label><span class="cap dim">Flat type</span><select id="ftype"></select></label>
+            <label><span class="cap dim">Flat model</span><select id="fmodel"></select></label><label><span class="cap dim">Size (sqm)</span><input id="area" type="number" min="20" max="400" step="1"></label>
+            <label><span class="cap dim">Storey</span><select id="storey"></select></label><label><span class="cap dim">Lease start year</span><input id="lease" type="number" min="1960" max="2030" step="1"></label>
+          </div>
+        </div></section>
+        <section class="panel"><div class="hd cap"><span>03 The price</span></div><div class="bd">
+          <label><span class="cap dim"><span class="buyer">Asking price ($)</span><span class="seller">Your listing price ($)</span></span><input id="price" class="bigin" type="number" min="0" step="1000" placeholder="optional"></label>
+          <button class="btn" id="checkBtn" type="button" style="padding:14px">Check price</button>
+          <div class="msg" id="formMsg" role="status"></div>
+        </div></section>
+      </div>
     </div>
-  </header>
 
-  <section class="panel form">
-    <div class="hd cap"><span>Your flat</span><span class="dim">Paste a listing, or pick the flat</span></div>
-    <div class="bd">
-      <div class="row" style="grid-template-columns:1fr auto">
-        <label><span class="cap dim">Listing text (optional)</span><textarea id="paste" rows="1" placeholder="Copy the text of a listing page and paste it here"></textarea></label>
-        <button class="btn ghost" id="readBtn" type="button">Read listing</button>
+    <div id="result" hidden>
+      <div id="checks"></div>
+      <div class="result">
+        <section>
+          <h1 id="verdict"></h1><div class="sub" id="sub"></div><div class="gap" id="gap"></div>
+          <div class="ask"><div class="row"><span class="cap dim"><span class="buyer">Asking price</span><span class="seller">Your listing price</span> (drag to test)</span><output id="askOut"></output></div>
+            <input id="ask" type="range" step="1000" aria-label="Price to check"></div>
+        </section>
+        <section class="spec" aria-label="Price drivers">
+          <svg viewBox="0 0 540 500" width="100%" role="img" aria-label="Wireframe of the block with price drivers"><g id="bld" fill="none" stroke="var(--fg)" stroke-width="1"></g><g id="calls"></g></svg>
+          <div class="cap dim" style="text-align:center" id="avgcap"></div>
+        </section>
+        <aside class="side">
+          <div class="panel"><div class="hd cap"><span>Fair value today</span></div><div class="bd">
+            <div class="big" id="fair"></div>
+            <div class="rbar" aria-hidden="true"><i class="w" id="rW"></i><i class="l" id="rL"></i><i class="f" id="rF"></i><i class="a" id="rAsk"></i></div>
+            <div id="fairRows"></div></div></div>
+          <div class="panel pro"><div class="hd cap"><span>Reliability</span></div><div class="bd"><div class="big" id="badge"></div><div class="meter" id="meter"><i></i><i></i><i></i></div></div></div>
+          <div class="panel buyer"><div class="hd cap"><span>Offer guide</span></div><div class="bd" id="guideB"></div></div>
+          <div class="panel seller"><div class="hd cap"><span>Pricing guide</span></div><div class="bd" id="guideS"></div></div>
+        </aside>
+        <section class="wide">
+          <div class="cap dim">[ Where this price sits among comparable sales ]</div>
+          <div class="track" id="track"><span id="zones"></span><div class="mark" id="mark"><span id="markLbl"></span></div><span id="ticks"></span></div>
+        </section>
+        <section class="panel wide">
+          <div class="hd cap"><span class="tabs" id="tabs">
+            <button data-tab="options" class="on">Your options</button><button data-tab="life" class="buyer">Will it last you?</button>
+            <button data-tab="sales" class="pro">Recent sales</button><button data-tab="whatif" class="pro">What if</button><button data-tab="why" class="pro">Reliability</button>
+            <button data-tab="outlook" class="pro">Outlook</button><button data-tab="trend" class="pro">Trend</button><button data-tab="deals" class="buyer">Bargains nearby</button></span></div>
+          <div class="bd tabbody">
+            <div data-pane="options"><div class="cards" id="opts"></div><div class="fine" id="optNote" style="margin-top:10px"></div></div>
+            <div data-pane="life" hidden>
+              <div class="life-top"><label class="cap dim">Your age<input id="age" class="bigin" type="number" min="21" max="90" step="1" value="35"></label>
+                <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
+              <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div><div class="pro" id="lifeRows"></div>
+              <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
+            </div>
+            <div data-pane="sales" id="paneSales" hidden></div><div data-pane="whatif" id="paneWhatif" hidden></div><div data-pane="why" id="paneWhy" hidden></div><div data-pane="outlook" id="paneOutlook" hidden></div>
+            <div data-pane="trend" hidden><div id="trendText"></div><svg id="trend" viewBox="0 0 700 120" width="100%" style="max-width:720px;margin-top:6px" role="img" aria-label="Price per square metre by year"></svg></div>
+            <div data-pane="deals" hidden><div class="cards" id="deals"></div><div class="fine" id="dealsNote" style="margin-top:10px"></div></div>
+          </div>
+        </section>
+        <div class="fine wide" id="foot"></div>
       </div>
-      <div class="msg fine" id="parseMsg"></div>
-      <div class="row">
-        <label><span class="cap dim">Town</span><select id="town"></select></label>
-        <label><span class="cap dim">Street</span><select id="street"></select></label>
-        <label><span class="cap dim">Block</span><select id="block"></select></label>
-        <label><span class="cap dim">Flat type</span><select id="ftype"></select></label>
-        <label><span class="cap dim">Flat model</span><select id="fmodel"></select></label>
-        <label><span class="cap dim">Size (sqm)</span><input id="area" type="number" min="20" max="400" step="1"></label>
-        <label><span class="cap dim">Storey</span><select id="storey"></select></label>
-        <label><span class="cap dim">Lease start year</span><input id="lease" type="number" min="1960" max="2030" step="1"></label>
-        <label><span class="cap dim"><span class="buyer">Asking price ($)</span><span class="seller">Your listing price ($)</span></span><input id="price" type="number" min="0" step="1000" placeholder="optional"></label>
-        <button class="btn" id="checkBtn" type="button">Check price</button>
-      </div>
-      <div class="msg" id="formMsg" role="status"></div>
     </div>
-  </section>
+  </div>
 
-  <main id="res" hidden>
-    <div id="checks" class="wide" hidden></div>
-
-    <section class="hero">
-      <div class="cap dim" id="flatcap"></div>
-      <h1 id="verdict"></h1>
-      <div class="sub" id="sub"></div>
-      <div class="gap" id="gap"></div>
-      <div class="ask">
-        <div class="row"><span class="cap dim"><span class="buyer">Asking price</span><span class="seller">Your listing price</span> (drag to test)</span><output id="askOut"></output></div>
-        <input id="ask" type="range" step="1000" aria-label="Price to check">
-      </div>
-    </section>
-
-    <section class="spec" aria-label="Price drivers">
-      <svg viewBox="0 0 540 500" width="100%" role="img" aria-label="Wireframe of the block with price drivers">
-        <g id="bld" fill="none" stroke="var(--fg)" stroke-width="1"></g><g id="calls"></g>
-      </svg>
-      <div class="cap dim" style="text-align:center" id="avgcap"></div>
-    </section>
-
-    <aside class="side">
-      <div class="panel"><div class="hd cap"><span>Fair value today</span><span>01</span></div><div class="bd">
-        <div class="big" id="fair"></div>
-        <div class="rbar" aria-hidden="true"><i class="w" id="rW"></i><i class="l" id="rL"></i><i class="f" id="rF"></i><i class="a" id="rAsk"></i></div>
-        <div class="fine">Thick bar = likely range. Coloured mark = the price you are checking.</div>
-        <div id="fairRows" style="margin-top:8px"></div>
-      </div></div>
-      <div class="panel pro"><div class="hd cap"><span>Reliability</span><span>02</span></div><div class="bd">
-        <div class="big" id="badge"></div><div class="meter" id="meter"><i></i><i></i><i></i></div>
-      </div></div>
-      <div class="panel buyer"><div class="hd cap"><span>Offer guide</span><span>03</span></div><div class="bd" id="guideB"></div></div>
-      <div class="panel seller"><div class="hd cap"><span>Pricing guide</span><span>03</span></div><div class="bd" id="guideS"></div></div>
-    </aside>
-
-    <section class="wide">
-      <div class="cap dim">[ Where this price sits among comparable sales ]</div>
-      <div class="track" id="track"><span id="zones"></span><div class="mark" id="mark"><span id="markLbl"></span></div><span id="ticks"></span></div>
-    </section>
-
-    <section class="panel buyer wide">
-      <div class="hd cap"><span>Will it last you?</span><span class="dim">The lease against your age</span></div>
-      <div class="bd">
-        <div class="life-top"><label class="cap dim">Your age<input id="age" type="number" min="21" max="90" step="1" value="35"></label>
-          <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
-        <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div>
-        <div class="pro" id="lifeRows"></div>
-        <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
-      </div>
-    </section>
-
-    <section class="panel wide">
-      <div class="hd cap"><span>Your options</span><span class="dim">Written from the numbers on this page</span></div>
-      <div class="bd"><div class="cards" id="opts"></div><div class="fine" id="optNote" style="margin-top:10px"></div></div>
-    </section>
-
-    <section class="panel pro detail wide">
-      <div class="hd cap"><span class="tabs"><button data-tab="sales" class="on">Recent sales</button><button data-tab="whatif">What if</button><button data-tab="why">Reliability</button><button data-tab="outlook">Outlook</button><button data-tab="trend">Trend</button></span><span>04</span></div>
-      <div class="bd">
-        <div data-pane="sales" id="paneSales"></div><div data-pane="whatif" id="paneWhatif" hidden></div><div data-pane="why" id="paneWhy" hidden></div>
-        <div data-pane="outlook" id="paneOutlook" hidden></div>
-        <div data-pane="trend" hidden><div id="trendText"></div><svg id="trend" viewBox="0 0 700 120" width="100%" style="max-width:720px;margin-top:6px" role="img" aria-label="Price per square metre by year"></svg></div>
-      </div>
-    </section>
-
-    <section class="panel buyer wide" id="dealsPanel">
-      <div class="hd cap"><span>Sold below our estimate nearby</span><span class="dim" id="dealsHd"></span></div>
-      <div class="bd"><div class="cards" id="deals"></div><div class="fine" id="dealsNote" style="margin-top:10px"></div></div>
-    </section>
-
-    <div class="panel wide"><div class="bd" id="foot"></div></div>
-  </main>
-
-  <footer class="fine" style="margin-top:26px;padding-top:12px;border-top:1px solid var(--line)">
-    Oikos gives indicative price estimates, not valuations. For a loan or a sale you need a licensed valuer.
-    Contains information from HDB resale flat prices and other datasets accessed from data.gov.sg, made available under the
-    <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence version 1.0</a>. Block locations from OneMap, Singapore Land Authority.
-    Oikos is not affiliated with or endorsed by HDB or any government agency.
-  </footer>
+  <!-- MY FLATS -->
+  <div class="view" data-view="flats" hidden><div class="grid3" id="flatList"></div></div>
+  <!-- COMPARE -->
+  <div class="view" data-view="compare" hidden><div id="cmp"></div></div>
+  <!-- DEALS -->
+  <div class="view" data-view="deals" hidden>
+    <label style="max-width:320px"><span class="cap dim">Town</span><select id="dealTown"></select></label>
+    <div class="panel" style="margin-top:16px"><div class="bd"><div class="cards" id="dealCards"></div><div class="fine" id="dealCardsNote" style="margin-top:10px"></div></div></div>
+  </div>
+  <!-- MARKET -->
+  <div class="view" data-view="market" hidden>
+    <div style="display:grid;grid-template-columns:320px 220px;gap:12px"><label><span class="cap dim">Town</span><select id="mTown"></select></label><label><span class="cap dim">Flat type</span><select id="mType"></select></label></div>
+    <div class="panel" style="margin-top:16px"><div class="bd"><div id="mText"></div><svg id="mTrend" viewBox="0 0 700 120" width="100%" style="max-width:900px;margin-top:8px" role="img" aria-label="Price per square metre by year"></svg></div></div>
+  </div>
 </div>
+<div id="brief"></div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -222,32 +251,59 @@ const rich = text => String(text).split(FIGURE).map((part, i) => i % 2 ? h("span
 const kv = (label, value, cls = "") => h("div", { className: "kv " + cls }, h("span", { className: "dim" }, label), h("b", {}, value));
 const api = (path, body) => fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
   .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(typeof e.detail === "string" ? e.detail : "The request could not be completed")), () => Promise.reject(new Error("The server did not answer"))));
+// Settings and saved flats live in this browser only (no accounts yet). Everything works if storage is unavailable.
+const store = { get(key, fallback) { try { const v = localStorage.getItem("oikos-" + key); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+                set(key, v) { try { localStorage.setItem("oikos-" + key, JSON.stringify(v)); } catch (e) {} } };
+const root = document.documentElement.dataset;
+const toast = text => { const t = h("div", { className: "toast" }, text); document.body.append(t); setTimeout(() => t.remove(), 1800); };
 
 // ---- verdict scales. p = share of comparable sales (0-100) that went for less than the price being checked.
 // Buyer thresholds match deal_label() in src/advice.py; keep the two in step.
 const C = { bright: ["#22c55e", "#0f9d3a"], green: ["#16a34a", "#166534"], yellow: ["#eab308", "#8a6100"], orange: ["#f97316", "#c2410c"], red: ["#ef4444", "#b42318"] };
 const tone = (max, word, short, c) => ({ max, word, short, dark: C[c][0], light: C[c][1] });
 const ROLES = {
-  buyer: { lead: "Asking ", mark: "ASKING",
+  buyer: { lead: "Asking ", mark: "ASKING", priceLabel: "Asking price",
     tones: [tone(10, "Great deal", "GREAT", "bright"), tone(30, "Good deal", "GOOD", "green"), tone(65, "Fair price", "FAIR", "yellow"), tone(90, "Pricey", "PRICEY", "orange"), tone(101, "Overpriced", "OVER", "red")],
     line: p => p < 10 ? "Cheaper than about 9 in 10 comparable sales." : p < 30 ? `Cheaper than about ${Math.round(100 - p)}% of comparable sales.`
       : p < 65 ? "In line with what comparable flats sell for." : p < 90 ? `Dearer than about ${Math.round(p)}% of comparable sales.` : "Dearer than about 9 in 10 comparable sales." },
-  seller: { lead: "Your price of ", mark: "YOUR PRICE",
+  seller: { lead: "Your price of ", mark: "YOUR PRICE", priceLabel: "Listing price",
     tones: [tone(20, "Underpriced", "UNDER", "yellow"), tone(50, "Priced to sell", "TO SELL", "bright"), tone(75, "Fair ask", "FAIR", "green"), tone(90, "Ambitious", "AMBITIOUS", "orange"), tone(101, "Too high", "TOO HIGH", "red")],
     line: p => p < 20 ? "Most comparable flats sold for more. You could ask for more." : p < 50 ? "At or just under what comparable flats sell for. Buyers checking recent sales will see good value."
       : p < 75 ? "In line with comparable sales, with room to negotiate." : p < 90 ? `Above about ${Math.round(p)}% of comparable sales. Buyers checking recent sales will see it as expensive.`
       : "Above about 9 in 10 comparable sales. Few comparable flats have sold this high." } };
-
-let F = null;  // facts for the flat on screen, from /api/assess
-const q = level => F.quantiles.find(v => Math.round(v[0] * 100) === level)[1];
-function percentile(a) {  // interpolate on log price between the flat's price quantiles, like advice.assess
-  const Q = F.quantiles, x = Math.log(a), L = Q.map(v => Math.log(v[1])), n = Q.length - 1;
+const qOf = (f, level) => f.quantiles.find(v => Math.round(v[0] * 100) === level)[1];
+function percentile(f, a) {  // interpolate on log price between the flat's price quantiles, like advice.assess
+  const Q = f.quantiles, x = Math.log(a), L = Q.map(v => Math.log(v[1])), n = Q.length - 1;
   if (x <= L[0]) return Q[0][0] * 100;
   if (x >= L[n]) return Q[n][0] * 100;
   for (let i = 0; i < n; i++) if (x <= L[i + 1]) return (Q[i][0] + (x - L[i]) / (L[i + 1] - L[i]) * (Q[i + 1][0] - Q[i][0])) * 100;
 }
+function verdictFor(f, price, role = root.role) {
+  const R = ROLES[role], p = percentile(f, price), t = R.tones.find(t => p < t.max);
+  return { R, p, t, i: R.tones.indexOf(t), word: (f.reliability === "Low" ? "Likely " : "") + t.word, color: root.theme === "dark" ? t.dark : t.light };
+}
+const flatName = f => `Blk ${f.flat.block} ${title(f.flat.street_name)}`;
+const flatDesc = f => `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
+const age = () => Math.min(90, Math.max(21, Math.round(+$("age").value) || 35));
 
-// ---- the flat picker
+let F = null;                         // facts for the flat on screen, from /api/assess
+let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
+
+// ---- views
+const VIEWS = { check: "Check a flat", flats: "My flats", compare: "Compare", deals: "Deals", market: "Market" };
+function go(view) {
+  document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
+  document.body.dataset.current = view;  // not data-view: that attribute marks the view containers
+  const inResult = view === "check" && F;
+  $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
+  $("actions").hidden = !inResult;
+  if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket();
+  if (inResult) fitVerdict();
+}
+document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+
+// ---- step 2: the flat picker
 const fill = (sel, list, chosen, label = x => x) => { sel.replaceChildren(...list.map(v => h("option", { value: v, selected: v === chosen }, label(v)))); };
 async function loadOptions(want = {}) {
   const o = await api("/api/options?" + new URLSearchParams(Object.entries(want).filter(([, v]) => v)));
@@ -255,6 +311,8 @@ async function loadOptions(want = {}) {
   fill($("block"), o.blocks, o.selected.block); fill($("ftype"), o.flat_types, o.selected.flat_type, title);
   fill($("fmodel"), o.flat_models, o.defaults.flat_model, title); fill($("storey"), o.storey_ranges, o.defaults.storey_range, s => s.replace(" TO ", " to "));
   $("area").value = Math.round(o.defaults.floor_area_sqm); $("lease").value = o.defaults.lease_commence_date;
+  if (!$("dealTown").options.length) { fill($("dealTown"), o.towns, o.selected.town, title); fill($("mTown"), o.towns, o.selected.town, title);
+    fill($("mType"), ["2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"], "4 ROOM", title); }
   return o;
 }
 const picked = upTo => { const all = { town: $("town").value, street: $("street").value, block: $("block").value, flat_type: $("ftype").value }, out = {};
@@ -276,20 +334,20 @@ $("readBtn").addEventListener("click", async () => {
 });
 
 $("checkBtn").addEventListener("click", async () => {
-  const msg = $("formMsg"); msg.textContent = "Checking...";
+  const msg = $("formMsg"), btn = $("checkBtn"); msg.textContent = "Checking..."; btn.disabled = true;
   try {
     F = await api("/api/assess", { town: $("town").value, street_name: $("street").value, block: $("block").value, flat_type: $("ftype").value,
       flat_model: $("fmodel").value, floor_area_sqm: +$("area").value, storey_range: $("storey").value, lease_commence_date: +$("lease").value, price: +$("price").value || null });
-    msg.textContent = ""; show(); $("res").hidden = false; render(); $("res").scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (e) { msg.textContent = e.message; }
+    msg.textContent = ""; openResult();
+  } catch (e) { msg.textContent = e.message; } finally { btn.disabled = false; }
 });
+function openResult() { show(); $("start").hidden = true; $("result").hidden = false; selectTab("options"); go("check"); render(); }
+$("newBtn").addEventListener("click", () => { F = null; $("result").hidden = true; $("start").hidden = false; go("check"); });
 
-// ---- everything that depends only on the flat
+// ---- the result: everything that depends only on the flat
 function show() {
-  const f = F.flat, fair = F.fair, lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
+  const f = F.flat, fair = F.fair, q = l => qOf(F, l), lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
   const a = $("ask"); a.min = lo; a.max = hi; a.value = Math.min(hi, Math.max(lo, F.price || Math.round(fair / 1000) * 1000));
-  $("flatcap").textContent = `[ Blk ${f.block} ${title(f.street_name)} / ${title(f.flat_type)} ${title(f.flat_model)} / ${Math.round(f.floor_area_sqm)} sqm / storey ${f.storey} / lease from ${f.lease_commence_date} ]`;
-  $("checks").hidden = !F.checks.length;
   $("checks").replaceChildren(...F.checks.map(c => h("div", { className: "warn" }, h("b", {}, "Check your input: "), ...rich(c))));
   $("fair").textContent = money(fair);
   Object.assign($("rW").style, { left: pos(q(10)), width: (q(90) - q(10)) / (hi - lo) * 100 + "%" });
@@ -304,41 +362,37 @@ function show() {
   $("guideB").replaceChildren(...guide(`${k(q(25))} - ${k(fair)}`, "Don't pay more than", k(q(75)), [["Open around", k(q(25))], ["Aim for", k(fair)], ["Walk away above", k(q(75))]]));
   $("guideS").replaceChildren(...guide(`${k(fair)} - ${k(q(75))}`, "Think twice below", k(q(25)), [["List around", k(q(75))], ["Comparable flats sold near", k(fair)], ["Think twice below", k(q(25))]]));
   $("ticks").replaceChildren(...[10, 25, 50, 75, 90].map(l => h("span", { className: "tick", style: `left:${l}%` }, k(q(l)))));
-  drawBlock(); drawTrend();
+  drawBlock(); drawTrend($("trend"), $("trendText"), F.trend, f.flat_type, f.town);
   $("avgcap").textContent = `Price drivers vs the average HDB resale flat today (${k(F.average_flat)})`;
   $("optNote").textContent = (F.reliability === "Low" ? "Reliability is low for this flat, so treat these figures as a guide. " : "") + "Renovation, view and urgency are not in the numbers.";
-
-  $("paneSales").replaceChildren(F.recent.length ? h("table", {}, h("tr", {}, ...["Month", "Storey", "Size", "Price"].map(t => h("th", {}, t))),
+  $("paneSales").replaceChildren(F.recent.length ? h("table", { className: "num" }, h("tr", {}, ...["Month", "Storey", "Size", "Price"].map(t => h("th", {}, t))),
     ...F.recent.map(r => h("tr", {}, h("td", {}, hl(month(r.month))), h("td", {}, r.storey), h("td", {}, Math.round(r.floor_area_sqm) + " sqm"), h("td", {}, money(r.price)))))
     : "No sales of this flat type in this block in the last 24 months.");
-  $("paneWhatif").replaceChildren(h("table", {}, h("tr", {}, h("th", {}, "If this flat were..."), h("th", {}, "Fair value changes by")), ...F.what_ifs.map(([l, v]) => h("tr", {}, h("td", {}, l), h("td", {}, pc(v))))),
+  $("paneWhatif").replaceChildren(h("table", { className: "num" }, h("tr", {}, h("th", {}, "If this flat were..."), h("th", {}, "Fair value changes by")), ...F.what_ifs.map(([l, v]) => h("tr", {}, h("td", {}, l), h("td", {}, pc(v))))),
     h("div", { className: "fine", style: "margin-top:8px" }, "Patterns the model learned from past sales, not guarantees."));
   $("paneWhy").replaceChildren(h("div", {}, "Reliability is ", h("b", {}, F.reliability), F.notes.length ? " for this flat because:" : ": estimates for flats like this one have matched real sales closely."), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n)))));
-  $("paneOutlook").replaceChildren(h("table", {}, h("tr", {}, ...["In", "Lease left", "Central", "Likely range"].map(t => h("th", {}, t))),
+  $("paneOutlook").replaceChildren(h("table", { className: "num" }, h("tr", {}, ...["In", "Lease left", "Central", "Likely range"].map(t => h("th", {}, t))),
     ...F.outlook.map(r => h("tr", {}, h("td", {}, hl(r.years + " years")), h("td", {}, Math.round(r.lease_left) + " yrs"), ...(r.central ? [h("td", {}, k(r.central)), h("td", {}, `${k(r.likely_low)} - ${k(r.likely_high)}`)] : [h("td", { colSpan: 2 }, title(r.note[0]) + r.note.slice(1))])))),
     h("div", { className: "fine", style: "margin-top:8px" }, ...rich(`Projections, not guarantees. The central case works out to about ${(F.growth * 100).toFixed(1)}% a year market growth plus lease decay. No figure is shown where the lease would fall under 50 years.`)));
-
-  const d = F.deals; $("dealsPanel").classList.toggle("empty", !d.items.length);
-  $("dealsHd").replaceChildren(title(d.town) + ", last ", hl(d.months + " months"));
-  $("deals").replaceChildren(...(d.items.length ? d.items.map(x => h("div", { className: "card" }, h("div", { className: "big" }, pc(x.gap)), h("div", { className: "ot" }, `Blk ${x.block} ${title(x.street_name)}`),
+  dealCards($("deals"), $("dealsNote"), F.deals);
+  const m = F.meta, n = Math.round(m.total_sales / 1000) * 1000;
+  $("foot").replaceChildren(h("span", { className: "simple" }, "Built on ", h("span", { className: "hm" }, n.toLocaleString("en-US")), " public HDB sales. A guide, not a valuation."),
+    h("span", { className: "pro" }, `Built on ${n.toLocaleString("en-US")} HDB resale transactions, trained on sales through `, hl(month(m.trained_through)), ...rich(`. On the six most recent months held out from training, half of sales landed within ${(m.holdout_median_error * 100).toFixed(1)}% of our estimate and about ${Math.round(m.coverage80 * 10)} in 10 inside the wide range. A guide from public sales data, not advice or a valuation for loans. It cannot see renovation, the exact floor, view or condition.`)));
+  $("saveBtn").textContent = flats.some(x => x.id === flatId(F)) ? "Update saved flat" : "Save flat";
+}
+function dealCards(box, note, d) {
+  box.replaceChildren(...(d.items.length ? d.items.map(x => h("div", { className: "card" }, h("div", { className: "big" }, pc(x.gap)), h("div", { className: "ot" }, `Blk ${x.block} ${title(x.street_name)}`),
     h("div", {}, `${title(x.flat_type)}, ${Math.round(x.floor_area_sqm)} sqm, storey ${x.storey}`),
     h("div", { className: "kv" }, h("span", { className: "dim" }, "Sold ", hl(month(x.month))), h("b", {}, money(x.sold))), kv("Our estimate then", k(x.estimate))))
     : [h("div", {}, "No sales closed 8% or more under our estimate in this town recently.")]));
-  $("dealsNote").replaceChildren(...rich(`Completed sales, not live listings. In the last ${d.months} months, ${d.n_low} of ${d.n_all} sales in this town closed 8% or more under our estimate. A low price can reflect condition or urgency.`));
-
-  const m = F.meta, n = Math.round(m.total_sales / 1000) * 1000;
-  $("foot").replaceChildren(h("div", { className: "simple" }, "Built on ", h("span", { className: "hm" }, n.toLocaleString("en-US")), " public HDB sales. A guide, not a valuation."),
-    h("div", { className: "pro" }, `Built on ${n.toLocaleString("en-US")} HDB resale transactions, trained on sales through `, hl(month(m.trained_through)), ...rich(`. On the six most recent months held out from training, half of sales landed within ${(m.holdout_median_error * 100).toFixed(1)}% of our estimate and about ${Math.round(m.coverage80 * 10)} in 10 inside the wide range.`)),
-    h("div", { className: "pro fine", style: "margin-top:6px" }, "A guide from public sales data, not advice or a valuation for loans. It cannot see renovation, the exact floor, view or condition."));
+  note.replaceChildren(...rich(`Completed sales in ${title(d.town)}, not live listings. In the last ${d.months} months, ${d.n_low} of ${d.n_all} sales in this town closed 8% or more under our estimate. A low price can reflect condition or urgency.`));
 }
 
-// ---- everything that depends on the price, role, mode or theme
+// ---- the result: everything that depends on the price, role, mode or theme
 function render() {
   if (!F) return;
-  const root = document.documentElement.dataset, R = ROLES[root.role], a = +$("ask").value, p = percentile(a), t = R.tones.find(t => p < t.max);
-  const fair = F.fair, diff = a / fair - 1, under = a < fair;
-  $("verdict").textContent = (F.reliability === "Low" ? "Likely " : "") + t.word + ".";
-  $("verdict").style.color = root.theme === "dark" ? t.dark : t.light;
+  const a = +$("ask").value, { R, p, t, i, word, color } = verdictFor(F, a), fair = F.fair, diff = a / fair - 1, under = a < fair;
+  $("verdict").textContent = word + "."; $("verdict").style.color = color;
   $("sub").replaceChildren(...rich((root.mode === "simple" ? "" : R.line(p) + " ") + R.lead + money(a) + " is "), h("b", { className: "hm" }, pc(diff)), ...rich(" versus our fair value of " + money(fair) + "."));
   $("gap").textContent = Math.abs(a - fair) < 500 ? "AT FAIR VALUE" : `${under ? "▼" : "▲"} ${money(Math.abs(a - fair))} ${under ? "BELOW" : "ABOVE"} FAIR VALUE`;
   $("gap").style.background = t.dark;
@@ -348,43 +402,44 @@ function render() {
   let from = 0; const stops = [], labels = [];
   for (const z of R.tones) { const to = Math.min(z.max, 100); labels.push(h("span", { className: "zone", style: `left:${(from + to) / 2}%` }, z.short)); stops.push(`${z.dark} ${from}% ${to}%`); from = to; }
   $("track").style.background = `linear-gradient(90deg, ${stops.join(", ")})`; $("zones").replaceChildren(...labels);
-  renderOptions(root.role, R.tones.indexOf(t), a); renderLife(); fitVerdict();
+  $("opts").replaceChildren(...optionsFor(F, a, root.role, i).map(([tt, text], n) => h("div", { className: "card" }, h("div", { className: "cap dim" }, "Option " + "ABC"[n]), h("div", { className: "ot" }, tt), h("div", {}, ...rich(text)))));
+  const active = document.querySelector("#tabs button.on");  // a tab that the current role or mode hides falls back to the first one
+  if (active && getComputedStyle(active).display === "none") selectTab("options");
+  renderLife(); fitVerdict();
 }
-// Three plain options by role and verdict, filled with this flat's numbers. Rule-based for now: an LLM can later
+// Three plain options by role and verdict, filled with the flat's numbers. Rule-based for now: an LLM can later
 // rewrite the wording, but only from these same facts.
-function renderOptions(role, i, a) {
-  const f = F.fair, lo = q(25), hi = q(75), d = k(Math.abs(a - f));
-  const buyer = i < 2 ? [["Move on it", `At ${k(a)} it is ${d} under our fair value. An offer at or near asking is reasonable.`], ["Check why it is cheap", "Ask about condition, the lease and any reason for a quick sale before you commit."], ["Verify the details", "Confirm the HDB-registered size and floor. A wrong size changes the answer."]]
-    : i === 2 ? [["Offer near fair value", `Open around ${k(lo)} and settle near ${k(f)}.`], ["Pay asking if it is the one", "The price is in line with comparable sales, so paying it is defensible."], ["Compare first", "Look at the recent sales in this block (Pro view) before deciding."]]
-    : [["Negotiate down", `Open around ${k(lo)} and aim for ${k(f)}.`], ["Ask what justifies it", `It is ${d} over our fair value. Renovation, floor or view can explain some of that, so ask for evidence.`], ["Walk away", `Above ${k(hi)}, about 3 in 4 comparable sales were cheaper.`]];
-  const seller = i === 0 ? [["Raise your price", `You are ${d} under our fair value. Between ${k(f)} and ${k(hi)} is still in line with comparable sales.`], ["Keep it low on purpose", "A low price stands out against recent sales, but you give up money. Only do it deliberately."], ["Check the details", "Confirm your size and floor are entered correctly. A wrong size changes the answer."]]
-    : i < 3 ? [["List as is", "Your price is in line with what comparable flats sold for."], ["Decide your floor", `Comparable flats sold near ${k(f)}. Think twice below ${k(lo)}.`], ["Back it up", "Show buyers the recent sales in your block and what you have renovated."]]
-    : [["Reprice", `Between ${k(f)} and ${k(hi)} puts you in line with comparable sales.`], ["Hold and justify", `You are ${d} over our fair value. Renovation, floor or view can support a premium, so be ready to show it.`], ["Know your floor", `Comparable flats sold near ${k(f)}. Think twice below ${k(lo)}.`]];
-  $("opts").replaceChildren(...(role === "buyer" ? buyer : seller).map(([t, text], n) => h("div", { className: "card" }, h("div", { className: "cap dim" }, "Option " + "ABC"[n]), h("div", { className: "ot" }, t), h("div", {}, ...rich(text)))));
+function optionsFor(f, a, role, i) {
+  const fair = f.fair, lo = qOf(f, 25), hi = qOf(f, 75), d = k(Math.abs(a - fair));
+  if (role === "buyer") return i < 2 ? [["Move on it", `At ${k(a)} it is ${d} under our fair value. An offer at or near asking is reasonable.`], ["Check why it is cheap", "Ask about condition, the lease and any reason for a quick sale before you commit."], ["Verify the details", "Confirm the HDB-registered size and floor. A wrong size changes the answer."]]
+    : i === 2 ? [["Offer near fair value", `Open around ${k(lo)} and settle near ${k(fair)}.`], ["Pay asking if it is the one", "The price is in line with comparable sales, so paying it is defensible."], ["Compare first", "Save this flat and compare it with others before deciding."]]
+    : [["Negotiate down", `Open around ${k(lo)} and aim for ${k(fair)}.`], ["Ask what justifies it", `It is ${d} over our fair value. Renovation, floor or view can explain some of that, so ask for evidence.`], ["Walk away", `Above ${k(hi)}, about 3 in 4 comparable sales were cheaper.`]];
+  return i === 0 ? [["Raise your price", `You are ${d} under our fair value. Between ${k(fair)} and ${k(hi)} is still in line with comparable sales.`], ["Keep it low on purpose", "A low price stands out against recent sales, but you give up money. Only do it deliberately."], ["Check the details", "Confirm your size and floor are entered correctly. A wrong size changes the answer."]]
+    : i < 3 ? [["List as is", "Your price is in line with what comparable flats sold for."], ["Decide your floor", `Comparable flats sold near ${k(fair)}. Think twice below ${k(lo)}.`], ["Back it up", "Show buyers the recent sales in your block and what you have renovated."]]
+    : [["Reprice", `Between ${k(fair)} and ${k(hi)} puts you in line with comparable sales.`], ["Hold and justify", `You are ${d} over our fair value. Renovation, floor or view can support a premium, so be ready to show it.`], ["Know your floor", `Comparable flats sold near ${k(fair)}. Think twice below ${k(lo)}.`]];
 }
 function fitVerdict() {  // shrink the headline when it is wider than its column
   const v = $("verdict"), r = document.createRange(); v.style.fontSize = ""; r.selectNodeContents(v);
   const w = r.getBoundingClientRect().width;
-  if (w > v.clientWidth) v.style.fontSize = parseFloat(getComputedStyle(v).fontSize) * v.clientWidth / w * 0.98 + "px";
+  if (w > v.clientWidth && v.clientWidth) v.style.fontSize = parseFloat(getComputedStyle(v).fontSize) * v.clientWidth / w * 0.98 + "px";
 }
-
-// ---- the lease against the buyer's age: a bar from today to age 95, filled for as long as the lease runs.
+// The lease against the buyer's age: a bar from today to age 95, filled for as long as the lease runs.
 // Colours are our own rule of thumb: green if the lease outlasts age 95, orange if it ends at 85-94, red if earlier.
+const leaseEnd = f => Math.floor(age() + f.lease_now);
 function renderLife() {
   if (!F) return;
-  const age = Math.min(90, Math.max(21, Math.round(+$("age").value) || 35)), lease = F.lease_now, end = Math.floor(age + lease), ok = end >= 95;
-  const col = ok ? C.bright : end >= 85 ? C.orange : C.red, x = a => Math.max(0, Math.min(100, (a - age) / (95 - age) * 100));
+  const a = age(), lease = F.lease_now, end = leaseEnd(F), ok = end >= 95, col = ok ? C.bright : end >= 85 ? C.orange : C.red, x = v => Math.max(0, Math.min(100, (v - a) / (95 - a) * 100));
   $("lifeWord").textContent = ok ? "Lasts past 95" : "Ends when you are " + end;
-  $("lifeWord").style.color = document.documentElement.dataset.theme === "dark" ? col[0] : col[1];
+  $("lifeWord").style.color = root.theme === "dark" ? col[0] : col[1];
   $("lifeLine").replaceChildren("The lease has ", hl(Math.round(lease) + " years"), " left, so it runs until you are ", hl(String(end)), ok ? ", past age 95." : ".");
-  Object.assign($("lifeBar").style, { width: x(age + lease) + "%", background: col[0] });
-  const tickAt = (label, style) => h("span", { className: "tick", style }, label), marks = [55, 65, 75, 85].filter(m => m > age + 4 && m < 92);
-  $("lifeTicks").replaceChildren(tickAt("Today, " + age, "left:0;transform:none"), ...marks.map(m => tickAt(String(m), `left:${x(m)}%`)), tickAt("95", "left:auto;right:0;transform:none"),
-    ...(ok ? [] : [h("div", { className: "mark", style: `left:${x(age + lease)}%` }, h("span", {}, "LEASE ENDS AT " + end))]));
-  $("lifeRows").replaceChildren(...[55, 65, 75, 85].filter(m => m > age).map(m => kv("When you are " + m, age + lease - m > 0 ? Math.round(age + lease - m) + " years of lease left" : "The lease has ended")));
+  Object.assign($("lifeBar").style, { width: x(a + lease) + "%", background: col[0] });
+  const tickAt = (label, style) => h("span", { className: "tick", style }, label), marks = [55, 65, 75, 85].filter(m => m > a + 4 && m < 92);
+  $("lifeTicks").replaceChildren(tickAt("Today, " + a, "left:0;transform:none"), ...marks.map(m => tickAt(String(m), `left:${x(m)}%`)), tickAt("95", "left:auto;right:0;transform:none"),
+    ...(ok ? [] : [h("div", { className: "mark", style: `left:${x(a + lease)}%` }, h("span", {}, "LEASE ENDS AT " + end))]));
+  $("lifeRows").replaceChildren(...[55, 65, 75, 85].filter(m => m > a).map(m => kv("When you are " + m, a + lease - m > 0 ? Math.round(a + lease - m) + " years of lease left" : "The lease has ended")));
 }
-$("age").addEventListener("input", () => { try { localStorage.setItem("oikos-age", $("age").value); } catch (e) {} renderLife(); });
-try { const saved = localStorage.getItem("oikos-age"); if (saved) $("age").value = saved; } catch (e) {}
+const syncAge = from => { const v = $(from).value; $("age").value = v; $("age0").value = v; store.set("age", v); renderLife(); };
+$("age").addEventListener("input", () => syncAge("age")); $("age0").addEventListener("input", () => syncAge("age0"));
 
 // ---- drawings
 const SPOTS = { "Location and surroundings": ["240,115 150,62 30,62", 30, "Location"], "Size": ["365,205 440,118 520,118", 440, "Size"], "Lease and age": ["170,300 30,300", 30, "Lease and age"],
@@ -404,39 +459,104 @@ function drawBlock() {
     const [path, tx, label] = SPOTS[name], pts = path.split(" "), [x0, y0] = pts[0].split(",").map(Number), y = +pts[pts.length - 1].split(",")[1], grp = sv("g", top.includes(name) ? {} : { class: "pro" }, c);
     sv("polyline", { points: path, fill: "none", stroke: "var(--fg)", "stroke-width": 1 }, grp);
     sv("rect", { x: x0 - 4, y: y0 - 4, width: 8, height: 8, fill: "var(--bg)", stroke: "var(--fg)" }, grp);
-    sv("text", { x: tx, y: y - 28, "font-size": 10, "letter-spacing": 1.2, style: "fill:var(--dim)" }, grp).textContent = label.toUpperCase();
-    sv("text", { x: tx, y: y - 8, "font-size": 19, "font-weight": 700, style: `fill:var(${v >= 0 ? "--pos" : "--neg"})` }, grp).textContent = pc(v);
+    sv("text", { x: tx, y: y - 28, "font-size": 11, "letter-spacing": 1, style: "fill:var(--dim)" }, grp).textContent = label.toUpperCase();
+    sv("text", { x: tx, y: y - 8, "font-size": 20, "font-weight": 700, style: `fill:var(${v >= 0 ? "--pos" : "--neg"})` }, grp).textContent = pc(v);
   }
 }
-function drawTrend() {
-  const { years, values } = F.trend, g = $("trend"); g.replaceChildren();
-  if (years.length < 2) { $("trendText").textContent = "Not enough sales of this flat type in this town to show a trend."; return; }
+function drawTrend(g, text, t, flatType, town) {
+  const { years, values } = t; g.replaceChildren();
+  if (years.length < 2) { text.textContent = "Not enough sales of this flat type in this town to show a trend."; return; }
   const lo = Math.min(...values), hi = Math.max(...values), x = i => 30 + i * (640 / (years.length - 1)), y = v => 100 - (v - lo) / (hi - lo || 1) * 80, last = years.length - 1;
-  $("trendText").replaceChildren(`Median price per sqm, ${title(F.flat.flat_type)} flats in ${title(F.flat.town)}: `, h("b", {}, money(values[0])), " in ", hl(String(years[0])), " to ", h("b", {}, money(values[last])), " in ", hl(years[last] + " (to " + month(F.trend.last_year_through) + ")"), `, a change of ${pc(values[last] / values[0] - 1, 0)}.`);
+  text.replaceChildren(`Median price per sqm, ${title(flatType)} flats in ${title(town)}: `, h("b", { className: "hm" }, money(values[0])), " in ", hl(String(years[0])), " to ", h("b", { className: "hm" }, money(values[last])), " in ", hl(years[last] + " (to " + month(t.last_year_through) + ")"), ", a change of ", h("b", { className: "hm" }, pc(values[last] / values[0] - 1, 0)), ".");
   sv("polyline", { points: values.map((v, i) => x(i) + "," + y(v)).join(" "), fill: "none", stroke: "var(--fg)", "stroke-width": 2 }, g);
   values.forEach((v, i) => { sv("rect", { x: x(i) - 3, y: y(v) - 3, width: 6, height: 6, fill: "var(--panel)", stroke: "var(--fg)" }, g);
     if (i % 2 === 0 || i === last) sv("text", { x: x(i), y: 116, "font-size": 10, "text-anchor": "middle", style: "fill:var(--dim)" }, g).textContent = years[i]; });
 }
 
-// ---- switches
+// ---- tabs
+function selectTab(name) {
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === name));
+  document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== name);
+}
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+
+// ---- my flats
+const flatId = f => [f.flat.block, f.flat.street_name, f.flat.flat_type, f.flat.flat_model, f.flat.floor_area_sqm, f.flat.storey].join("|");
+const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || ""; };
+$("saveBtn").addEventListener("click", () => {
+  const id = flatId(F), price = +$("ask").value, old = flats.find(x => x.id === id);
+  if (old) Object.assign(old, { price, F }); else flats.unshift({ id, saved: new Date().toISOString().slice(0, 10), price, status: "Watching", notes: "", compare: false, F });
+  persist(); $("saveBtn").textContent = "Update saved flat"; toast(old ? "Saved flat updated" : "Saved to My flats");
+});
+function renderFlats() {
+  const box = $("flatList");
+  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved flats yet. Check a flat, then press Save flat.")); return; }
+  box.replaceChildren(...flats.map(item => {
+    const v = verdictFor(item.F, item.price), status = h("select", {}, ...["Watching", "Viewed", "Offer made", "Dropped"].map(s => h("option", { selected: s === item.status }, s)));
+    const notes = h("textarea", { rows: 2, placeholder: "Your notes", value: item.notes }), cmp = h("input", { type: "checkbox", checked: item.compare });
+    status.addEventListener("change", () => { item.status = status.value; persist(); });
+    notes.addEventListener("input", () => { item.notes = notes.value; persist(); });
+    cmp.addEventListener("change", () => { if (cmp.checked && flats.filter(x => x.compare).length >= 3) { cmp.checked = false; toast("Compare up to 3 flats"); return; } item.compare = cmp.checked; persist(); });
+    const open = h("button", { className: "btn ghost", type: "button" }, "Open"), del = h("button", { className: "btn ghost", type: "button" }, "Remove");
+    open.addEventListener("click", () => { F = item.F; F.price = item.price; openResult(); });
+    del.addEventListener("click", () => { flats = flats.filter(x => x !== item); persist(); renderFlats(); });
+    return h("div", { className: "panel fcard" }, h("div", { className: "bd" }, h("div", { className: "vword", style: `color:${v.color}` }, v.word), h("div", { className: "ot", style: "margin:0" }, flatName(item.F)), h("div", { className: "dim" }, flatDesc(item.F)),
+      kv(v.R.priceLabel, money(item.price)), kv("Our fair value", money(item.F.fair)), h("div", { className: "kv" }, h("span", { className: "dim" }, "Saved"), hl(new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))),
+      h("label", {}, h("span", { className: "cap dim" }, "Status"), status), notes,
+      h("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:8px" }, h("label", { style: "display:flex;gap:6px;align-items:center" }, cmp, "Compare"), h("div", {}, open, del))));
+  }));
+}
+
+// ---- compare
+function renderCompare() {
+  const sel = flats.filter(x => x.compare).slice(0, 3), box = $("cmp");
+  if (sel.length < 2) { box.replaceChildren(h("div", { className: "empty dim" }, "Tick Compare on two or three flats in My flats to see them side by side.")); return; }
+  const V = sel.map(x => verdictFor(x.F, x.price)), buyer = root.role === "buyer";
+  const rows = [["Verdict", (x, i) => h("span", { className: "vword", style: `color:${V[i].color};font-size:20px` }, V[i].word)], [V[0].R.priceLabel, x => money(x.price)], ["Our fair value", x => money(x.F.fair)],
+    ["Price versus fair value", x => h("span", { className: "hm" }, pc(x.price / x.F.fair - 1))], ["Likely range", x => `${k(qOf(x.F, 25))} - ${k(qOf(x.F, 75))}`], ["Reliability", x => x.F.reliability],
+    ["Size", x => Math.round(x.F.flat.floor_area_sqm) + " sqm"], ["Price per sqm", x => money(x.price / x.F.flat.floor_area_sqm)], ["Storey", x => x.F.flat.storey], ["Lease left", x => hl(Math.round(x.F.lease_now) + " years")],
+    ...(buyer ? [[`Lease runs until you are (age ${age()})`, x => { const e = leaseEnd(x.F); return e >= 95 ? "past 95" : String(e); }]] : []),
+    ["Biggest price driver", x => { const d = [...x.F.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]; return `${d[0]} ${pc(d[1])}`; }], ["Status", x => x.status], ["Your notes", x => x.notes || "-"]];
+  box.replaceChildren(h("div", { className: "panel" }, h("div", { className: "bd" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...sel.map(x => h("th", {}, flatName(x.F), h("div", { className: "fine", style: "font-weight:400" }, title(x.F.flat.flat_type) + ", " + title(x.F.flat.town))))),
+    ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...sel.map((x, i) => h("td", {}, fn(x, i)))))))));
+}
+
+// ---- deals and market
+const loadDeals = () => $("dealTown").value && api("/api/deals?" + new URLSearchParams({ town: $("dealTown").value })).then(d => dealCards($("dealCards"), $("dealCardsNote"), d)).catch(e => $("dealCardsNote").textContent = e.message);
+const loadMarket = () => $("mTown").value && api("/api/trend?" + new URLSearchParams({ town: $("mTown").value, flat_type: $("mType").value })).then(t => drawTrend($("mTrend"), $("mText"), t, $("mType").value, $("mTown").value)).catch(e => $("mText").textContent = e.message);
+$("dealTown").addEventListener("change", loadDeals); $("mTown").addEventListener("change", loadMarket); $("mType").addEventListener("change", loadMarket);
+
+// ---- the brief: a one-page summary that prints
+function buildBrief() {
+  const a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer", sec = t => h("h3", {}, t);
+  $("brief").replaceChildren(h("div", { className: "cap" }, "Oikos " + (buyer ? "offer" : "pricing") + " brief / " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })),
+    h("h2", {}, v.word), h("div", {}, h("b", {}, flatName(F)), " / " + flatDesc(F)), h("p", {}, v.R.line(v.p) + " " + v.R.lead + money(a) + " is " + pc(a / F.fair - 1) + " versus our fair value of " + money(F.fair) + "."),
+    sec("The numbers"), kv(v.R.priceLabel, money(a)), kv("Our fair value", money(F.fair)), kv("Likely range (half of comparable sales)", `${money(q(25))} - ${money(q(75))}`), kv("Wide range (8 in 10)", `${money(q(10))} - ${money(q(90))}`),
+    kv("Reliability of this estimate", F.reliability), kv("Lease left", Math.round(F.lease_now) + " years"),
+    sec(buyer ? "Offer guide" : "Pricing guide"), ...(buyer ? [kv("Open around", money(q(25))), kv("Aim for", money(F.fair)), kv("Walk away above", money(q(75)))] : [kv("List around", money(q(75))), kv("Comparable flats sold near", money(F.fair)), kv("Think twice below", money(q(25)))]),
+    sec("Your options"), h("ul", {}, ...optionsFor(F, a, root.role, v.i).map(([t, text]) => h("li", {}, h("b", {}, t + ": "), text))),
+    ...(F.notes.length ? [sec("Why reliability is " + F.reliability.toLowerCase()), h("ul", {}, ...F.notes.map(n => h("li", {}, n)))] : []),
+    ...(F.recent.length ? [sec("Recent sales of this flat type in the block"), ...F.recent.map(r => kv(`${month(r.month)}, storey ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm`, money(r.price)))] : []),
+    h("p", { style: "margin-top:16pt;font-size:9pt" }, "An indicative estimate from public HDB sales data (data.gov.sg, Singapore Open Data Licence v1.0), not a valuation or advice. It cannot see renovation, the exact floor, view or condition. For a loan or a sale you need a licensed valuer. Oikos is not affiliated with HDB or any government agency."));
+}
+$("briefBtn").addEventListener("click", () => { buildBrief(); window.print(); });
+
+// ---- settings
 const KEYS = { t: "theme", m: "mode", r: "role" };
 function pick(attr, val, save = true) {
-  document.documentElement.dataset[KEYS[attr]] = val;
-  document.querySelectorAll(`.themes button[data-${attr}]`).forEach(x => x.classList.toggle("on", x.dataset[attr] === val));
-  if (save) try { localStorage.setItem("oikos-" + KEYS[attr], val); } catch (e) {}
-  render();
+  root[KEYS[attr]] = val;
+  document.querySelectorAll(`.seg button[data-${attr}]`).forEach(x => x.classList.toggle("on", x.dataset[attr] === val));
+  if (save) store.set(KEYS[attr], val);
+  render(); const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
 }
-document.querySelectorAll(".themes button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
-try { for (const a in KEYS) { const v = localStorage.getItem("oikos-" + KEYS[a]); if (v) pick(a, v, false); } } catch (e) {}
-document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
-  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
-  document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
-}));
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
+for (const a in KEYS) pick(a, store.get(KEYS[a], root[KEYS[a]]), false);
+$("age").value = $("age0").value = store.get("age", "35");
 $("ask").addEventListener("input", render);
 addEventListener("resize", fitVerdict);
-if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);  // a late-loading font changes the headline width
+if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 const tick = () => $("clock").textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
-tick(); setInterval(tick, 30000);
+tick(); setInterval(tick, 30000); persist(); go("check");
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
 </script>
 </body>

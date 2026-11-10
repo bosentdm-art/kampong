@@ -6,6 +6,7 @@ Needs the data and models built first (python src/update.py).
   GET  /api/options   lists for the flat picker (town > street > block > flat type) and sensible defaults
   POST /api/parse     pasted listing text -> flat details
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
+  GET  /api/deals     below-estimate sales in a town       GET /api/trend   yearly price per sqm for a town and flat type
 
 The page works out verdicts for any price from the returned price quantiles, so dragging the price needs no
 new request. Everything returned comes from the models and the sales data; nothing is invented here.
@@ -175,6 +176,17 @@ def assess(f: Flat):
         average_flat=base, drivers=[[g, e] for g, e in effects.items()], what_ifs=[[k, v] for k, v in ex.what_if(spec).items()],
         recent=recent, outlook=[{k: v for k, v in r.items()} for r in out["rows"]], growth=math.expm1(out["growth_effective"]),
         deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta()))
+
+
+@app.get("/api/deals")
+def deals(town: str):
+    """Recent sales in a town that closed 8% or more under our estimate at the time."""
+    return clean(deals_nearby(town))
+
+
+@app.get("/api/trend")
+def trend_api(town: str, flat_type: str):
+    return clean(trend(town, flat_type))
 
 
 app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")
