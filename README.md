@@ -34,3 +34,10 @@ Add rows to `cases/known_cases.csv` (or point `listing_file` at a text file of a
 ```
 .venv\Scripts\python src\score_cases.py
 ```
+
+## Oikos web app (API + front end)
+```
+.venv\Scripts\python -m uvicorn api:app --port 8700
+```
+Then open http://localhost:8700. `api.py` wraps the models (`/api/options`, `/api/parse`, `/api/assess`)
+and serves the page in `web/`. The Streamlit app (`app.py`) still works and is now the fallback.

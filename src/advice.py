@@ -86,9 +86,11 @@ def assess(spec, asking=None, when=None):
     if not np.isnan(comps) and abs(np.log(comps / fair)) > 0.08:
         notes.append(f"Recent sales in this block point to about {money(comps)}, {comps / fair - 1:+.0%} from our fair value.")
 
-    out = dict(pred=pred, fair=fair, lease_now=lease0, lo80=at(0.10), hi80=at(0.90), lo50=at(0.25), hi50=at(0.75),
+    out = dict(pred=pred, fair=fair, lease_now=lease0,
+               # price at each quantile of comparable sales (widened), so a client can place any price on the scale
+               quantiles=[[float(qq), float(pred * np.exp(v))] for qq, v in zip(meta["quantiles"], qs)], lo80=at(0.10), hi80=at(0.90), lo50=at(0.25), hi50=at(0.75),
                p05=at(0.05), p95=at(0.95), width=width, badge=badge, notes=notes, n_block_24m=len(w24), comps_est=comps,
-               block_recent=b[b["sale_date"] > last - pd.DateOffset(months=12)].sort_values("sale_date", ascending=False),
+               block_recent=w24.sort_values("sale_date", ascending=False),  # same flat type in this block, last 24 months
                offer=dict(opening=at(0.25), target=fair, walk_away=at(0.75)),
                # log offsets from fair value, for forecast.forecast(today=...)
                today=dict(fair=fair, m10=float(np.log(at(0.10) / fair)), m90=float(np.log(at(0.90) / fair)),

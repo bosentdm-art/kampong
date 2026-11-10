@@ -250,3 +250,16 @@ realestateai/
   6-month holdout): 2.744% -> 2.715% median error, 94.2% -> 94.4% within 10%. Within noise, and it
   doubles training time. Accuracy remains at about 2.7% against a 1.9% noise floor; further gains
   need new data (exact floor, condition, listings), not more modelling.
+
+## Oikos web app started (2026-11-10)
+- `api.py` (FastAPI): `/api/options` (flat picker), `/api/parse` (pasted listing), `/api/assess` (all facts
+  for a flat: fair value, price quantiles, reliability and notes, input checks, drivers, what-ifs, recent
+  block sales, outlook, below-estimate sales nearby, price trend, track record). Serves `web/`.
+- `web/index.html`: the prototype design driven by the API for any flat. Buyer / seller, Simple / Pro,
+  three themes, paste-a-listing, price slider (verdict recomputed in the browser from the quantiles).
+  Readability: sentences in the plain font, dates and times in a highlight colour, labelled rows that
+  do not wrap, columns stack under 1100px.
+- Tested with the 85 Whampoa Dr listing end to end (parse -> picker -> assess -> both roles and modes).
+- To do: speed (/api/assess takes about 3.5s warm, 7s cold: cache per-block lookups); seller tone
+  thresholds live only in the front end and buyer ones are duplicated from advice.deal_label; hosting;
+  legal review of verdict and guide wording; LLM explanations (see docs/UX_PLAN.md); mobile layout.
