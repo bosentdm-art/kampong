@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-mode="simple" data-role="buyer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OIKOS prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Design prototype: static, one flat (85 Whampoa Dr), real model output. Not wired to the models yet. */
+  :root { --mono: "JetBrains Mono", ui-monospace, Consolas, monospace; --disp: "Space Grotesk", "Segoe UI", Arial, sans-serif; }
+  [data-theme="dark"]  { --bg:#06080a; --fg:#e8eef0; --dim:#7d8a90; --line:#2a3840; --panel:#0b1014; --accent:#5ef2d6; --grid:rgba(94,242,214,.05); --pos:#4ade80; --neg:#fb7185; }
+  [data-theme="light"] { --bg:#f3f3ef; --fg:#0c0d0e; --dim:#6a6f73; --line:#0c0d0e; --panel:#ffffff; --accent:#e2401c; --grid:rgba(0,0,0,.045); --pos:#15803d; --neg:#b42318; }
+  [data-theme="blue"]  { --bg:#f6f8ff; --fg:#1f3fae; --dim:#6f86cf; --line:#1f3fae; --panel:#ffffff; --accent:#1f3fae; --grid:rgba(31,63,174,.08); --pos:#15803d; --neg:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--mono); font-size:12px; line-height:1.5;
+         background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size:40px 40px; }
+  .frame { max-width:1480px; margin:0 auto; padding:18px 28px 40px; }
+  .cap { text-transform:uppercase; letter-spacing:.12em; font-size:10.5px; }
+  .dim { color:var(--dim); }
+  header { display:grid; grid-template-columns:1fr auto 1fr; align-items:start; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .brand { font-family:var(--disp); font-weight:700; letter-spacing:.18em; font-size:15px; }
+  .tag { border:1px solid var(--line); padding:2px 8px; }
+  .right { text-align:right; }
+  .themes button { font:inherit; font-size:10px; letter-spacing:.1em; background:none; color:var(--dim); border:1px solid var(--line); padding:2px 7px; cursor:pointer; margin-left:4px; }
+  .themes button.on { color:var(--bg); background:var(--fg); border-color:var(--fg); }
+  main { display:grid; grid-template-columns:repeat(12, 1fr); gap:28px 20px; margin-top:22px; }
+  .hero { grid-column:1 / span 5; }
+  .spec { grid-column:6 / span 4; }
+  .side { grid-column:10 / span 3; display:grid; gap:14px; align-content:start; }
+  h1 { font-family:var(--disp); font-weight:700; font-size:clamp(54px, 6.6vw, 108px); line-height:.92; letter-spacing:-.02em; margin:16px 0 18px; text-transform:uppercase; }
+  .sub { font-family:var(--disp); font-size:19px; line-height:1.4; max-width:30em; }
+  .sub b { font-weight:700; }
+  .ask { margin-top:26px; border:1px solid var(--line); background:var(--panel); padding:12px 14px; max-width:460px; }
+  .ask .row { display:flex; justify-content:space-between; align-items:baseline; }
+  .ask output { font-family:var(--disp); font-size:26px; font-weight:700; }
+  input[type=range] { width:100%; accent-color:var(--accent); margin:8px 0 0; }
+  .panel { border:1px solid var(--line); background:var(--panel); }
+  .panel > .hd { display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding:4px 10px; }
+  .panel > .bd { padding:12px; }
+  .big { font-family:var(--disp); font-weight:700; font-size:38px; line-height:1; }
+  .kv { display:flex; justify-content:space-between; padding:5px 0; border-top:1px dashed var(--line); }
+  .kv:first-of-type { margin-top:10px; }
+  .kv b { font-weight:700; }
+  .meter { display:flex; gap:3px; margin:8px 0 10px; }
+  .meter i { height:10px; flex:1; border:1px solid var(--line); }
+  .meter i.on { background:var(--fg); }
+  ul { margin:0; padding-left:14px; } li { margin:3px 0; }
+  svg text { font-family:var(--mono); fill:var(--fg); }
+  .track-wrap { grid-column:1 / -1; }
+  .track { position:relative; height:26px; margin:34px 0 26px; border:1px solid var(--line);
+           background:linear-gradient(90deg,#22c55e 0 10%,#16a34a 10% 30%,#eab308 30% 65%,#f97316 65% 90%,#ef4444 90% 100%); }
+  .mark { position:absolute; top:-9px; bottom:-9px; width:3px; background:var(--fg); transform:translateX(-1px); transition:left .15s; }
+  .mark span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 8px; background:var(--fg); color:var(--bg); font-weight:700; }
+  .tick { position:absolute; top:100%; transform:translateX(-50%); padding-top:6px; white-space:nowrap; }
+  .tick::before { content:""; position:absolute; top:0; left:50%; height:5px; border-left:1px solid var(--fg); }
+  .zone { position:absolute; top:5px; transform:translateX(-50%); color:#06080a; font-weight:700; font-size:10px; letter-spacing:.1em; }
+  .third { grid-column:span 4; }
+  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:4px 0; border-top:1px dashed var(--line); font-weight:400; } th { color:var(--dim); border-top:0; }
+  td:last-child, th:last-child { text-align:right; }
+  .fine { font-size:10.5px; color:var(--dim); }
+  /* Simple mode hides everything marked .pro; Pro shows it all */
+  [data-mode="simple"] .pro { display:none; }
+  [data-mode="pro"] .simple { display:none; }
+  [data-role="buyer"] .seller, [data-role="seller"] .buyer { display:none; }
+  .role button { font-size:12px; padding:5px 16px; margin:0; }
+  [data-mode="simple"] .foot .bd { display:block; }
+  .detail, .foot, .opts, .radar { grid-column:1 / -1; }
+  .gap { display:inline-block; margin-top:14px; padding:4px 10px; font-weight:700; letter-spacing:.08em; color:#06080a; }
+  .rbar { position:relative; height:22px; margin:14px 0 4px; } .rbar i { position:absolute; }
+  .rbar .w { top:10px; height:2px; background:var(--dim); left:17.9%; width:51.5%; }
+  .rbar .l { top:6px; height:10px; background:var(--fg); left:31.6%; width:22.4%; }
+  .rbar .f { top:6px; height:10px; width:2px; background:var(--panel); left:41.7%; }
+  .rbar .a { top:0; height:22px; width:3px; background:var(--accent); transition:left .15s; }
+  #opts { display:grid; grid-template-columns:repeat(3, 1fr); } .deals { display:grid; grid-template-columns:repeat(4, 1fr); }
+  .opt, .deal { padding:2px 18px; border-left:1px dashed var(--line); font-size:13px; } .opt:first-child, .deal:first-child { border-left:0; padding-left:0; }
+  .ot { font-family:var(--disp); font-weight:700; font-size:18px; margin:3px 0 5px; }
+  .deal .big { color:var(--pos); font-size:32px; }
+  .detail .bd { min-height:132px; } .detail table { max-width:720px; } .detail ul { margin-top:6px; }
+  .tabs button { font:inherit; letter-spacing:inherit; text-transform:uppercase; background:none; border:0; color:var(--dim); cursor:pointer; padding:0 18px 0 0; }
+  .tabs button.on { color:var(--fg); text-decoration:underline; text-underline-offset:4px; }
+  .foot .bd { display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <div><div class="brand">OIKOS</div><div class="cap dim">HDB resale price intelligence</div></div>
+    <div class="themes role"><button data-r="buyer" class="on">I'm buying</button><button data-r="seller">I'm selling</button></div>
+    <div class="right cap">
+      <div><span class="dim">Singapore time</span> <span id="clock"></span></div>
+      <div class="themes" style="margin-top:6px"><button data-m="simple" class="on">Simple</button><button data-m="pro">Pro</button> <span class="dim">/</span> <button data-t="light" class="on">Light</button><button data-t="dark">Dark</button><button data-t="blue">Blueprint</button></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="cap dim">[ Blk 85 Whampoa Dr / 3-room Improved / 76 sqm / storey 07-09 / lease from 1974 ]</div>
+      <h1 id="verdict">Likely pricey.</h1>
+      <div class="sub" id="sub"></div>
+      <div class="gap" id="gap"></div>
+      <div class="ask">
+        <div class="row"><span class="cap dim"><span class="buyer">Asking price</span><span class="seller">Your listing price</span> (drag to test)</span><output id="askOut"></output></div>
+        <input id="ask" type="range" min="320000" max="480000" step="1000" value="420000" aria-label="Asking price">
+      </div>
+    </section>
+
+    <section class="spec" aria-label="Price drivers">
+      <svg viewBox="0 0 540 500" width="100%" role="img" aria-label="Wireframe of the block with price drivers">
+        <g id="bld" fill="none" stroke="var(--fg)" stroke-width="1"></g>
+        <g id="calls"></g>
+      </svg>
+      <div class="cap dim" style="text-align:center">Price drivers vs the average HDB resale flat today ($596k)</div>
+    </section>
+
+    <aside class="side">
+      <div class="panel"><div class="hd cap"><span>Fair value today</span><span>01</span></div><div class="bd">
+        <div class="big">$386,658</div>
+        <div class="rbar" aria-hidden="true"><i class="w"></i><i class="l"></i><i class="f"></i><i class="a" id="rAsk"></i></div>
+        <div class="fine">Thin line = wide range, thick = likely range, coloured mark = the price you are checking</div>
+        <div class="kv"><span class="dim">Likely range (50%)</span><b>$371k - $406k</b></div>
+        <div class="kv pro"><span class="dim">Wide range (80%)</span><b>$349k - $431k</b></div>
+        <div class="kv"><span class="dim">Lease left</span><b>46 years</b></div>
+      </div></div>
+      <div class="panel pro"><div class="hd cap"><span>Reliability</span><span>02</span></div><div class="bd">
+        <div class="big">LOW</div>
+        <div class="meter"><i class="on"></i><i></i><i></i></div>
+      </div></div>
+      <div class="panel buyer"><div class="hd cap"><span>Offer guide</span><span>03</span></div><div class="bd">
+        <div class="simple"><div class="big">$371k - $387k</div><div class="dim" style="margin-top:8px">Don't pay more than <b style="color:var(--fg)">$406k</b></div></div>
+        <div class="kv pro" style="margin-top:0;border-top:0"><span class="dim">Open around</span><b>$371k</b></div>
+        <div class="kv pro"><span class="dim">Aim for</span><b>$387k</b></div>
+        <div class="kv pro"><span class="dim">Walk away above</span><b>$406k</b></div>
+      </div></div>
+      <div class="panel seller"><div class="hd cap"><span>Pricing guide</span><span>03</span></div><div class="bd">
+        <div class="simple"><div class="big">$387k - $406k</div><div class="dim" style="margin-top:8px">Think twice below <b style="color:var(--fg)">$371k</b></div></div>
+        <div class="kv pro" style="margin-top:0;border-top:0"><span class="dim">List around</span><b>$406k</b></div>
+        <div class="kv pro"><span class="dim">Expect to settle near</span><b>$387k</b></div>
+        <div class="kv pro"><span class="dim">Think twice below</span><b>$371k</b></div>
+      </div></div>
+    </aside>
+
+    <section class="track-wrap">
+      <div class="cap dim">[ Where this price sits among comparable sales ]</div>
+      <div class="track" id="track">
+        <span id="zones"></span>
+        <div class="mark" id="mark"><span id="markLbl"></span></div>
+        <span class="tick" style="left:10%">$349k</span><span class="tick" style="left:25%">$371k</span><span class="tick" style="left:50%">$387k</span><span class="tick" style="left:75%">$406k</span><span class="tick" style="left:90%">$431k</span>
+      </div>
+    </section>
+
+    <section class="panel opts">
+      <div class="hd cap"><span>Your options</span><span class="dim">Written from the numbers on this page</span></div>
+      <div class="bd"><div id="opts"></div><div class="fine" style="margin-top:10px">Reliability is low for this flat, so treat these figures as a guide. Renovation, view and urgency are not in the numbers.</div></div>
+    </section>
+    <section class="panel pro detail">
+      <div class="hd cap"><span class="tabs"><button data-tab="sales" class="on">Recent sales</button><button data-tab="whatif">What if</button><button data-tab="why">Reliability</button><button data-tab="outlook">Outlook</button><button data-tab="trend">Trend</button></span><span>04</span></div>
+      <div class="bd">
+        <div data-pane="sales"><table><tr><th>Month</th><th>Storey</th><th>Size</th><th>Price</th></tr>
+          <tr><td>2025-04</td><td>10-12</td><td>65 sqm</td><td>$350,000</td></tr>
+          <tr><td>2024-07</td><td>10-12</td><td>65 sqm</td><td>$341,000</td></tr>
+          <tr><td>2024-06</td><td>01-03</td><td>65 sqm</td><td>$345,000</td></tr></table></div>
+        <div data-pane="whatif" hidden><table><tr><th>If this flat were...</th><th>Fair value changes by</th></tr>
+          <tr><td>3 storeys higher</td><td>+2.1%</td></tr><tr><td>3 storeys lower</td><td>-1.9%</td></tr>
+          <tr><td>5 sqm larger</td><td>+10.5%</td></tr><tr><td>10 years newer lease</td><td>+12.5%</td></tr></table></div>
+        <div data-pane="why" hidden><div>Reliability is <b>Low</b> for this flat because:</div>
+          <ul><li>Short remaining lease (46 years): prices of these flats vary more.</li><li>Only 1 sale of this flat type in this block in 24 months.</li><li>Less common size: 76 sqm against the usual 65 sqm, so there are fewer direct comparisons.</li></ul></div>
+        <div data-pane="outlook" hidden><div><b>Not projected.</b> In 3 to 5 years this flat's lease would fall under 50 years, which our back-tests do not cover, so we show no figure.</div></div>
+        <div data-pane="trend" hidden><div>Median price per sqm, 3-room flats in Kallang/Whampoa: <b>$5,085</b> in 2016 to <b>$6,708</b> in 2026 (to October), up <b>32%</b>.</div>
+          <svg id="trend" viewBox="0 0 700 120" width="100%" style="max-width:720px;margin-top:6px" role="img" aria-label="Price per square metre by year, 2016 to 2026"></svg></div>
+      </div>
+    </section>
+    <section class="panel radar buyer">
+      <div class="hd cap"><span>Sold below our estimate nearby</span><span class="dim">Kallang/Whampoa, October 2026</span></div>
+      <div class="bd"><div class="deals">
+        <div class="deal"><div class="big">-11.9%</div><div class="ot">Blk 98 Whampoa Dr</div><div>3-room, 65 sqm, storey 07-09</div><div class="dim">Sold $315,000 / our estimate $357k</div></div>
+        <div class="deal"><div class="big">-11.8%</div><div class="ot">Blk 38 Upp Boon Keng Rd</div><div>5-room, 114 sqm, storey 22-24</div><div class="dim">Sold $600,000 / our estimate $680k</div></div>
+        <div class="deal"><div class="big">-9.7%</div><div class="ot">Blk 96 Whampoa Dr</div><div>4-room, 91 sqm, storey 01-03</div><div class="dim">Sold $438,000 / our estimate $485k</div></div>
+        <div class="deal"><div class="big">-8.6%</div><div class="ot">Blk 44 Bendemeer Rd</div><div>3-room, 63 sqm, storey 10-12</div><div class="dim">Sold $355,000 / our estimate $388k</div></div>
+      </div>
+      <div class="fine" style="margin-top:10px">Completed sales, not live listings. In May to October 2026, 38 of 450 sales in this town closed 8% or more under our estimate. A low price can reflect condition or urgency.</div></div>
+    </section>
+    <div class="panel keep foot"><div class="bd">
+      <span class="simple">Built on 990,000 public HDB sales. A guide, not a valuation.</span>
+      <span class="pro">Built on 990,000 HDB resale transactions since 1990. On the six most recent months held out from training, half of sales landed within <b>2.7%</b> of our estimate and <b>8 in 10</b> inside the wide range.</span>
+      <span class="fine pro">A guide from public sales data, not advice or a valuation for loans. It cannot see renovation, the exact floor, view or condition.</span>
+    </div></div>
+  </main>
+</div>
+
+<script>
+// Real model output for one flat (advice.assess on 85 Whampoa Dr, storey 07-09). The slider re-reads the same price quantiles.
+const D = { fair: 386658, lowReliability: true,
+  q: [[10, 348571], [25, 370570], [50, 386658], [75, 406369], [90, 431034]],
+  drivers: [["Location", 6.6], ["Size", -16.3], ["Lease and age", -14.7], ["Floor level", 0.2], ["Flat type and model", -14.9]] };
+const C = { bright: ["#22c55e", "#0f9d3a"], green: ["#16a34a", "#166534"], yellow: ["#eab308", "#8a6100"], orange: ["#f97316", "#c2410c"], red: ["#ef4444", "#b42318"] };
+const tone = (max, word, short, c) => ({ max, word, short, dark: C[c][0], light: C[c][1] });
+// p = share of comparable sales that went for less than the price being checked
+const ROLES = {
+  buyer: { lead: "Asking ", mark: "ASKING",
+    tones: [tone(10, "Great deal", "GREAT", "bright"), tone(30, "Good deal", "GOOD", "green"), tone(65, "Fair price", "FAIR", "yellow"),
+            tone(90, "Pricey", "PRICEY", "orange"), tone(101, "Overpriced", "OVER", "red")],
+    line: p => p < 10 ? "Cheaper than about 9 in 10 comparable sales." : p < 30 ? `Cheaper than about ${Math.round(100 - p)}% of comparable sales.`
+      : p < 65 ? "In line with what comparable flats sell for." : p < 90 ? `Dearer than about ${Math.round(p)}% of comparable sales.` : "Dearer than about 9 in 10 comparable sales." },
+  seller: { lead: "Your price of ", mark: "YOUR PRICE",
+    tones: [tone(20, "Underpriced", "UNDER", "yellow"), tone(50, "Priced to sell", "TO SELL", "bright"), tone(75, "Fair ask", "FAIR", "green"),
+            tone(90, "Ambitious", "AMBITIOUS", "orange"), tone(101, "Too high", "TOO HIGH", "red")],
+    line: p => p < 20 ? "Most comparable flats sold for more. You could ask for more." : p < 50 ? "At or just under what comparable flats sell for. Buyers checking recent sales will see good value."
+      : p < 75 ? "In line with comparable sales, with room to negotiate." : p < 90 ? `Above about ${Math.round(p)}% of comparable sales. Buyers checking recent sales will see it as expensive.`
+      : "Above about 9 in 10 comparable sales. Few comparable flats have sold this high." } };
+const $ = id => document.getElementById(id);
+const money = x => "$" + Math.round(x).toLocaleString("en-US");
+
+function percentile(a) {  // share of comparable sales that went for less
+  const q = D.q, n = q.length - 1;
+  if (a <= q[0][1]) return Math.max(1, q[0][0] - (q[0][1] - a) / ((q[1][1] - q[0][1]) / (q[1][0] - q[0][0])));
+  for (let i = 0; i < n; i++) if (a <= q[i + 1][1]) return q[i][0] + (a - q[i][1]) / (q[i + 1][1] - q[i][1]) * (q[i + 1][0] - q[i][0]);
+  return Math.min(99, q[n][0] + (a - q[n][1]) / ((q[n][1] - q[n - 1][1]) / (q[n][0] - q[n - 1][0])));
+}
+function render() {
+  const root = document.documentElement.dataset, R = ROLES[root.role], a = +$("ask").value, p = percentile(a), t = R.tones.find(t => p < t.max);
+  const simple = root.mode === "simple", diff = (a / D.fair - 1) * 100;
+  $("verdict").textContent = (D.lowReliability ? "Likely " : "") + t.word + ".";
+  $("verdict").style.color = root.theme === "dark" ? t.dark : t.light;
+  $("sub").replaceChildren((simple ? "" : R.line(p) + " ") + R.lead + money(a) + " is ",
+    Object.assign(document.createElement("b"), { textContent: (diff >= 0 ? "+" : "") + diff.toFixed(1) + "%" }), " versus our fair value of " + money(D.fair) + ".");
+  $("askOut").textContent = money(a);
+  $("mark").style.left = p + "%";
+  $("markLbl").textContent = R.mark + " " + money(a);
+  let from = 0; const stops = [], labels = [];  // the scale's zones follow the role's verdicts
+  for (const z of R.tones) {
+    const to = Math.min(z.max, 100), lab = Object.assign(document.createElement("span"), { className: "zone", textContent: z.short });
+    lab.style.left = (from + to) / 2 + "%"; labels.push(lab); stops.push(`${z.dark} ${from}% ${to}%`); from = to;
+  }
+  $("track").style.background = `linear-gradient(90deg, ${stops.join(", ")})`;
+  $("zones").replaceChildren(...labels);
+  const under = a < D.fair, gap = $("gap");
+  gap.textContent = Math.abs(a - D.fair) < 500 ? "AT FAIR VALUE" : `${under ? "▼" : "▲"} ${money(Math.abs(a - D.fair))} ${under ? "BELOW" : "ABOVE"} FAIR VALUE`;
+  gap.style.background = t.dark;
+  $("rAsk").style.left = Math.max(0, Math.min(100, (a - 320000) / 1600)) + "%";
+  renderOptions(root.role, R.tones.indexOf(t), a);
+  fitVerdict();
+}
+// Three plain options, chosen by role and verdict and filled with this flat's numbers. Rule-based for now:
+// an LLM can later rewrite the wording, but only from these same facts.
+function renderOptions(role, i, a) {
+  const k = x => "$" + Math.round(x / 1000) + "k", f = D.fair, lo = D.q[1][1], hi = D.q[3][1], d = k(Math.abs(a - f));
+  const buyer = i < 2 ? [["Move on it", `At ${k(a)} it is ${d} under our fair value. An offer at or near asking is reasonable.`],
+      ["Check why it is cheap", "Ask about condition, the lease and any reason for a quick sale before you commit."],
+      ["Verify the details", "Confirm the HDB-registered size and floor. A wrong size changes the answer."]]
+    : i === 2 ? [["Offer near fair value", `Open around ${k(lo)} and settle near ${k(f)}.`],
+      ["Pay asking if it is the one", "The price is in line with comparable sales, so paying it is defensible."],
+      ["Compare first", "Look at the recent sales in this block (Pro view) before deciding."]]
+    : [["Negotiate down", `Open around ${k(lo)} and aim for ${k(f)}.`],
+      ["Ask what justifies it", `It is ${d} over our fair value. Renovation, floor or view can explain some of that, so ask for evidence.`],
+      ["Walk away", `Above ${k(hi)}, about 3 in 4 comparable sales were cheaper.`]];
+  const seller = i === 0 ? [["Raise your price", `You are ${d} under our fair value. Between ${k(f)} and ${k(hi)} is still in line with comparable sales.`],
+      ["Keep it low on purpose", "A low price stands out against recent sales, but you give up money. Only do it deliberately."],
+      ["Check the details", "Confirm your size and floor are entered correctly. A wrong size changes the answer."]]
+    : i < 3 ? [["List as is", "Your price is in line with what comparable flats sold for."],
+      ["Decide your floor", `Comparable flats sold near ${k(f)}. Think twice below ${k(lo)}.`],
+      ["Back it up", "Show buyers the recent sales in your block and what you have renovated."]]
+    : [["Reprice", `Between ${k(f)} and ${k(hi)} puts you in line with comparable sales.`],
+      ["Hold and justify", `You are ${d} over our fair value. Renovation, floor or view can support a premium, so be ready to show it.`],
+      ["Know your floor", `Comparable flats sold near ${k(f)}. Think twice below ${k(lo)}.`]];
+  const div = (cls, text) => Object.assign(document.createElement("div"), { className: cls, textContent: text });
+  $("opts").replaceChildren(...(role === "buyer" ? buyer : seller).map(([title, text], n) => {
+    const c = div("opt", ""); c.append(div("cap dim", "Option " + "ABC"[n]), div("ot", title), div("", text)); return c; }));
+}
+function fitVerdict() {  // shrink the headline when its longest word is wider than the column
+  const h = $("verdict"), r = document.createRange();
+  h.style.fontSize = "";
+  r.selectNodeContents(h);
+  const w = r.getBoundingClientRect().width;
+  if (w > h.clientWidth) h.style.fontSize = parseFloat(getComputedStyle(h).fontSize) * h.clientWidth / w * 0.98 + "px";
+}
+addEventListener("resize", fitVerdict);
+
+// Wireframe block (12 storeys, storeys 7-9 highlighted) and driver callouts
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+(function drawBlock() {
+  const g = $("bld"), H = 220, F = H / 12, front = x => 150 + (x - 170) * 0.25, side = x => 190 - (x - 330) * 0.5;
+  const band = (a, b) => `170,${370 - b * F} 330,${410 - b * F} 400,${375 - b * F} 400,${375 - a * F} 330,${410 - a * F} 170,${370 - a * F}`;
+  el("polygon", { points: band(6, 9), fill: "var(--accent)", "fill-opacity": ".28", stroke: "none" }, g);
+  el("polygon", { points: "170,150 330,190 400,155 240,115" }, g);
+  el("polygon", { points: "170,150 330,190 330,410 170,370" }, g);
+  el("polygon", { points: "330,190 400,155 400,375 330,410" }, g);
+  for (let i = 1; i < 12; i++) { el("line", { x1: 170, y1: 370 - i * F, x2: 330, y2: 410 - i * F, "stroke-opacity": ".45" }, g); el("line", { x1: 330, y1: 410 - i * F, x2: 400, y2: 375 - i * F, "stroke-opacity": ".45" }, g); }
+  for (const x of [210, 250, 290]) el("line", { x1: x, y1: front(x), x2: x, y2: front(x) + H, "stroke-opacity": ".45" }, g);
+  el("line", { x1: 365, y1: side(365), x2: 365, y2: side(365) + H, "stroke-opacity": ".45" }, g);
+  const spots = [ { path: "240,115 150,62 30,62", tx: 30 }, { path: "365,205 440,118 520,118", tx: 440 }, { path: "170,300 30,300", tx: 30 },
+    { path: "400,238 448,262 520,262", tx: 440 }, { path: "250,390 190,452 30,452", tx: 30 } ];
+  const top = [...D.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 2).map(d => d[0]);
+  D.drivers.forEach(([name, v], i) => {
+    const all = $("calls"), c = el("g", top.includes(name) ? {} : { class: "pro" }, all), s = spots[i], pts = s.path.split(" "), [x0, y0] = pts[0].split(",").map(Number), y = +pts[pts.length - 1].split(",")[1];
+    el("polyline", { points: s.path, fill: "none", stroke: "var(--fg)", "stroke-width": 1 }, c);
+    el("rect", { x: x0 - 4, y: y0 - 4, width: 8, height: 8, fill: "var(--bg)", stroke: "var(--fg)" }, c);
+    el("text", { x: s.tx, y: y - 28, "font-size": 10, "letter-spacing": 1.2, style: "fill:var(--dim)" }, c).textContent = name.toUpperCase();
+    el("text", { x: s.tx, y: y - 8, "font-size": 19, "font-weight": 700, style: `fill:var(${v >= 0 ? "--pos" : "--neg"})` }, c).textContent = (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
+  });
+})();
+
+const KEYS = { t: "theme", m: "mode", r: "role" };  // button data attribute -> setting on <html>
+function pick(attr, val, save = true) {
+  document.documentElement.dataset[KEYS[attr]] = val;
+  document.querySelectorAll(`.themes button[data-${attr}]`).forEach(x => x.classList.toggle("on", x.dataset[attr] === val));
+  if (save) try { localStorage.setItem("oikos-" + KEYS[attr], val); } catch (e) {}
+  render();
+}
+document.querySelectorAll(".themes button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
+try {  // remember the viewer's last choices; the page works without storage
+  for (const a in KEYS) { const v = localStorage.getItem("oikos-" + KEYS[a]); if (v) pick(a, v, false); }
+} catch (e) {}
+(function drawTrend() {  // median price per sqm by year, 2016-2026, for this town and flat type
+  const v = [5085, 4867, 4633, 4852, 4534, 4924, 5735, 5803, 6271, 6797, 6708], g = $("trend"), x = i => 30 + i * 64, y = n => 100 - (n - 4400) / 2500 * 80;
+  el("polyline", { points: v.map((n, i) => x(i) + "," + y(n)).join(" "), fill: "none", stroke: "var(--fg)", "stroke-width": 2 }, g);
+  v.forEach((n, i) => { el("rect", { x: x(i) - 3, y: y(n) - 3, width: 6, height: 6, fill: "var(--panel)", stroke: "var(--fg)" }, g);
+    if (i % 2 === 0) el("text", { x: x(i), y: 116, "font-size": 10, "text-anchor": "middle", style: "fill:var(--dim)" }, g).textContent = 2016 + i; });
+})();
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+}));
+$("ask").addEventListener("input", render);
+const tick = () => $("clock").textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
+tick(); setInterval(tick, 30000); render();
+</script>
+</body>
+</html>

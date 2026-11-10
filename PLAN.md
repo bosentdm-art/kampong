@@ -244,3 +244,9 @@ realestateai/
   what-ifs). Size what-ifs are limited to sizes recorded for that flat type in the town.
   Known quirk: the model's size effect can be lopsided near rare sizes (e.g. 3-room 76 -> 81 sqm
   +10.5%, 76 -> 71 sqm -3.0%); it is what the model learned, shown as a pattern, not a guarantee.
+
+## Blend experiment (2026-11-10): not adopted
+- Averaging the production model with a second one trained on log price per sqm (3 seeds each, same
+  6-month holdout): 2.744% -> 2.715% median error, 94.2% -> 94.4% within 10%. Within noise, and it
+  doubles training time. Accuracy remains at about 2.7% against a 1.9% noise floor; further gains
+  need new data (exact floor, condition, listings), not more modelling.
