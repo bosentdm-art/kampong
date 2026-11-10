@@ -97,3 +97,12 @@ and the content rules, and re-test with the 85 Whampoa Drive listing and `cases/
 - Fallback: the rule-based "Your options" text, which is what the prototype shows today.
 - Needs: a Python API around `advice.assess`, `explain.drivers`, `forecast.forecast`; an API key
   kept server-side; a cost check per explanation before launch.
+
+## 35+ audience (2026-11)
+- Ideas brainstormed: age-first entry, two verdicts (price and personal fit), a life timeline, a
+  sell-and-buy view for upgraders and right-sizers, "near my parents", and a singles budget check.
+- Built: "Will it last you?" in the buyer view of `web/index.html`. The buyer enters their age and a
+  bar from today to age 95 shows how long the lease runs. Colours are our own rule of thumb (green if
+  the lease outlasts 95, orange if it ends at 85-94, red if earlier). Pro adds lease left at 55/65/75/85.
+- To verify before launch: the HDB loan and CPF rules tied to the lease covering the youngest buyer to
+  age 95, singles eligibility and grants, and whether a personal "fit" verdict counts as advice.

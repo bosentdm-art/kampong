@@ -74,6 +74,10 @@
   .tabs button.on { color:var(--fg); text-decoration:underline; text-underline-offset:4px; }
   .detail .bd { min-height:132px; }
   .fine { font-size:13px; color:var(--dim); }
+  .life-top { display:flex; gap:28px; align-items:center; flex-wrap:wrap; }
+  .life-top input { display:block; width:96px; margin-top:4px; font-family:var(--disp); font-size:24px; font-weight:700; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:4px 8px; }
+  .life { position:relative; height:18px; margin:30px 0 30px; border:1px solid var(--line); }
+  .life i { position:absolute; left:0; top:0; bottom:0; transition:width .15s; }
   [data-mode="simple"] .pro, [data-mode="pro"] .simple { display:none; }
   [data-role="buyer"] .seller, [data-role="seller"] .buyer { display:none; }
   [hidden] { display:none !important; }
@@ -157,6 +161,17 @@
     <section class="wide">
       <div class="cap dim">[ Where this price sits among comparable sales ]</div>
       <div class="track" id="track"><span id="zones"></span><div class="mark" id="mark"><span id="markLbl"></span></div><span id="ticks"></span></div>
+    </section>
+
+    <section class="panel buyer wide">
+      <div class="hd cap"><span>Will it last you?</span><span class="dim">The lease against your age</span></div>
+      <div class="bd">
+        <div class="life-top"><label class="cap dim">Your age<input id="age" type="number" min="21" max="90" step="1" value="35"></label>
+          <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
+        <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div>
+        <div class="pro" id="lifeRows"></div>
+        <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
+      </div>
     </section>
 
     <section class="panel wide">
@@ -322,7 +337,7 @@ function render() {
   let from = 0; const stops = [], labels = [];
   for (const z of R.tones) { const to = Math.min(z.max, 100); labels.push(h("span", { className: "zone", style: `left:${(from + to) / 2}%` }, z.short)); stops.push(`${z.dark} ${from}% ${to}%`); from = to; }
   $("track").style.background = `linear-gradient(90deg, ${stops.join(", ")})`; $("zones").replaceChildren(...labels);
-  renderOptions(root.role, R.tones.indexOf(t), a); fitVerdict();
+  renderOptions(root.role, R.tones.indexOf(t), a); renderLife(); fitVerdict();
 }
 // Three plain options by role and verdict, filled with this flat's numbers. Rule-based for now: an LLM can later
 // rewrite the wording, but only from these same facts.
@@ -341,6 +356,24 @@ function fitVerdict() {  // shrink the headline when it is wider than its column
   const w = r.getBoundingClientRect().width;
   if (w > v.clientWidth) v.style.fontSize = parseFloat(getComputedStyle(v).fontSize) * v.clientWidth / w * 0.98 + "px";
 }
+
+// ---- the lease against the buyer's age: a bar from today to age 95, filled for as long as the lease runs.
+// Colours are our own rule of thumb: green if the lease outlasts age 95, orange if it ends at 85-94, red if earlier.
+function renderLife() {
+  if (!F) return;
+  const age = Math.min(90, Math.max(21, Math.round(+$("age").value) || 35)), lease = F.lease_now, end = Math.floor(age + lease), ok = end >= 95;
+  const col = ok ? C.bright : end >= 85 ? C.orange : C.red, x = a => Math.max(0, Math.min(100, (a - age) / (95 - age) * 100));
+  $("lifeWord").textContent = ok ? "Lasts past 95" : "Ends when you are " + end;
+  $("lifeWord").style.color = document.documentElement.dataset.theme === "dark" ? col[0] : col[1];
+  $("lifeLine").replaceChildren("The lease has ", hl(Math.round(lease) + " years"), " left, so it runs until you are ", hl(String(end)), ok ? ", past age 95." : ".");
+  Object.assign($("lifeBar").style, { width: x(age + lease) + "%", background: col[0] });
+  const tickAt = (label, style) => h("span", { className: "tick", style }, label), marks = [55, 65, 75, 85].filter(m => m > age + 4 && m < 92);
+  $("lifeTicks").replaceChildren(tickAt("Today, " + age, "left:0;transform:none"), ...marks.map(m => tickAt(String(m), `left:${x(m)}%`)), tickAt("95", "left:auto;right:0;transform:none"),
+    ...(ok ? [] : [h("div", { className: "mark", style: `left:${x(age + lease)}%` }, h("span", {}, "LEASE ENDS AT " + end))]));
+  $("lifeRows").replaceChildren(...[55, 65, 75, 85].filter(m => m > age).map(m => kv("When you are " + m, age + lease - m > 0 ? Math.round(age + lease - m) + " years of lease left" : "The lease has ended")));
+}
+$("age").addEventListener("input", () => { try { localStorage.setItem("oikos-age", $("age").value); } catch (e) {} renderLife(); });
+try { const saved = localStorage.getItem("oikos-age"); if (saved) $("age").value = saved; } catch (e) {}
 
 // ---- drawings
 const SPOTS = { "Location and surroundings": ["240,115 150,62 30,62", 30, "Location"], "Size": ["365,205 440,118 520,118", 440, "Size"], "Lease and age": ["170,300 30,300", 30, "Lease and age"],
