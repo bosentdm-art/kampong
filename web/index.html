@@ -1,19 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-mode="simple" data-role="buyer" data-font="plex">
+<html lang="en" data-theme="light" data-mode="simple" data-role="buyer">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oikos - HDB resale price check</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&family=Inter:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   /* Labels and numbers use the mono font; anything a person has to READ as a sentence uses the plain one.
      --hl marks dates and times so they stand out from the surrounding text. */
-  :root { --mono: "JetBrains Mono", ui-monospace, Consolas, monospace; --disp: "Space Grotesk", "Segoe UI", Arial, sans-serif; }
-  /* Font candidates (temporary switch in the header). "grotesk" is the original pairing. */
-  [data-font="plex"]     { --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
-  [data-font="inter"]    { --disp: "Inter", "Segoe UI", Arial, sans-serif; --mono: "Inter", "Segoe UI", Arial, sans-serif; }
-  [data-font="atkinson"] { --disp: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif; --mono: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif; }
+  :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; }
   [data-theme="light"] { --bg:#f3f3ef; --fg:#0c0d0e; --dim:#5f6468; --line:#0c0d0e; --panel:#ffffff; --accent:#e2401c; --grid:rgba(0,0,0,.045); --pos:#15803d; --neg:#b42318; --hl:#1d4ed8; --hlbg:#e3ebff; --mk:#ffe97a; }
   [data-theme="dark"]  { --bg:#06080a; --fg:#e8eef0; --dim:#8a979d; --line:#2a3840; --panel:#0b1014; --accent:#5ef2d6; --grid:rgba(94,242,214,.05); --pos:#4ade80; --neg:#fb7185; --hl:#7dd3fc; --hlbg:#0f2a3a; --mk:#4a3f00; }
   [data-theme="blue"]  { --bg:#f6f8ff; --fg:#1f3fae; --dim:#5f76c4; --line:#1f3fae; --panel:#ffffff; --accent:#1f3fae; --grid:rgba(31,63,174,.08); --pos:#15803d; --neg:#b42318; --hl:#b45309; --hlbg:#fff1d6; --mk:#dbe4ff; }
@@ -101,7 +97,6 @@
       <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
       <div class="themes" style="margin-top:6px"><button data-m="simple" class="on">Simple</button><button data-m="pro">Pro</button>
         <span class="dim">/</span> <button data-t="light" class="on">Light</button><button data-t="dark">Dark</button><button data-t="blue">Blueprint</button></div>
-      <div class="themes" style="margin-top:6px"><span class="cap dim">Font</span> <button data-f="plex" class="on">Plex</button><button data-f="inter">Inter</button><button data-f="atkinson">Atkinson</button><button data-f="grotesk">Original</button></div>
     </div>
   </header>
 
@@ -417,7 +412,7 @@ function drawTrend() {
 }
 
 // ---- switches
-const KEYS = { t: "theme", m: "mode", r: "role", f: "font" };
+const KEYS = { t: "theme", m: "mode", r: "role" };
 function pick(attr, val, save = true) {
   document.documentElement.dataset[KEYS[attr]] = val;
   document.querySelectorAll(`.themes button[data-${attr}]`).forEach(x => x.classList.toggle("on", x.dataset[attr] === val));
