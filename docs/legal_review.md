@@ -63,3 +63,13 @@ access, so their definitions below are unverified and must be read by the lawyer
 - MAS-CEA joint response on property agents and the FAA: https://www.mas.gov.sg/news/letters-to-editor/2025/joint-response-to-regulating-property-agents-under-faa
 - CPFTA commentary: https://www.rajahtannasia.com/viewpoints/consumer-protection-in-singapore-five-key-observations-for-businesses-in-a-heightened-enforcement-climate/ ; CCS guide on claims: https://www.rahmatlim.com/sg/publication/articles/31353/ccs-issues-guide-to-assist-businesses-in-ensuring-quality-related-claims-are-accurate-and-not-misleading
 - CPF and HDB loan lease rule (2019): https://www.mom.gov.sg/newsroom/press-releases/2019/0509-more-flexibility-to-buy-a-home-for-life
+
+## Update 2026-11-11: Ask Oikos now gives advice
+
+Ask Oikos (DeepSeek V4.1 Flash via OpenRouter) now speaks as an adviser in the first person: "My advice: open at $371k,
+aim for $387k, and walk away above $406k." It is limited to the price, offers, negotiation and what to check, and it
+declines questions on loans, CPF, grants, affordability and investment. Every figure is still checked against the facts.
+
+This makes the main open question above more pressing: whether first-person price advice to buyers and sellers needs
+a licence or registration (for example under the Estate Agents Act), and what disclaimer and terms it needs.
+Raise it with a lawyer before any public launch.
