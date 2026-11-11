@@ -3,6 +3,7 @@
   1. download the latest HDB resale file     4. rebuild location features
   2. clean and combine                       5. retrain the production model + holdout check
   6. walk-forward out-of-sample errors (new chunks only), then the flat-specific range models
+  7. download URA private home sales and retrain the condo model (needs URA_ACCESS_KEY; skipped with a warning if it fails)
   3. geocode any new blocks (needs ONEMAP_TOKEN in .env; skipped with a warning if it fails)
 
 A step that fails stops the run, except geocoding: without it, sales in brand-new blocks are
@@ -22,6 +23,8 @@ STEPS = [
     ("retrain production model", ["train_production.py"], True),
     ("walk-forward errors for ranges", ["oos_residuals.py"], True),
     ("flat-specific range models", ["range_model.py"], True),
+    ("download private home sales (URA)", ["download_ura.py"], False),
+    ("retrain the condo model", ["train_condo.py"], False),
 ]
 
 

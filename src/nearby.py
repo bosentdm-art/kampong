@@ -135,7 +135,7 @@ def onemap_token(force=False):
     load_env()
     if force or not _token["value"]:
         email, pw = os.environ.get("ONEMAP_EMAIL", "").strip(), os.environ.get("ONEMAP_PASSWORD", "").strip()
-        if email and pw and (force or not os.environ.get("ONEMAP_TOKEN", "").strip()):
+        if email and pw:
             r = requests.post("https://www.onemap.gov.sg/api/auth/post/getToken", json={"email": email, "password": pw}, timeout=30)
             _token.update(value=(r.json().get("access_token") if r.status_code == 200 else None), at=time.time())
         elif not force:
@@ -145,16 +145,38 @@ def onemap_token(force=False):
     return _token["value"]
 
 
+_places = {}
+
+
+def _search(q):
+    """OneMap's place search, signed in when we can be (anonymous use is tightly rate-limited)."""
+    tok = onemap_token()
+    r = requests.get("https://www.onemap.gov.sg/api/common/elastic/search", timeout=30, headers={"Authorization": tok} if tok else {},
+                     params=dict(searchVal=q[:80], returnGeom="Y", getAddrDetails="Y", pageNum=1))
+    if r.status_code == 401 and tok:
+        tok = onemap_token(force=True)
+        r = requests.get("https://www.onemap.gov.sg/api/common/elastic/search", timeout=30, headers={"Authorization": tok} if tok else {},
+                         params=dict(searchVal=q[:80], returnGeom="Y", getAddrDetails="Y", pageNum=1))
+    if r.status_code == 429:
+        raise Unavailable("The map service is busy. Try again in a minute.")
+    return (r.json().get("results") or []) if r.status_code == 200 else []
+
+
 def find_place(text):
     """(label, lat, lon) for a workplace or landmark as typed, from OneMap's search. None if nothing matches."""
-    r = requests.get("https://www.onemap.gov.sg/api/common/elastic/search", timeout=30,
-                     params=dict(searchVal=text[:80], returnGeom="Y", getAddrDetails="Y", pageNum=1))
-    res = (r.json().get("results") or []) if r.status_code == 200 else []
+    q = " ".join(text.upper().split())
+    if q in _places:
+        return _places[q]
+    res = _search(text)
     if not res:
         return None
-    x = res[0]
+    x = next((r for r in res if r.get("SEARCHVAL", "").upper() == q), None) or next((r for r in res if r.get("SEARCHVAL", "").upper() in (q + " MRT STATION", q + " LRT STATION")), None)
+    if x is None and not any(ch.isdigit() for ch in q):  # "one-north" means the station, not the condo that borrows its name
+        x = next((r for r in _search(text[:70] + " MRT STATION") if r.get("SEARCHVAL", "").upper().startswith(q)), None)
+    x = x or res[0]
     label = x.get("BUILDING") if x.get("BUILDING") and x["BUILDING"] != "NIL" else x.get("ADDRESS") or text
-    return label.title(), float(x["LATITUDE"]), float(x["LONGITUDE"])
+    _places[q] = (re.sub(r"\s*\([A-Z]{2}\d+[^)]*\)", "", label.title(), flags=re.I).replace(" Mrt ", " MRT ").replace(" Lrt ", " LRT "), float(x["LATITUDE"]), float(x["LONGITUDE"]))
+    return _places[q]
 
 
 def next_weekday():

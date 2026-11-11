@@ -56,6 +56,30 @@ def find_project(name):
     return close[0] if close else None
 
 
+@functools.lru_cache(maxsize=1)
+def name_index():
+    """Project names as people type them (letters, digits and spaces only), longest first."""
+    import re
+    names = {" ".join(re.sub(r"[^A-Z0-9 ]", " ", n.upper().replace("@", " AT ")).split()): n for n in projects().index}
+    # one-word names that are also ordinary words would fire on normal sentences; the AI reader still finds those projects
+    return sorted(((k, v) for k, v in names.items() if (" " in k and len(k) >= 6 and not k.startswith("UNIT ")) or len(k) >= 8), key=lambda kv: -len(kv[0]))
+
+
+def find_in_text(text):
+    """The project a message names ("parc esta 2 bed 1.6m"), or None. The whole name must appear, as whole words."""
+    import re
+    t = " " + " ".join(re.sub(r"[^A-Z0-9 ]", " ", text.upper().replace("@", " AT ")).split()) + " "
+    return next((name for key, name in name_index() if f" {key} " in t), None)
+
+
+def size_for_bedrooms(project, bedrooms):
+    """A rough size for an n-bedroom unit in this project, from where such units usually sit among its sold sizes."""
+    s = sales()
+    areas = s[s["project"] == project]["area"]
+    share = {1: 0.12, 2: 0.4, 3: 0.68, 4: 0.88, 5: 0.96}.get(int(bedrooms))
+    return float(round(areas.quantile(share))) if share and len(areas) >= 8 else None
+
+
 def assess(project, area, floor, asking=None):
     """Fair value and ranges for a unit of `area` sqm on storey `floor` in `project`, priced at the month after the training data ends."""
     m, name = meta(), find_project(project)

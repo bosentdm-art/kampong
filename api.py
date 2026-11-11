@@ -39,14 +39,17 @@ import listing_parser as lp  # noqa: E402
 import llm  # noqa: E402
 import accounts as acc  # noqa: E402
 import nearby as nb  # noqa: E402
+import condo as cc  # noqa: E402
+import condo_features as cf  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
 
 # ---- picking up a data refresh without a restart. src/update.py finishes by writing models/range.json; when that
 # file changes, every cached table and model in this process is dropped and reloaded on the next request.
-STAMP = ROOT / "models/range.json"
-_fresh = dict(mtime=STAMP.stat().st_mtime if STAMP.exists() else 0, checked=0.0)
+STAMPS = [ROOT / "models/range.json", ROOT / "models/condo.json"]
+stamp = lambda: max((f.stat().st_mtime for f in STAMPS if f.exists()), default=0)
+_fresh = dict(mtime=stamp(), checked=0.0)
 
 
 def refresh_if_new(force_check=False):
@@ -55,11 +58,11 @@ def refresh_if_new(force_check=False):
     if not force_check and now - _fresh["checked"] < 60:
         return False
     _fresh["checked"] = now
-    mtime = STAMP.stat().st_mtime if STAMP.exists() else 0
+    mtime = stamp()
     if mtime == _fresh["mtime"]:
         return False
     _fresh["mtime"] = mtime
-    for mod in (sys.modules[__name__], adv, ex, fc, lp, nb):
+    for mod in (sys.modules[__name__], adv, ex, fc, lp, nb, cc):
         for obj in vars(mod).values():
             if callable(getattr(obj, "cache_clear", None)):
                 obj.cache_clear()
@@ -419,6 +422,19 @@ def understand(m: Message, request: Request = None, response: Response = None):
     asks = bool(QUESTION.search(m.text[:600]))
     same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
 
+    # A condo is on screen: the message changes it, names another home, or is a question about it.
+    on_condo = m.current if (m.current or {}).get("kind") == "condo" and condo_ready() and m.current.get("project") in cc.projects().index else None
+    named = cc.find_in_text(m.text[:2000]) if condo_ready() and not p["block"] else None
+    if on_condo:
+        if named and named != on_condo["project"] and not asks:
+            return condo_answer(named, p, base, m.text)
+        if not p["block"] and not asks and (p["floor_area_sqm"] or p["floor"] or p["asking"] or p["storey_hint"] or re.search(r"\b[1-5][\s-]*(?:bed|bedroom|bedder|br)s?\b", m.text, re.I)):
+            return condo_answer(on_condo["project"], p, base, m.text, cur=on_condo)
+        if not p["block"]:
+            return clean(base)  # a question about the condo on screen
+    elif named and not (cur and asks):
+        return condo_answer(named, p, base, m.text)
+
     # Short messages build up: "bishan", then "4 room", then "blk 123". What earlier ones said arrives in m.context.
     ctx = {k: v for k, v in (m.context or {}).items() if k in ("town", "street_name", "block", "flat_type", "price", "floor", "sqm") and v} if not cur else {}
     if ctx and not p["block"]:
@@ -494,6 +510,10 @@ def understand(m: Message, request: Request = None, response: Response = None):
         r, cost = llm.route_message(m.text, m.history)
         if who:
             acc.record(who, "route", cost, bool(r))
+        if r and r.get("condo") and condo_ready() and cc.find_project(str(r["condo"])[:80]):  # the AI read a condo name the rules missed (a typo, a nickname)
+            q = dict(p, floor=p["floor"] or num(r.get("floor"), 1, 80, int), floor_area_sqm=p["floor_area_sqm"] or num(r.get("sqm"), 20, 1000),
+                     asking=p["asking"] or num(r.get("price"), 100_000, 30_000_000, int))
+            return condo_answer(cc.find_project(str(r["condo"])[:80]), q, {**base, "role": p["role"] or (r.get("role") if r.get("role") in ("buyer", "seller") else None)}, m.text)
         if r:
             hit = lp.match_block(r["block"], r["street"]) if r.get("block") and r.get("street") else None
             if hit and not (cur and str(r["block"]).upper() == cur["block"] and hit[0] == cur["street_name"]):
@@ -608,17 +628,121 @@ def advice_key(f, role):
 
 
 class Commute(BaseModel):
-    block: str
-    street_name: str
     place: str
+    block: str | None = None
+    street_name: str | None = None
+    project: str | None = None  # a condo, instead of an HDB block
+
+
+# ---- private condos and apartments: the same shape of facts as an HDB flat, so the chat treats both alike
+class CondoSpec(BaseModel):
+    project: str
+    area: float
+    floor: int | None = None
+    price: float | None = None
+
+
+class CondoAsk(CondoSpec):
+    role: str = "buyer"
+    age: float = 35
+    question: str | None = None
+    history: list[dict] | None = None
+    assumed: list[str] | None = None
+
+
+def condo_ready():
+    return (ROOT / "models/condo.json").exists()
+
+
+def condo_latlon(name):
+    pr = cc.projects().loc[name]
+    if pr["x"] != pr["x"]:
+        return None
+    lat, lon = cf.svy21_to_latlon([pr["x"]], [pr["y"]])[0]
+    return float(lat), float(lon)
+
+
+@functools.lru_cache(maxsize=64)
+def condo_facts(project, area, floor, price):
+    try:
+        a = cc.assess(project, area, floor or 0, price)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    m, pos = cc.meta(), condo_latlon(a["project"])
+    band = a["floor_band"] or "not given"
+    return clean(dict(
+        kind="condo", condo=dict(project=a["project"], area=a["area"], floor=floor), project=a["project"], street=a["street"], district=a["district"],
+        property_type=a["property_type"], tenure=a["tenure"], freehold=a["freehold"],
+        flat=dict(block="", street_name=a["project"], town=f"District {a['district']}", flat_type=a["property_type"], flat_model="", floor_area_sqm=a["area"], storey=band,
+                  lease_commence_date=None),
+        price=price, fair=a["fair"], lease_now=999.0 if a["freehold"] or a["lease_left"] is None else a["lease_left"], quantiles=[[lvl, v] for lvl, v in a["quantiles"]],
+        reliability=a["badge"], notes=a["notes"], checks=[], drivers=[],
+        recent=[dict(month=r["month"], storey=r["floor"], floor_area_sqm=r["area"], price=r["price"], sale_type=r["sale_type"]) for r in a["recent"]],
+        meta=dict(trained_through=m["trained_through"], holdout_median_error=m["holdout_median_error"], total_sales=m["rows"]),
+        nearby=dict(nb.around(*pos), lat=pos[0], lon=pos[1]) if pos else None))
+
+
+def condo_answer(name, p, base, text, cur=None):
+    """The reply for a message that names a condo (or changes the one on screen): the unit, with anything not said filled in."""
+    pr, assumed, changed = cc.projects().loc[name], [], []
+    beds = re.search(r"\b([1-5])[\s-]*(?:bed|bedroom|bedder|br)s?\b", text, re.I)
+    area = p["floor_area_sqm"] or (cur or {}).get("area")
+    if not area and beds and cc.size_for_bedrooms(name, int(beds.group(1))):
+        area = cc.size_for_bedrooms(name, int(beds.group(1)))
+        assumed.append(f"about {round(area)} sqm for a {beds.group(1)}-bedroom here, which is my estimate from the sizes sold in this project")
+    if not area:
+        area = float(round(pr["typical_area"]))
+        assumed.append(f"{round(area)} sqm, the typical unit sold here")
+    floor = p["floor"] or (cur or {}).get("floor")
+    top = int(pr["top_floor"]) if pr["top_floor"] == pr["top_floor"] and pr["top_floor"] > 0 else None
+    if not p["floor"] and p["storey_hint"] and top:  # "high floor": the top band sold in this project; "low": the bottom one
+        floor = top if p["storey_hint"] == "high" else 3 if p["storey_hint"] == "low" else max(3, top // 2)
+        assumed.append(f"floors {(floor - 1) // 5 * 5 + 1} to {(floor - 1) // 5 * 5 + 5} for a {p['storey_hint']} floor")
+        if cur:
+            changed.append(f"{p['storey_hint']} floor")
+    if not floor:
+        assumed.append("no floor, so a mid-level unit")
+    if cur:
+        changed += [x for x in ([f"{round(p['floor_area_sqm'])} sqm"] if p["floor_area_sqm"] else []) + ([f"floor {p['floor']}"] if p["floor"] else [])
+                   + ([f"price ${p['asking']:,}"] if p["asking"] else []) + ([f"{beds.group(1)}-bedroom"] if beds and not p["floor_area_sqm"] else [])]
+    return clean({**base, "found": True, "kind": "condo", "condo": dict(project=name, area=float(area), floor=int(floor) if floor else None), "price": p["asking"],
+                  "assumed": [] if cur and changed else assumed, "changed": changed})
+
+
+@app.post("/api/condo/assess")
+def condo_assess(c: CondoSpec):
+    return condo_facts(c.project, float(c.area), c.floor, c.price or None)
+
+
+@app.post("/api/condo/ask")
+def condo_ask(a: CondoAsk, request: Request, response: Response):
+    """The AI's advice on a condo unit, with every figure checked, under the same daily limits as HDB advice."""
+    if a.role not in ("buyer", "seller"):
+        raise HTTPException(422, "role must be buyer or seller")
+    who, user = visitor(request, response)
+    if acc.over_limit(who):
+        cap = acc.limit_for(who)
+        more = ("A free account gives you more, or come back tomorrow." if not user else
+                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
+        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
+    facts = condo_facts(a.project, float(a.area), a.floor, a.price or None)
+    price = a.price or facts["fair"]
+    note = ("(This is a private condo unit, not an HDB flat. Do not mention HDB, the HDB-registered size or CPF. Stamp duties (including ABSD), loans and "
+            "en-bloc prospects are outside what you cover: do not guess at them. Call it a unit or a home, not a flat. " + ("It is freehold or as good as, so the lease is not a concern. " if facts["freehold"] else "")
+            + ("No price has been given yet, so price_being_checked is only our fair value: do not give a verdict on it; say what the unit is worth and ask for the price. " if not a.price else "")
+            + ("The person did not say these, so we assumed: " + "; ".join(str(x)[:140] for x in a.assumed[:4]) + ". Mention that in one short sentence and invite a correction. " if a.assumed else "")
+            + ("The size is our guess and the verdict depends heavily on it: call the verdict provisional until they confirm the size, and do not tell them to move fast. " if any("sqm" in str(x) for x in (a.assumed or [])) else "") + ") ")
+    out = llm.explain(facts, a.role, a.age, price, note + (a.question or "Explain my options."), a.history)
+    acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model")
+    return clean(out)
 
 
 @app.post("/api/commute")
 def commute(c: Commute):
     """Public transport time from a block to a workplace or landmark, on a weekday morning."""
-    pos = nb.block_coords().get((c.block, c.street_name))
+    pos = condo_latlon(c.project) if c.project and c.project in cc.projects().index else nb.block_coords().get((c.block, c.street_name))
     if not pos:
-        raise HTTPException(404, "I don't have a map position for that block.")
+        raise HTTPException(404, "I don't have a map position for that home.")
     try:
         return nb.commute(pos[0], pos[1], c.place[:80])
     except nb.Unavailable as e:

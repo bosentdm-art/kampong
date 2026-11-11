@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oikos - HDB resale price advice</title>
+<title>Oikos - HDB and condo price advice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -212,7 +212,7 @@
     <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
     <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
-    <div class="fine">Indicative estimates, not valuations. Data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; locations and routes from OneMap (SLA); shops, parks and clinics &copy; OpenStreetMap contributors. Not affiliated with HDB or any government agency.</div>
+    <div class="fine">Indicative estimates, not valuations. HDB data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; private home sales from URA; locations and routes from OneMap (SLA); shops, parks and clinics &copy; OpenStreetMap contributors. Not affiliated with HDB or any government agency.</div>
   </div>
 </aside>
 
@@ -227,8 +227,8 @@
     <div class="thread" id="thread" aria-live="polite"></div>
     <div class="hero">
       <div class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></div>
-      <h2>Which flat are you looking at?</h2>
-      <p class="dim">Paste a listing, or just type a few words like "bishan 4 room 800k". I'll check it against about 990,000 HDB sales and tell you what I'd do.</p>
+      <h2>Which home are you looking at?</h2>
+      <p class="dim">Paste a listing, or just type a few words like "bishan 4 room 800k". I check HDB flats and condos against about a million real sales and tell you what I'd do.</p>
     </div>
     <div class="dock">
       <div class="composer">
@@ -402,8 +402,10 @@ function verdictFor(f, price, role = root.role) {
   const R = ROLES[role], p = percentile(f, price), t = R.tones.find(t => p < t.max);
   return { R, p, t, i: R.tones.indexOf(t), word: (f.reliability === "Low" ? "Likely " : "") + t.word, color: root.theme === "dark" ? t.dark : t.light };
 }
-const flatName = f => `Blk ${f.flat.block} ${title(f.flat.street_name)}`;
-const flatDesc = f => `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
+const isCondo = f => !!f && f.kind === "condo";  // a private condo unit: same card and advice, no full breakdown yet
+const flatName = f => isCondo(f) ? title(f.project) : `Blk ${f.flat.block} ${title(f.flat.street_name)}`;
+const flatDesc = f => isCondo(f) ? `${f.property_type}, ${title(f.street)} (D${f.district}), ${Math.round(f.flat.floor_area_sqm)} sqm, floors ${f.flat.storey}, ${f.freehold ? "freehold" : Math.round(f.lease_now) + " years of lease left"}`
+  : `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
 const age = () => Math.min(90, Math.max(21, Math.round(+$("age").value) || 35));
 
 let F = null;                         // facts for the flat on screen, from /api/assess
@@ -415,8 +417,9 @@ function go(view) {
   document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
   document.body.dataset.current = view;  // not data-view: that attribute marks the view containers
-  const inResult = view === "check" && F;
-  $("bar").hidden = view === "chat"; $("result").hidden = !F; $("noFlat").hidden = !!F;
+  const inResult = view === "check" && F && !isCondo(F);
+  $("bar").hidden = view === "chat"; $("result").hidden = !F || isCondo(F); $("noFlat").hidden = !!F && !isCondo(F);
+  $("noFlat").textContent = isCondo(F) ? "The full breakdown covers HDB flats for now. For a condo, everything we have is on its card in the chat." : "Tell Oikos about a flat first, then come back here for every number behind the answer.";
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
   if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket(); if (view === "alerts") loadAlerts();
@@ -445,7 +448,7 @@ const picked = upTo => { const all = { town: $("town").value, street: $("street"
 
 async function openSheet() {
   $("formMsg").textContent = ""; $("sheet").showModal();
-  if (!F) return;
+  if (!F || isCondo(F)) return;
   const f = F.flat;
   try {
     const o = await loadOptions({ town: f.town, street: f.street_name, block: f.block, flat_type: f.flat_type });
@@ -471,6 +474,7 @@ function show() {
   askHistory = [];
   const f = F.flat, fair = F.fair, q = l => qOf(F, l), lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
   const a = $("ask"); a.min = lo; a.max = hi; a.value = Math.min(hi, Math.max(lo, F.price || Math.round(fair / 1000) * 1000));
+  if (isCondo(F)) return;  // the rest fills the full breakdown page, which is HDB only for now
   $("checks").replaceChildren(...F.checks.map(c => h("div", { className: "warn" }, h("b", {}, "Check your input: "), ...rich(c))));
   $("fair").textContent = money(fair);
   Object.assign($("rW").style, { left: pos(q(10)), width: (q(90) - q(10)) / (hi - lo) * 100 + "%" });
@@ -513,7 +517,7 @@ function dealCards(box, note, d) {
 
 // ---- the result: everything that depends on the price, role, mode or theme
 function render() {
-  if (!F) return;
+  if (!F || isCondo(F)) return;
   const a = +$("ask").value, { R, p, t, i, word, color } = verdictFor(F, a), fair = F.fair, diff = a / fair - 1, under = a < fair;
   $("verdict").textContent = word + "."; $("verdict").style.color = color;
   $("sub").replaceChildren(...rich((root.mode === "simple" ? "" : R.line(p) + " ") + R.lead + money(a) + " is "), h("b", { className: "hm", style: `color:${color}` }, pc(diff)), ...rich(" versus our fair value of " + money(fair) + "."));
@@ -725,12 +729,12 @@ function aroundBlock(f) {
     const w = store.get("work", ""), box = commuteRow.lastChild;
     if (!w) { const b = h("button", { className: "linkbtn", type: "button" }, "Add your workplace"); b.addEventListener("click", () => { $("msg").value = "I work at "; $("msg").focus(); }); box.replaceChildren(b); return; }
     box.replaceChildren(h("span", { className: "dim" }, `Working out the trip to ${w}...`));
-    api("/api/commute", { block: f.flat.block, street_name: f.flat.street_name, place: w })
+    api("/api/commute", isCondo(f) ? { project: f.project, place: w } : { block: f.flat.block, street_name: f.flat.street_name, place: w })
       .then(c => box.replaceChildren(h("b", {}, `${c.minutes} min`), ` to ${c.place} by public transport`, h("span", { className: "dim" }, ` (${c.legs.join(", ")})`)))
       .catch(e => box.replaceChildren(h("span", { className: "dim" }, e.message)));
   };
   f.fillCommute = fillCommute; fillCommute();
-  return h("div", { className: "around" }, h("div", { className: "cap dim" }, "Around this flat"),
+  return h("div", { className: "around" }, h("div", { className: "cap dim" }, isCondo(f) ? "Around this home" : "Around this flat"),
     n.mrt[0] ? ar(n.mrt[0].rail === "LRT" ? "Nearest LRT" : "Nearest MRT", h("b", {}, n.mrt[0].name), `, ${n.mrt[0].metres} m (about ${n.mrt[0].walk_min} min walk)`,
       ...n.mrt.slice(1).map(x => h("span", { className: "dim" }, `; ${x.name} ${x.rail} ${x.metres} m`))) : null,
     ...n.future_mrt.map(x => ar("Coming", h("span", { className: "soon" }, x.year), h("b", {}, x.name), ` on the ${x.line}, ${x.metres} m` + (x.kind === "new station" ? "" : " (a new line at this station)"))),
@@ -746,7 +750,7 @@ function aroundBlock(f) {
 }
 async function sayCommute() {
   try {
-    const c = await api("/api/commute", { block: F.flat.block, street_name: F.flat.street_name, place: store.get("work", "") });
+    const c = await api("/api/commute", isCondo(F) ? { project: F.project, place: store.get("work", "") } : { block: F.flat.block, street_name: F.flat.street_name, place: store.get("work", "") });
     await say(rich(`From ${flatName(F)} to ${c.place}: about ${c.minutes} minutes by public transport on a weekday morning (${c.legs.join(", ")}${c.transfers ? `, ${c.transfers} ${c.transfers === 1 ? "change" : "changes"}` : ""}). I'll show this for every flat you check.`));
   } catch (e) { await say(e.message); }
   if (F.fillCommute) F.fillCommute();
@@ -768,12 +772,13 @@ function flatCard(u = {}) {
     h("div", { className: "tiles" }, tile("Fair value", fairB), tile("Likely range", `${k(q(25))} - ${k(q(75))}`),
       buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
     aroundBlock(mine),
-    F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this block (${F.recent.length})`),
-      ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` storey ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm`), h("b", {}, money(r.price))))) : null,
+    F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this ${isCondo(F) ? "project" : "block"} (${F.recent.length})`),
+      ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` ${isCondo(F) ? "floors" : "storey"} ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm` + (r.sale_type && r.sale_type !== "resale" ? `, ${r.sale_type}` : "")), h("b", {}, money(r.price))))) : null,
     F.notes.length ? h("details", { className: "more" }, h("summary", {}, `Why reliability is ${F.reliability.toLowerCase()}`), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n))))) : null,
     ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
     u.assumed?.length ? h("div", { className: "fine" }, "Assumed: " + u.assumed.join("; ") + ".") : null,
-    h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }), btn("Share", () => { use(mine); shareFlat(); }), btn("Watch block", () => { use(mine); watchBlock(); }))));
+    isCondo(mine) ? h("div", { className: "pills" }, btn("Save", () => { use(mine); saveFlat(); }), h("span", { className: "fine" }, "Tell me the size, floor or price to refine this."))
+      : h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }), btn("Share", () => { use(mine); shareFlat(); }), btn("Watch block", () => { use(mine); watchBlock(); }))));
   countUp(fairB, F.fair, k);
   requestAnimationFrame(() => requestAnimationFrame(() => { dot.style.left = Math.min(97, Math.max(3, v.p)) + "%"; }));
   return r;
@@ -789,12 +794,24 @@ async function loadFlat(spec, price, u = {}, w = waiting("Looking up the flat"))
   await sleep(1300);
   await askOikos(null, u.assumed);
 }
+async function loadCondo(spec, price, u = {}, w = waiting("Looking up the project")) {
+  ctx = {};
+  w.set(u.changed?.length ? "Updating: " + u.changed.join(", ") : `Found ${title(spec.project)}. Comparing it with recent sales`);
+  const t0 = Date.now();
+  try { F = await api("/api/condo/assess", { ...spec, price: price || null }); }
+  catch (e) { w.remove(); await say("I couldn't check that unit: " + e.message); return; }
+  await sleep(Math.max(0, 900 - (Date.now() - t0)));
+  w.remove(); show(); flatCard(u);
+  await sleep(1300);
+  await askOikos(null, u.assumed);
+}
 async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
   const first = !askHistory.length;
   w.set(question ? "Thinking it through" : "Reading the numbers");
   const beats = [setTimeout(() => w.set(question ? "Checking the figures" : "Weighing your options"), 2600), setTimeout(() => w.set("Writing it up"), 5600)];
   try {
-    const f = F.flat, r = await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
+    const common = { price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(), question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null };
+    const f = F.flat, r = isCondo(F) ? await api("/api/condo/ask", { ...F.condo, ...common }) : await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
       floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(),
       question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null });
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
@@ -802,7 +819,7 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
     await say(formatted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
     if (first) { await sleep(350); row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
-      ? [`What if I offer ${k(qOf(F, 25))}?`, "Is the lease a problem for me?", "How should I negotiate?"]
+      ? [`What if I offer ${k(qOf(F, 25))}?`, isCondo(F) ? "What should I check at the viewing?" : "Is the lease a problem for me?", "How should I negotiate?"]
       : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map((t, i) => { const c = chip(t); c.style.animationDelay = i * 0.12 + "s"; return c; }))); }
     refreshMe();
   } catch (e) {
@@ -818,13 +835,14 @@ function send(text) {
     await sleep(350);
     const w = waiting("Reading your message");
     let u;
-    try { u = await api("/api/understand", { text, current: F ? F.flat : null, history: talk.slice(-6), context: ctx }); } catch (e) { w.remove(); throw e; }
+    try { u = await api("/api/understand", { text, current: F ? (isCondo(F) ? { kind: "condo", ...F.condo } : F.flat) : null, history: talk.slice(-6), context: ctx }); } catch (e) { w.remove(); throw e; }
     talk.push({ role: "user", content: text.slice(0, 800) });
     if (u.ctx) ctx = u.ctx;
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.age) { $("age").value = u.age; syncAge("age"); }
     if (u.work && !u.found) { w.remove(); store.set("work", u.work); if (F) await sayCommute(); else await say(`Noted. I'll show the commute to ${u.work} for each flat you check.`); }
     else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
+    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
     else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
@@ -841,7 +859,7 @@ $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
 $("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
-$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k", "bishan 4 room 800k", "I'm selling my 5-room at 109A Edgedale Plains"].map(t => chip(t)));
+$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k", "bishan 4 room 800k", "Parc Esta 2-bed, high floor, asking $1.7m"].map(t => chip(t)));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";
@@ -998,9 +1016,9 @@ function renderCompare() {
   const V = sel.map(x => verdictFor(x.F, x.price)), buyer = root.role === "buyer";
   const rows = [["Verdict", (x, i) => h("span", { className: "vword", style: `color:${V[i].color};font-size:20px` }, V[i].word)], [V[0].R.priceLabel, x => money(x.price)], ["Our fair value", x => money(x.F.fair)],
     ["Price versus fair value", x => h("span", { className: "hm" }, pc(x.price / x.F.fair - 1))], ["Likely range", x => `${k(qOf(x.F, 25))} - ${k(qOf(x.F, 75))}`], ["Reliability", x => x.F.reliability],
-    ["Size", x => Math.round(x.F.flat.floor_area_sqm) + " sqm"], ["Price per sqm", x => money(x.price / x.F.flat.floor_area_sqm)], ["Storey", x => x.F.flat.storey], ["Lease left", x => hl(Math.round(x.F.lease_now) + " years")],
+    ["Size", x => Math.round(x.F.flat.floor_area_sqm) + " sqm"], ["Price per sqm", x => money(x.price / x.F.flat.floor_area_sqm)], ["Storey", x => x.F.flat.storey], ["Lease left", x => x.F.freehold ? "Freehold" : hl(Math.round(x.F.lease_now) + " years")],
     ...(buyer ? [[`Lease runs until you are (age ${age()})`, x => { const e = leaseEnd(x.F); return e >= 95 ? "past 95" : String(e); }]] : []),
-    ["Biggest price driver", x => { const d = [...x.F.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]; return `${d[0]} ${pc(d[1])}`; }], ["Status", x => x.status], ["Your notes", x => x.notes || "-"]];
+    ["Biggest price driver", x => { const d = [...x.F.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]; return d ? `${d[0]} ${pc(d[1])}` : "-"; }], ["Status", x => x.status], ["Your notes", x => x.notes || "-"]];
   box.replaceChildren(h("div", { className: "panel" }, h("div", { className: "bd" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...sel.map(x => h("th", {}, flatName(x.F), h("div", { className: "fine", style: "font-weight:400" }, title(x.F.flat.flat_type) + ", " + title(x.F.flat.town))))),
     ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...sel.map((x, i) => h("td", {}, fn(x, i)))))))));
 }

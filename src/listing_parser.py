@@ -105,7 +105,7 @@ def find_price(t):
     for pat in pats:
         for m in re.finditer(pat, t, re.I):
             v = _money(m.group(1), m.group(2))
-            if 100_000 <= v <= 3_000_000:
+            if 100_000 <= v <= 30_000_000:
                 return int(round(v))
     return None
 
