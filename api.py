@@ -7,6 +7,8 @@ Needs the data and models built first (python src/update.py).
   POST /api/parse     pasted listing text -> flat details
   POST /api/understand  a chat message -> the flat it describes, a change to the flat on screen, or an AI reply
   POST /api/ask       the AI's advice on a flat, every figure checked against the facts
+  POST /api/share     make a link to a flat's verdict and advice; GET /api/share/{id} reads it; /s/{id} is the page
+  GET/POST /api/alerts  watch a block for new sales, or a town for sales well under our estimate
   POST /api/signup, /api/login, /api/logout, GET /api/me, GET/POST /api/flats   accounts (see src/accounts.py)
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
   GET  /api/deals     below-estimate sales in a town       GET /api/trend   yearly price per sqm for a town and flat type
@@ -24,6 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -246,6 +249,7 @@ def flats_put(body: Saved, request: Request, response: Response):
     return dict(ok=True)
 
 
+WATCH = re.compile(r"\b(alert me|notify me|let me know when|tell me when|watch this|keep an eye)\b", re.I)
 QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
 SPEC = ("town", "street_name", "block", "flat_type", "flat_model", "floor_area_sqm", "storey_range", "lease_commence_date")
 
@@ -302,7 +306,9 @@ def understand(m: Message, request: Request = None, response: Response = None):
     question about the flat on screen. Rules read the message first; what they miss goes to the AI."""
     p = lp.parse(m.text[:20000])
     cur = {k: m.current[k] for k in SPEC} if m.current and all(k in m.current for k in SPEC) else None
-    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[], reply=None)
+    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[], reply=None, watch=bool(WATCH.search(m.text[:600])))
+    if base["watch"] and not p["block"]:  # "alert me when this block has a new sale": the page sets the alert up
+        return base
     asks = bool(QUESTION.search(m.text[:600]))
     same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
 
@@ -439,7 +445,146 @@ def ask(a: Ask, request: Request, response: Response):
                     + ". Mention that in one short sentence and invite a correction.) " + (question or "Explain my options."))
     out = llm.explain(facts, a.role, a.age, price, question, a.history)
     acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model")
+    if not a.question and out.get("source") == "model":  # the opening advice, kept so a shared link can show it
+        acc.put_advice(advice_key(a, a.role), out["text"])
     return clean(out)
+
+
+def advice_key(f, role):
+    return json.dumps([*flat_key(f), role])
+
+
+class Share(Flat):
+    role: str = "buyer"
+
+
+@app.post("/api/share")
+def share(sh: Share, request: Request, response: Response):
+    """A short link to this flat, price and role, with the advice Oikos gave for it (or the rule-based text if none is on file)."""
+    if sh.role not in ("buyer", "seller"):
+        raise HTTPException(422, "role must be buyer or seller")
+    who = visitor(request, response)[0]
+    if acc.recent_count(who, "share") >= 30:
+        raise HTTPException(429, "That's a lot of links for one day. Try again tomorrow.")
+    facts = facts_for(*flat_key(sh))  # also checks that the flat is real
+    advice = acc.get_advice(advice_key(sh, sh.role)) or llm.fallback_text(facts, sh.role, 35, sh.price or facts["fair"])
+    sid = acc.new_share(dict(flat=sh.model_dump(exclude={"price", "role"}), price=sh.price or None, role=sh.role, advice=advice))
+    acc.record(who, "share", 0, False)
+    return dict(id=sid)
+
+
+@app.get("/api/share/{sid}")
+def share_get(sid: str):
+    out = acc.get_share(sid) if re.fullmatch(r"[\w-]{6,16}", sid) else None
+    if not out:
+        raise HTTPException(404, "This link has expired or never existed.")
+    return out
+
+
+@app.get("/s/{sid}")
+def share_page(sid: str):
+    return FileResponse(ROOT / "web/index.html")
+
+
+# ---- alerts
+class NewAlert(BaseModel):
+    kind: str
+    town: str
+    flat_type: str | None = None
+    street_name: str | None = None
+    block: str | None = None
+
+
+class Seen(BaseModel):
+    keys: list[str]
+
+
+def alert_matches(kind, spec):
+    """Sales that match an alert, newest first. Each has a key, so we can tell which ones a person has seen."""
+    if kind == "block":
+        d = sales()
+        m = d[(d["block"] == spec["block"]) & (d["street_name"] == spec["street_name"])]
+        if spec.get("flat_type"):
+            m = m[m["flat_type"] == spec["flat_type"]]
+        m = m.sort_values("sale_date", ascending=False).head(60)
+        rows = [dict(month=x.sale_date.strftime("%Y-%m"), flat_type=str(x.flat_type), storey=x.storey_range.replace(" TO ", "-"), floor_area_sqm=float(x.floor_area_sqm),
+                     sold=float(round(x.price_per_sqm * x.floor_area_sqm))) for x in m.itertuples()]
+    else:
+        k = recent_oos()
+        m = k[(k["town"] == spec["town"]) & (k["gap"] <= -0.08) & (k["gap"] >= -0.25)]
+        if spec.get("flat_type"):
+            m = m[m["flat_type"].astype(str) == spec["flat_type"]]
+        m = m.sort_values("sale_date", ascending=False).head(200)
+        rows = [dict(month=x.sale_date.strftime("%Y-%m"), block=str(x.block), street_name=str(x.street_name), flat_type=str(x.flat_type),
+                     storey=f"{int(x.storey_mid - 1):02d}-{int(x.storey_mid + 1):02d}", floor_area_sqm=float(x.floor_area_sqm), sold=float(x.resale_price),
+                     estimate=float(x.pred), gap=float(x.gap)) for x in m.itertuples()]
+    for r in rows:
+        r["key"] = "|".join(str(r.get(c, "")) for c in ("month", "block", "street_name", "flat_type", "storey", "floor_area_sqm", "sold"))
+    return rows
+
+
+def data_through(kind="block"):
+    """The newest sale month on file: bargain alerts use the estimates file, which can be a month behind the sales."""
+    return (recent_oos() if kind == "bargain" else sales())["sale_date"].max().strftime("%Y-%m")
+
+
+def alert_label(kind, spec):
+    kind_of = (spec["flat_type"].title() + " flats") if spec.get("flat_type") else "flats of any type"
+    return (f"New sales at Blk {spec['block']} {spec['street_name'].title()}" + (f" ({spec['flat_type'].title()})" if spec.get("flat_type") else "") if kind == "block"
+            else f"Bargains in {spec['town'].title()}: {kind_of} sold 8% or more under our estimate")
+
+
+def signed_in(request, response):
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Sign in to use alerts.")
+    return user
+
+
+@app.get("/api/alerts")
+def alerts_get(request: Request, response: Response):
+    user = signed_in(request, response)
+    out = []
+    for a in acc.alerts_for(user["id"]):
+        rows = alert_matches(a["kind"], a["spec"])
+        new = [r for r in rows if r["month"] >= a["baseline"] and r["key"] not in a["seen"]]
+        out.append(dict(id=a["id"], kind=a["kind"], label=alert_label(a["kind"], a["spec"]), created=a["created"], new=new, recent=rows[:3]))
+    return clean(dict(alerts=out, limit=acc.PLANS[acc.plan_of(f"u:{user['id']}")]["alerts"], data_through=data_through()))
+
+
+@app.post("/api/alerts")
+def alerts_add(body: NewAlert, request: Request, response: Response):
+    user = signed_in(request, response)
+    d = sales()
+    if body.kind == "block":
+        if not ((d["block"] == body.block) & (d["street_name"] == body.street_name)).any():
+            raise HTTPException(404, "I can't find that block.")
+        spec = dict(town=body.town, street_name=body.street_name, block=body.block, flat_type=body.flat_type or None)
+    elif body.kind == "bargain":
+        if body.town not in set(d["town"].unique()):
+            raise HTTPException(404, "I can't find that town.")
+        spec = dict(town=body.town, flat_type=body.flat_type or None)
+    else:
+        raise HTTPException(422, "kind must be block or bargain")
+    base = data_through(body.kind)  # sales already on file for the newest month count as seen; later ones are new
+    seen = [r["key"] for r in alert_matches(body.kind, spec) if r["month"] >= base]
+    try:
+        aid = acc.add_alert(user["id"], body.kind, spec, base, seen)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return dict(id=aid, label=alert_label(body.kind, spec))
+
+
+@app.post("/api/alerts/{aid}/seen")
+def alerts_seen(aid: int, body: Seen, request: Request, response: Response):
+    acc.mark_seen(signed_in(request, response)["id"], aid, [k[:200] for k in body.keys[:500]])
+    return dict(ok=True)
+
+
+@app.post("/api/alerts/{aid}/delete")
+def alerts_delete(aid: int, request: Request, response: Response):
+    acc.drop_alert(signed_in(request, response)["id"], aid)
+    return dict(ok=True)
 
 
 @app.get("/api/deals")

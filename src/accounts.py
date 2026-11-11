@@ -23,10 +23,10 @@ DB = ROOT / "data/oikos.db"
 SESSION_DAYS = 30
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s.]{2,}$")
 # name, price in S$ a month, AI answers a day. "visitor" is anyone not signed in.
-PLANS = {"visitor": dict(name="Visitor", price=0, answers=3, blurb="Try it without an account"),
-         "free": dict(name="Free", price=0, answers=10, blurb="For checking a flat or two"),
-         "plus": dict(name="Plus", price=9, answers=100, blurb="For an active search or sale"),
-         "pro": dict(name="Pro", price=39, answers=500, blurb="For property agents")}
+PLANS = {"visitor": dict(name="Visitor", price=0, answers=3, alerts=0, blurb="Try it without an account"),
+         "free": dict(name="Free", price=0, answers=10, alerts=2, blurb="For checking a flat or two"),
+         "plus": dict(name="Plus", price=9, answers=100, alerts=10, blurb="For an active search or sale"),
+         "pro": dict(name="Pro", price=39, answers=500, alerts=50, blurb="For property agents")}
 _fails = {}  # email -> times of recent failed sign-ins (in memory; resets when the server restarts)
 
 
@@ -46,6 +46,9 @@ def init():
             create index if not exists usage_who_at on usage (who, at);
             create table if not exists flats (user_id integer primary key, body text not null, updated real not null);
             create table if not exists interest (id integer primary key, user_id integer not null, plan text not null, at real not null);
+            create table if not exists advice (key text primary key, body text not null, at real not null);
+            create table if not exists shares (id text primary key, body text not null, created real not null, views integer not null default 0);
+            create table if not exists alerts (id integer primary key, user_id integer not null, kind text not null, spec text not null, baseline text not null, seen text not null, created real not null);
         """)
         if "plan" not in [r["name"] for r in c.execute("pragma table_info(users)")]:
             c.execute("alter table users add column plan text not null default 'free'")
@@ -181,6 +184,72 @@ def over_limit(who):
 
 
 # ---- saved flats
+# ---- shared links. A link holds the flat, the price, the role and the advice Oikos gave (taken from the server's own
+# copy, never from the browser, so a link cannot carry text we did not write).
+def put_advice(key, text):
+    with db() as c:
+        c.execute("insert into advice values (?, ?, ?) on conflict(key) do update set body = excluded.body, at = excluded.at", (key, text, time.time()))
+
+
+def get_advice(key):
+    with db() as c:
+        r = c.execute("select body from advice where key = ?", (key,)).fetchone()
+    return r["body"] if r else None
+
+
+def new_share(body):
+    sid = secrets.token_urlsafe(6)
+    with db() as c:
+        c.execute("insert into shares (id, body, created) values (?, ?, ?)", (sid, json.dumps(body), time.time()))
+    return sid
+
+
+def get_share(sid):
+    with db() as c:
+        r = c.execute("select body, created from shares where id = ?", (sid,)).fetchone()
+        if not r:
+            return None
+        c.execute("update shares set views = views + 1 where id = ?", (sid,))
+    return dict(json.loads(r["body"]), created=time.strftime("%Y-%m-%d", time.gmtime(r["created"] + 8 * 3600)))
+
+
+def recent_count(who, kind, seconds=86400):
+    with db() as c:
+        return c.execute("select count(*) from usage where who = ? and kind = ? and at >= ?", (who, kind, time.time() - seconds)).fetchone()[0]
+
+
+# ---- alerts. An alert remembers the newest sale month when it was set (baseline) and which matching sales the person
+# has already seen; anything else from that month onward is new. Matching itself is done in api.py, against the sales data.
+def alerts_for(user_id):
+    with db() as c:
+        rows = c.execute("select * from alerts where user_id = ? order by id desc", (user_id,)).fetchall()
+    return [dict(id=r["id"], kind=r["kind"], spec=json.loads(r["spec"]), baseline=r["baseline"], seen=set(json.loads(r["seen"])),
+                 created=time.strftime("%Y-%m-%d", time.gmtime(r["created"] + 8 * 3600))) for r in rows]
+
+
+def add_alert(user_id, kind, spec, baseline, seen):
+    cap = PLANS[plan_of(f"u:{user_id}")]["alerts"]
+    with db() as c:
+        if c.execute("select count(*) from alerts where user_id = ?", (user_id,)).fetchone()[0] >= cap:
+            raise ValueError(f"Your plan allows {cap} alerts. Remove one, or see Plans for more.")
+        if c.execute("select 1 from alerts where user_id = ? and kind = ? and spec = ?", (user_id, kind, json.dumps(spec, sort_keys=True))).fetchone():
+            raise ValueError("You already have this alert.")
+        return c.execute("insert into alerts (user_id, kind, spec, baseline, seen, created) values (?, ?, ?, ?, ?, ?)",
+                         (user_id, kind, json.dumps(spec, sort_keys=True), baseline, json.dumps(sorted(seen)), time.time())).lastrowid
+
+
+def mark_seen(user_id, alert_id, keys):
+    with db() as c:
+        r = c.execute("select seen from alerts where id = ? and user_id = ?", (alert_id, user_id)).fetchone()
+        if r:
+            c.execute("update alerts set seen = ? where id = ?", (json.dumps(sorted(set(json.loads(r["seen"])) | set(keys))), alert_id))
+
+
+def drop_alert(user_id, alert_id):
+    with db() as c:
+        c.execute("delete from alerts where id = ? and user_id = ?", (alert_id, user_id))
+
+
 def get_flats(user_id):
     with db() as c:
         r = c.execute("select body from flats where user_id = ?", (user_id,)).fetchone()

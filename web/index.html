@@ -159,6 +159,10 @@
   .caret::after { content:""; display:inline-block; width:8px; height:8px; margin-left:4px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
   @media (prefers-reduced-motion: reduce) { .row, .fcardc > *, .chips .chip { animation:none; } .mini i { transition:none; } .caret::after { display:none; } }
   .menu { display:none; }
+  .badge { background:#ef4444; color:#fff; border-radius:999px; font-size:12px; font-weight:700; padding:0 7px; line-height:20px; }
+  .alform { display:grid; grid-template-columns:minmax(0, 260px) minmax(0, 200px) auto; gap:10px; align-items:end; margin-top:12px; }
+  .acard .bd { display:grid; gap:8px; } .acard .new { color:var(--pos); font-weight:700; }
+  .linkbox { background:var(--soft); border-radius:12px; padding:8px 12px; font-family:var(--mono); font-size:13px; overflow-wrap:anywhere; user-select:all; }
   .plangrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
   .plan { border:1px solid var(--line); border-radius:20px; padding:16px; display:grid; gap:6px; align-content:start; background:var(--bg); } .plan.cur { border:2px solid var(--accent); }
   .plan .big { font-size:28px; } .plan .pill, .plan .tag { width:fit-content; margin-top:6px; }
@@ -177,7 +181,7 @@
     .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr 1fr; } .tiles .tile:first-child { grid-column:1 / -1; } .view { padding:16px 12px 24px; }
     .bar { padding:8px 12px; flex-wrap:wrap; min-height:0; } .txt { font-size:15.5px; padding:12px 14px; } .fcardc { padding:16px; border-radius:22px; } .bub { max-width:88%; }
     .chips { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding-bottom:4px; scrollbar-width:none; } .chip { white-space:nowrap; flex:none; }
-    .toast { bottom:auto; top:66px; right:12px; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
+    .toast { bottom:auto; top:66px; right:12px; } .alform { grid-template-columns:1fr; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
   }
   @media print {  /* the brief is the only thing that prints */
     body { display:block; background:#fff; color:#000; } body > *:not(#brief) { display:none !important; }
@@ -193,7 +197,7 @@
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
     <button data-go="chat">Ask Oikos</button><button data-go="check">Full breakdown</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
-    <button data-go="compare">Compare</button><button data-go="deals">Deals</button><button data-go="market">Market</button>
+    <button data-go="compare">Compare</button><button data-go="alerts"><span>Alerts</span><span class="badge" id="nAlerts" hidden></span></button><button data-go="deals">Deals</button><button data-go="market">Market</button>
   </nav>
   <div class="navfoot">
     <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="pill" id="acctBtn" type="button">Sign in</button><button class="pill" id="plansBtn" type="button">Plans</button></div></div>
@@ -286,6 +290,18 @@
   <div class="view" data-view="flats" hidden><div class="grid3" id="flatList"></div></div>
   <!-- COMPARE -->
   <div class="view" data-view="compare" hidden><div id="cmp"></div></div>
+  <!-- ALERTS -->
+  <div class="view" data-view="alerts" hidden>
+    <div class="panel"><div class="bd">
+      <div class="ot" style="margin-top:0">Get told when something sells</div>
+      <div class="dim">Watch a town for flats that sell 8% or more under our estimate. To watch one block for any new sale, use "Watch block" on its card in the chat.</div>
+      <div class="alform"><label><span class="cap dim">Town</span><select id="alTown"></select></label><label><span class="cap dim">Flat type</span><select id="alType"></select></label>
+        <button class="btn" id="alAdd" type="button">Add bargain alert</button></div>
+      <div class="msg fine" id="alMsg" role="status"></div>
+    </div></div>
+    <div class="grid3" id="alertList" style="margin-top:16px"></div>
+    <div class="fine" id="alertNote" style="margin-top:12px"></div>
+  </div>
   <!-- DEALS -->
   <div class="view" data-view="deals" hidden>
     <label style="max-width:320px"><span class="cap dim">Town</span><select id="dealTown"></select></label>
@@ -386,7 +402,7 @@ let F = null;                         // facts for the flat on screen, from /api
 let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
 
 // ---- views
-const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My flats", compare: "Compare", deals: "Deals", market: "Market" };
+const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My flats", compare: "Compare", alerts: "Alerts", deals: "Deals", market: "Market" };
 function go(view) {
   document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
@@ -395,7 +411,7 @@ function go(view) {
   $("bar").hidden = view === "chat"; $("result").hidden = !F; $("noFlat").hidden = !!F;
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
-  if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket();
+  if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket(); if (view === "alerts") loadAlerts();
   if (inResult) fitVerdict();
   if (view === "chat") $("msg").focus();
 }
@@ -409,7 +425,8 @@ async function loadOptions(want = {}) {
   fill($("block"), o.blocks, o.selected.block); fill($("ftype"), o.flat_types, o.selected.flat_type, title);
   fill($("fmodel"), o.flat_models, o.defaults.flat_model, title); fill($("storey"), o.storey_ranges, o.defaults.storey_range, s => s.replace(" TO ", " to "));
   $("area").value = Math.round(o.defaults.floor_area_sqm); $("lease").value = o.defaults.lease_commence_date;
-  if (!$("dealTown").options.length) { fill($("dealTown"), o.towns, o.selected.town, title); fill($("mTown"), o.towns, o.selected.town, title);
+  if (!$("dealTown").options.length) { fill($("dealTown"), o.towns, o.selected.town, title); fill($("alTown"), o.towns, o.selected.town, title);
+    fill($("alType"), ["", "2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"], "", t => t ? title(t) : "Any type"); fill($("mTown"), o.towns, o.selected.town, title);
     fill($("mType"), ["2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"], "4 ROOM", title); }
   return o;
 }
@@ -670,7 +687,7 @@ function flatCard(u = {}) {
       buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
     ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
     u.assumed?.length ? h("div", { className: "fine" }, "Assumed: " + u.assumed.join("; ") + ".") : null,
-    h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }))));
+    h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }), btn("Share", () => { use(mine); shareFlat(); }), btn("Watch block", () => { use(mine); watchBlock(); }))));
   countUp(fairB, F.fair, k);
   requestAnimationFrame(() => requestAnimationFrame(() => { dot.style.left = Math.min(97, Math.max(3, v.p)) + "%"; }));
   return r;
@@ -718,7 +735,8 @@ function send(text) {
     talk.push({ role: "user", content: text.slice(0, 800) });
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.age) { $("age").value = u.age; syncAge("age"); }
-    if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
+    if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
+    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
       w.remove(); talk.push({ role: "assistant", content: t }); await say(t);
@@ -744,7 +762,7 @@ function openPlans() {
       try { await api("/api/interest", { plan: p.id }); b.replaceWith(h("span", { className: "tag" }, "Noted. We'll be in touch.")); } catch (e) { toast(e.message); }
     });
     return h("div", { className: "plan" + (cur ? " cur" : "") }, h("b", {}, p.name), h("div", { className: "big" }, p.price ? "S$" + p.price : "Free"), h("div", { className: "fine" }, p.price ? "a month" : "no card needed"),
-      h("div", {}, h("b", {}, p.answers), " AI answers a day"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
+      h("div", {}, h("b", {}, p.answers), " AI answers a day"), h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
   }));
   $("plans").showModal();
 }
@@ -773,14 +791,73 @@ $("acctForm").addEventListener("submit", async e => {
   e.preventDefault(); $("acctGo").disabled = true; $("acctMsg").textContent = "";
   try {
     showMe(await api("/api/" + acctMode, { email: $("acctEmail").value, password: $("acctPw").value }));
-    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats();
+    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats(); countAlerts(); if (document.body.dataset.current === "alerts") loadAlerts();
   } catch (err) { $("acctMsg").textContent = err.message; } finally { $("acctGo").disabled = false; }
 });
 $("acctBtn").addEventListener("click", async () => {
   if (!ME) { openAcct("login"); return; }
   try { await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
-  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out");  // saved flats stay on the server, not in this browser
+  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); setBadge(0); if (document.body.dataset.current === "alerts") loadAlerts();  // saved flats stay on the server, not in this browser
   const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+});
+// ---- share: a short link anyone can open, showing this flat's verdict and the advice Oikos gave
+async function shareFlat() {
+  try {
+    const f = F.flat, r = await api("/api/share", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
+      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role });
+    const link = location.origin + "/s/" + r.id;
+    let copied = false; try { await navigator.clipboard.writeText(link); copied = true; } catch (e) {}
+    row("bot", h("div", { className: "txt" }, copied ? "Link copied. Anyone who opens it sees this verdict and my advice, no account needed:" : "Here's the link. Anyone who opens it sees this verdict and my advice, no account needed:",
+      h("div", { className: "linkbox", style: "margin-top:8px" }, link)));
+  } catch (e) { toast(e.message); }
+}
+async function openShared(sid) {
+  const sh = await api("/api/share/" + sid);
+  pick("r", sh.role, false);
+  F = await api("/api/assess", { ...sh.flat, price: sh.price });
+  show(); render(); history.replaceState(null, "", "/");
+  row("bot", h("div", { className: "txt" }, "Someone shared this flat with you. Here is what Oikos made of it on ", hl(new Date(sh.created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })), "."));
+  flatCard(); await sleep(1300);
+  askHistory.push({ role: "user", content: "Explain my options." }, { role: "assistant", content: sh.advice });
+  await say(tinted(sh.advice), h("span", { className: "src" }, "Shared advice. Ask a question below to get your own."));
+  row("bot", h("div", { className: "chips" }, ...(sh.role === "buyer" ? ["Is the lease a problem for me?", "How should I negotiate?"] : ["How do I justify my price?", "What should I fix before listing?"]).map(chip)));
+}
+
+// ---- alerts: watch a block for new sales, or a town for sales well under our estimate. New matches show as a badge.
+async function watchBlock() {
+  if (!ME) { await say("Sign in and I'll watch this block for you."); const b = h("button", { className: "pill", type: "button" }, "Sign in"); b.addEventListener("click", () => openAcct("login")); row("bot", b); return; }
+  try {
+    const f = F.flat, r = await api("/api/alerts", { kind: "block", town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type });
+    await say(`Done, I'm watching this block. ${r.label} will show up under Alerts when the sales data updates.`); countAlerts();
+  } catch (e) { await say(e.message); }
+}
+const saleLine = (r, block) => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), " ", block ? `Blk ${r.block} ${title(r.street_name)}, ` : "", `${title(r.flat_type)}, ${Math.round(r.floor_area_sqm)} sqm, storey ${r.storey}`),
+  h("b", {}, money(r.sold), r.gap != null ? h("span", { style: "color:var(--pos)" }, " " + pc(r.gap)) : ""));
+async function loadAlerts() {
+  const box = $("alertList"), note = $("alertNote");
+  if (!ME) { box.replaceChildren(h("div", { className: "empty dim" }, "Sign in to set alerts.")); note.textContent = ""; $("alAdd").disabled = true; return; }
+  $("alAdd").disabled = false;
+  try {
+    const d = await api("/api/alerts");
+    box.replaceChildren(...(d.alerts.length ? d.alerts.map(a => {
+      const bargain = a.kind === "bargain", seen = h("button", { className: "btn", type: "button" }, "Mark as seen"), del = h("button", { className: "btn ghost", type: "button" }, "Remove");
+      seen.addEventListener("click", async () => { await api(`/api/alerts/${a.id}/seen`, { keys: a.new.map(r => r.key) }); loadAlerts(); });
+      del.addEventListener("click", async () => { await api(`/api/alerts/${a.id}/delete`, {}); loadAlerts(); });
+      return h("div", { className: "panel acard" }, h("div", { className: "bd" }, h("div", { className: "ot", style: "margin:0" }, a.label),
+        a.new.length ? h("div", { className: "new" }, a.new.length + (a.new.length === 1 ? " new sale" : " new sales")) : h("div", { className: "dim" }, "Nothing new since you set this on ", hl(new Date(a.created).toLocaleDateString("en-GB", { day: "numeric", month: "short" })), "."),
+        ...a.new.slice(0, 8).map(r => saleLine(r, bargain)),
+        ...(!a.new.length && a.recent.length ? [h("div", { className: "cap dim" }, "Most recent before that"), ...a.recent.map(r => saleLine(r, bargain))] : []),
+        h("div", {}, a.new.length ? seen : null, del)));
+    }) : [h("div", { className: "empty dim" }, "No alerts yet.")]));
+    note.replaceChildren(`You are using ${d.alerts.length} of ${d.limit} alerts on your plan. Alerts are checked each time the sales data is refreshed; the newest sales on file are from `, hl(month(d.data_through)), ". They show here, not by email yet.");
+    setBadge(d.alerts.reduce((n, a) => n + a.new.length, 0));
+  } catch (e) { note.textContent = e.message; }
+}
+const setBadge = n => { $("nAlerts").hidden = !n; $("nAlerts").textContent = n; };
+const countAlerts = () => ME ? api("/api/alerts").then(d => { const n = d.alerts.reduce((t, a) => t + a.new.length, 0); setBadge(n); return n; }).catch(() => 0) : (setBadge(0), Promise.resolve(0));
+$("alAdd").addEventListener("click", async () => {
+  $("alMsg").textContent = "";
+  try { await api("/api/alerts", { kind: "bargain", town: $("alTown").value, flat_type: $("alType").value || null }); loadAlerts(); } catch (e) { $("alMsg").textContent = e.message; }
 });
 $("menuBtn").addEventListener("click", () => { const open = document.querySelector(".nav").classList.toggle("open"); $("menuBtn").setAttribute("aria-expanded", open); });
 document.querySelectorAll("#nav button, #newChat").forEach(b => b.addEventListener("click", () => { document.querySelector(".nav").classList.remove("open"); $("menuBtn").setAttribute("aria-expanded", false); }));
@@ -873,7 +950,9 @@ addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 const tick = () => $("clock").textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
 tick(); setInterval(tick, 30000); persist(); go("chat");
-api("/api/me").then(m => { showMe(m); return syncFlats(); }).catch(() => {});
+api("/api/me").then(m => { showMe(m); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
+const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);
+if (shared) working(() => openShared(shared[1]));
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
 </script>
 </body>
