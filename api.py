@@ -42,6 +42,36 @@ import accounts as acc  # noqa: E402
 app = FastAPI(title="Oikos")
 
 
+# ---- picking up a data refresh without a restart. src/update.py finishes by writing models/range.json; when that
+# file changes, every cached table and model in this process is dropped and reloaded on the next request.
+STAMP = ROOT / "models/range.json"
+_fresh = dict(mtime=STAMP.stat().st_mtime if STAMP.exists() else 0, checked=0.0)
+
+
+def refresh_if_new(force_check=False):
+    import time
+    now = time.time()
+    if not force_check and now - _fresh["checked"] < 60:
+        return False
+    _fresh["checked"] = now
+    mtime = STAMP.stat().st_mtime if STAMP.exists() else 0
+    if mtime == _fresh["mtime"]:
+        return False
+    _fresh["mtime"] = mtime
+    for mod in (sys.modules[__name__], adv, ex, fc, lp):
+        for obj in vars(mod).values():
+            if callable(getattr(obj, "cache_clear", None)):
+                obj.cache_clear()
+    return True
+
+
+@app.middleware("http")
+async def fresh_data(request, call_next):
+    if request.url.path.startswith("/api/"):
+        refresh_if_new()
+    return await call_next(request)
+
+
 class Flat(BaseModel):
     town: str
     street_name: str
