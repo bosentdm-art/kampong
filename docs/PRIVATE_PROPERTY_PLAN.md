@@ -92,3 +92,24 @@ apartment and EC resales; about 9,400 landed resales). `python src/experiments_u
 
 So a condo model is worth building: an untuned one already beats the same-project comparison and is close to the
 HDB model's 2.7%. Landed is as hard as expected. The URA terms of use are still unread.
+
+## Update 2026-11-11: the condo model is built
+
+`python src/train_condo.py` (recipe chosen in `experiments_condo.py`) trains on 113,322 sales to Oct 2026 and saves
+the models; `src/condo.py` prices one unit (`python src/condo.py "PARC ESTA" 70 12 1600000`).
+
+| Held-out six months of resales | Typical error | Within 10% |
+|---|---|---|
+| All condos, apartments and ECs | 3.0% | 91% |
+| Executive condominiums | 2.2% | 96% |
+| Condominiums | 3.0% | 92% |
+| Apartments | 3.3% | 88% |
+| Projects with fewer than 3 sales in 24 months (5% of sales) | 5.7% | 71% |
+| For comparison: recent sales in the same project | 4.2% | 83% |
+
+Ranges: the 80% range held 80.6% of later sales and the 50% range 52.5%. Reliability: High for 81% of units
+(typical error 2.7%), Medium 11% (4.7%), Low 8% (6.9%).
+
+Not done yet: the app does not use the model (steps 4 onward above), it is not part of the weekly refresh, and
+there is no long-run outlook. URA gives a 5-floor band and no unit number, facing or condition, so about 3% is
+close to what this data allows.
