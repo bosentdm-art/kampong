@@ -167,7 +167,26 @@ def visitor(request, response):
 
 
 def me_view(who, user):
-    return dict(user=dict(email=user["email"]) if user else None, used_today=acc.used_today(who), limit=acc.limit_for(who))
+    plan = acc.plan_of(who)
+    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], used_today=acc.used_today(who),
+                limit=acc.limit_for(who), plans=[dict(id=k, **v) for k, v in acc.PLANS.items() if k != "visitor"])
+
+
+class Want(BaseModel):
+    plan: str
+
+
+@app.post("/api/interest")
+def interest(body: Want, request: Request, response: Response):
+    """Paid plans cannot be bought yet. This records that a signed-in person asked for one."""
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Create a free account first.")
+    try:
+        acc.want_plan(user["id"], body.plan)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return dict(ok=True)
 
 
 def start_session(user_id, request, response):
@@ -407,7 +426,9 @@ def ask(a: Ask, request: Request, response: Response):
     who, user = visitor(request, response)
     if acc.over_limit(who):
         cap = acc.limit_for(who)
-        raise HTTPException(429, f"You've used today's {cap} AI answers. " + ("They reset at midnight." if user else "Create a free account for more, or come back tomorrow."))
+        more = ("A free account gives you more, or come back tomorrow." if not user else
+                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
+        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
     facts = facts_for(*flat_key(a))
     price, question = a.price or facts["fair"], a.question
     if not a.price:  # nothing to judge yet: say what the flat is worth instead of giving a verdict on a made-up price

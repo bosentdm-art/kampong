@@ -159,6 +159,9 @@
   .caret::after { content:""; display:inline-block; width:8px; height:8px; margin-left:4px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
   @media (prefers-reduced-motion: reduce) { .row, .fcardc > *, .chips .chip { animation:none; } .mini i { transition:none; } .caret::after { display:none; } }
   .menu { display:none; }
+  .plangrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
+  .plan { border:1px solid var(--line); border-radius:20px; padding:16px; display:grid; gap:6px; align-content:start; background:var(--bg); } .plan.cur { border:2px solid var(--accent); }
+  .plan .big { font-size:28px; } .plan .pill, .plan .tag { width:fit-content; margin-top:6px; }
   .acct { display:grid; gap:6px; margin-bottom:8px; } .acct .pill { width:fit-content; }
   #acct form { display:grid; gap:10px; } .linkbtn { font:inherit; background:none; border:0; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
 
@@ -193,7 +196,7 @@
     <button data-go="compare">Compare</button><button data-go="deals">Deals</button><button data-go="market">Market</button>
   </nav>
   <div class="navfoot">
-    <div class="acct"><div class="fine" id="acctInfo"></div><button class="pill" id="acctBtn" type="button">Sign in</button></div>
+    <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="pill" id="acctBtn" type="button">Sign in</button><button class="pill" id="plansBtn" type="button">Plans</button></div></div>
     <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
     <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
@@ -319,6 +322,11 @@
     <div class="fine center"><span id="acctAsk">New here?</span> <button class="linkbtn" id="acctSwap" type="button">Create an account</button></div>
     <div class="fine center">An account keeps your saved flats on every device.</div>
   </form>
+</dialog>
+<dialog id="plans" aria-label="Plans" style="width:min(760px, 94vw)">
+  <div class="sheethd"><b>Plans</b><button class="x" id="plansX" type="button" aria-label="Close">&times;</button></div>
+  <div class="plangrid" id="planCards"></div>
+  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
 </dialog>
 <div id="brief"></div>
 
@@ -695,7 +703,7 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
     refreshMe();
   } catch (e) {
     beats.forEach(clearTimeout); w.remove(); await say(e.message.startsWith("You've used") ? e.message : "I couldn't get an answer: " + e.message);
-    if (!ME && e.message.startsWith("You've used")) { const b = h("button", { className: "pill", type: "button" }, "Create a free account"); b.addEventListener("click", () => openAcct("signup")); row("bot", b); }
+    if (e.message.startsWith("You've used")) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); refreshMe(); }
   }
 }
 function send(text) {
@@ -726,10 +734,24 @@ $("newChat").addEventListener("click", () => { if (busy) return; F = null; askHi
 $("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 76 sqm, 8th floor, asking $420k", "I'm selling my 5-room at 109A Edgedale Plains for $720k", "What is a 4-room at 456 Ang Mo Kio Ave 10 worth?"].map(chip));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
-let ME = null, acctMode = "login";
+let ME = null, PLAN = null, acctMode = "login";
+function openPlans() {
+  if (!PLAN) return;
+  $("planCards").replaceChildren(...PLAN.plans.map(p => {
+    const cur = ME && PLAN.plan === p.id, b = h("button", { className: "pill", type: "button" }, !ME && p.id === "free" ? "Create a free account" : "I want this");
+    b.addEventListener("click", async () => {
+      if (!ME) { $("plans").close(); openAcct("signup"); return; }
+      try { await api("/api/interest", { plan: p.id }); b.replaceWith(h("span", { className: "tag" }, "Noted. We'll be in touch.")); } catch (e) { toast(e.message); }
+    });
+    return h("div", { className: "plan" + (cur ? " cur" : "") }, h("b", {}, p.name), h("div", { className: "big" }, p.price ? "S$" + p.price : "Free"), h("div", { className: "fine" }, p.price ? "a month" : "no card needed"),
+      h("div", {}, h("b", {}, p.answers), " AI answers a day"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
+  }));
+  $("plans").showModal();
+}
+$("plansBtn").addEventListener("click", openPlans); $("plansX").addEventListener("click", () => $("plans").close());
 function showMe(m) {
-  ME = m.user; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
-  $("acctInfo").textContent = (ME ? ME.email : "Sign in to keep your flats on every device.") + (m.limit != null ? ` ${m.used_today} of ${m.limit} AI answers used today.` : "");
+  ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
+  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more answers.", h("br"), `${m.plan_name} plan: ${Math.min(m.used_today, m.limit)} of ${m.limit} AI answers used today.`);
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
 async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
