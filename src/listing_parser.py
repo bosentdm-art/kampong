@@ -45,6 +45,19 @@ def block_index():
     return out
 
 
+def match_block(blk, street):
+    """(HDB street name, town) for a block and a street as a person or the AI wrote it, forgiving spelling. None if no match."""
+    import difflib
+    cands, want = block_index().get(str(blk).upper().replace("BLK", "").strip(), []), norm_street(street)
+    if not cands or not want:
+        return None
+    exact = [h for h in cands if h[0] == want or h[0].startswith(want + " ") or want.startswith(h[0] + " ")]
+    if exact:
+        return min(exact, key=lambda h: abs(len(h[0]) - len(want)))[1:]
+    close = difflib.get_close_matches(want, [h[0] for h in cands], n=1, cutoff=0.75)
+    return next(h[1:] for h in cands if h[0] == close[0]) if close else None
+
+
 def _money(num, unit):
     v = float(num.replace(",", "").replace(" ", ""))
     unit = (unit or "").lower()

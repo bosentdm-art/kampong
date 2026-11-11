@@ -147,12 +147,34 @@
   [data-mode="simple"] .pro, [data-mode="pro"] .simple { display:none; }
   [data-role="buyer"] .seller, [data-role="seller"] .buyer { display:none; }
   #brief { display:none; }
+  /* things arrive, they don't just appear */
+  @keyframes rise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  .row { animation:rise .35s ease-out both; }
+  .fcardc > * { animation:rise .5s ease-out both; }
+  .fcardc > :nth-child(2) { animation-delay:.15s; } .fcardc > :nth-child(3) { animation-delay:.35s; } .fcardc > :nth-child(4) { animation-delay:.5s; }
+  .fcardc > :nth-child(5) { animation-delay:.65s; } .fcardc > :nth-child(6) { animation-delay:.8s; } .fcardc > :nth-child(n+7) { animation-delay:.95s; }
+  .mini i { transition:left 1.1s cubic-bezier(.2,.8,.2,1) .5s; }
+  .chips .chip { animation:rise .4s ease-out both; }
+  .wait { display:flex; gap:10px; align-items:center; }
+  .caret::after { content:""; display:inline-block; width:8px; height:8px; margin-left:4px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
+  @media (prefers-reduced-motion: reduce) { .row, .fcardc > *, .chips .chip { animation:none; } .mini i { transition:none; } .caret::after { display:none; } }
+  .menu { display:none; }
+  .acct { display:grid; gap:6px; margin-bottom:8px; } .acct .pill { width:fit-content; }
+  #acct form { display:grid; gap:10px; } .linkbtn { font:inherit; background:none; border:0; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
+
   @media (max-width: 1000px) {
-    body { grid-template-columns:1fr; display:block; } .nav { height:auto; position:static; border-right:0; border-bottom:1px solid var(--line); flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; }
-    #nav { display:flex; flex-wrap:wrap; } .navfoot { margin:0; display:flex; flex-wrap:wrap; align-items:center; } .navfoot > .cap, .navfoot > .fine { display:none; } .seg { margin:0; }
-    .work { height:auto; min-height:calc(100dvh - 120px); } .view.chat { overflow:visible; min-height:calc(100dvh - 120px); } .thread { overflow:visible; padding:18px 12px 8px; }
+    body { display:block; }
+    .nav { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; padding:8px 12px; height:auto; position:sticky; top:0; z-index:5; border-right:0; border-bottom:1px solid var(--line); overflow:visible; }
+    .brand { font-size:18px; padding:0; } .brand .logo { width:30px; height:30px; border-radius:10px; } .newchat { padding:7px 12px; font-size:14px; }
+    .menu { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; border:0; background:var(--soft); color:var(--accent); cursor:pointer; }
+    #nav, .navfoot { display:none; grid-column:1 / -1; margin:0; } .nav.open #nav { display:grid; grid-template-columns:1fr 1fr; } .nav.open .navfoot { display:grid; padding:4px 6px 8px; }
+    .work { height:auto; min-height:calc(100dvh - 56px); } .view.chat { overflow:visible; min-height:calc(100dvh - 56px); } .thread { overflow:visible; padding:18px 12px 8px; }
     .dock { position:sticky; bottom:0; padding:8px 12px 12px; background:linear-gradient(180deg, transparent, var(--bg) 26px); } .view.chat:not(.empty) .dock .fine { display:none; }
-    .composer { padding:12px 12px 10px 18px; border-radius:26px; } .hero p { font-size:16px; } .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr; } .view { padding:16px 12px 24px; }
+    .composer { padding:12px 12px 10px 18px; border-radius:26px; } .composer textarea { font-size:17px; } .hero p { font-size:16px; } .hero h2 { font-size:27px; }
+    .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr 1fr; } .tiles .tile:first-child { grid-column:1 / -1; } .view { padding:16px 12px 24px; }
+    .bar { padding:8px 12px; flex-wrap:wrap; min-height:0; } .txt { font-size:15.5px; padding:12px 14px; } .fcardc { padding:16px; border-radius:22px; } .bub { max-width:88%; }
+    .chips { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding-bottom:4px; scrollbar-width:none; } .chip { white-space:nowrap; flex:none; }
+    .toast { bottom:auto; top:66px; right:12px; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
   }
   @media print {  /* the brief is the only thing that prints */
     body { display:block; background:#fff; color:#000; } body > *:not(#brief) { display:none !important; }
@@ -165,11 +187,13 @@
 <aside class="nav">
   <div class="brand"><span class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span>Oikos</div>
   <button class="newchat" id="newChat" type="button">+ New chat</button>
+  <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
     <button data-go="chat">Ask Oikos</button><button data-go="check">Full breakdown</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
     <button data-go="compare">Compare</button><button data-go="deals">Deals</button><button data-go="market">Market</button>
   </nav>
   <div class="navfoot">
+    <div class="acct"><div class="fine" id="acctInfo"></div><button class="pill" id="acctBtn" type="button">Sign in</button></div>
     <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
     <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
@@ -284,6 +308,17 @@
   </div>
   <div class="msg fine" id="formMsg" role="status"></div>
   <button class="btn" id="checkBtn" type="button" style="width:100%;padding:13px">Check this flat</button>
+</dialog>
+<dialog id="acct" aria-label="Account">
+  <div class="sheethd"><b id="acctTitle">Sign in</b><button class="x" id="acctX" type="button" aria-label="Close">&times;</button></div>
+  <form id="acctForm">
+    <label><span class="cap dim">Email</span><input id="acctEmail" type="text" inputmode="email" autocomplete="email" maxlength="254" required></label>
+    <label><span class="cap dim">Password <span id="acctHint">(at least 8 characters)</span></span><input id="acctPw" type="password" autocomplete="current-password" minlength="8" maxlength="200" required style="width:100%;font:inherit;font-size:14px;color:var(--fg);background:var(--panel);border:1px solid var(--line);padding:8px 10px;border-radius:12px"></label>
+    <div class="msg fine" id="acctMsg" role="status"></div>
+    <button class="btn" id="acctGo" type="submit" style="padding:13px">Sign in</button>
+    <div class="fine center"><span id="acctAsk">New here?</span> <button class="linkbtn" id="acctSwap" type="button">Create an account</button></div>
+    <div class="fine center">An account keeps your saved flats on every device.</div>
+  </form>
 </dialog>
 <div id="brief"></div>
 
@@ -448,7 +483,7 @@ function render() {
   if (!F) return;
   const a = +$("ask").value, { R, p, t, i, word, color } = verdictFor(F, a), fair = F.fair, diff = a / fair - 1, under = a < fair;
   $("verdict").textContent = word + "."; $("verdict").style.color = color;
-  $("sub").replaceChildren(...rich((root.mode === "simple" ? "" : R.line(p) + " ") + R.lead + money(a) + " is "), h("b", { className: "hm" }, pc(diff)), ...rich(" versus our fair value of " + money(fair) + "."));
+  $("sub").replaceChildren(...rich((root.mode === "simple" ? "" : R.line(p) + " ") + R.lead + money(a) + " is "), h("b", { className: "hm", style: `color:${color}` }, pc(diff)), ...rich(" versus our fair value of " + money(fair) + "."));
   $("gap").textContent = Math.abs(a - fair) < 500 ? "AT FAIR VALUE" : `${under ? "▼" : "▲"} ${money(Math.abs(a - fair))} ${under ? "BELOW" : "ABOVE"} FAIR VALUE`;
   $("gap").style.background = t.dark;
   $("askOut").textContent = money(a);
@@ -530,83 +565,203 @@ function drawTrend(g, text, t, flatType, town) {
 
 // ---- the chat. A message either describes a flat (read by /api/understand, priced by /api/assess, then explained by the model),
 // corrects the flat on screen, or is a question about it. The server checks every figure the model writes and falls back to rule-based text.
-let askHistory = [], busy = false;
+// Nothing is dumped on screen at once: status lines change as work happens, the card builds up, and answers are typed out.
+let askHistory = [], talk = [], busy = false;
 const REASONS = { no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
+const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = ms => new Promise(r => setTimeout(r, calm ? 0 : ms));
 const hasPrice = () => !!F && F.price != null;
+function follow() {  // keep the newest line in view, unless the reader has scrolled up
+  const t = $("thread"), d = document.documentElement;
+  if (t.scrollHeight - t.scrollTop - t.clientHeight < 180) t.scrollTop = t.scrollHeight;
+  if (d.scrollHeight > innerHeight && d.scrollHeight - scrollY - innerHeight < 220) scrollTo(0, d.scrollHeight);
+}
 function row(who, ...kids) {
   const r = h("div", { className: "row " + who }, ...kids);
   $("thread").append(r); $("chat").classList.remove("empty"); r.scrollIntoView({ block: "end" });
   return r;
 }
-const say = (...kids) => row("bot", h("div", { className: "txt" }, ...kids));
-const waiting = text => row("bot", h("div", { className: "txt dim" }, h("span", { className: "dots" }, h("i"), h("i"), h("i")), "  " + text));
+function waiting(text) {
+  const label = h("span", {}, text), r = row("bot", h("div", { className: "txt dim wait" }, h("span", { className: "dots" }, h("i"), h("i"), h("i")), label));
+  r.set = t => { label.textContent = t; };
+  return r;
+}
+// Type text out a few words at a time, pausing a little at commas and full stops. Click the bubble to finish at once.
+async function typeInto(box, nodes) {
+  if (calm) { box.append(...nodes); return; }
+  let skip = false; box.addEventListener("click", () => { skip = true; }, { once: true }); box.classList.add("caret");
+  for (const n of nodes) {
+    if (typeof n !== "string") { box.append(n); if (!skip) { await sleep(55); follow(); } continue; }
+    const t = document.createTextNode(""); box.append(t);
+    for (const w of n.match(/\s*\S+\s*|\s+/g) || []) {
+      t.data += w;
+      if (!skip) { await sleep(/[.!?:]\s*$/.test(w) ? 130 : /[,;]\s*$/.test(w) ? 60 : 12 + Math.random() * 22); follow(); }
+    }
+  }
+  box.classList.remove("caret");
+}
+async function say(nodes, tail) {
+  const box = h("div", { className: "txt" }); row("bot", box);
+  await typeInto(box, typeof nodes === "string" ? [nodes] : nodes);
+  if (tail) box.append(tail); follow();
+}
 const chip = text => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(text)); return c; };
 async function working(fn) {
   busy = true; $("sendBtn").disabled = true;
-  try { await fn(); } catch (e) { say("Something went wrong: " + e.message); }
+  try { await fn(); } catch (e) { await say("Something went wrong: " + e.message); }
   finally { busy = false; $("sendBtn").disabled = false; if (!matchMedia("(pointer: coarse)").matches) $("msg").focus(); }
 }
 function use(f) { if (F !== f) { F = f; show(); render(); } }  // a card's buttons act on that card's flat
 
+// ---- colour for figures: a price takes the colour of the verdict it would get (green for a good price, red for a bad one,
+// for the role in use). Gaps ("$33k above", "8.6% over") are turned into the price they imply first.
+const toneAt = p => { const T = ROLES[root.role].tones, t = T.find(t => p < t.max) || T[T.length - 1]; return root.theme === "dark" ? t.dark : t.light; };
+const priceColor = v => toneAt(percentile(F, v));
+const UP = /\b(above|over|more than|higher|dearer|too high|premium)\b/, DOWN = /\b(below|under|less than|lower|cheaper|discount)\b/;
+function tinted(text) {
+  const parts = String(text).split(FIGURE), fair = F.fair, out = [];
+  parts.forEach((part, i) => {
+    if (!(i % 2)) { if (part) out.push(part); return; }
+    const after = (parts[i + 1] || "").slice(0, 30).toLowerCase(), before = (parts[i - 1] || "").slice(-16).toLowerCase(), e = h("span", { className: "hm" }, part);
+    const dir = UP.test(after) ? 1 : DOWN.test(after) ? -1 : UP.test(before) ? 1 : DOWN.test(before) ? -1 : 0;
+    let color = null;
+    if (part[0] === "$") {
+      const m = part.match(/\$([\d,.]+)([km]?)/), v = parseFloat(m[1].replace(/,/g, "")) * (m[2] === "m" ? 1e6 : m[2] === "k" ? 1e3 : 1);
+      if (v >= fair * 0.5) color = priceColor(v); else if (dir) color = priceColor(fair + dir * v);
+    } else if (part.endsWith("%")) {
+      const v = Math.abs(parseFloat(part)), share = /^\s*of (the |all )?(comparable|similar|recent|sales)/.test(after);
+      if (share) color = toneAt(Math.min(99.9, /(dearer|more expensive|higher|above|for more)/.test((parts[i + 1] || "").slice(0, 60).toLowerCase()) ? 100 - v : v));
+      else if (dir || /^[+-]/.test(part)) color = priceColor(fair * (1 + (dir || (part[0] === "-" ? -1 : 1)) * v / 100));
+    }
+    if (color) e.style.color = color;
+    out.push(e);
+  });
+  return out;
+}
+function countUp(el, to, fmt) {
+  if (calm) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), step = now => { const x = Math.min(1, (now - t0) / 900); el.textContent = fmt(to * (0.9 + 0.1 * (1 - (1 - x) ** 3))); if (x < 1) requestAnimationFrame(step); };
+  el.textContent = fmt(to * 0.9); requestAnimationFrame(step);
+}
+
 function flatCard(u = {}) {
   const mine = F, priced = hasPrice(), a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
-  const tile = (label, val) => h("div", { className: "tile" }, h("div", { className: "cap dim" }, label), h("b", {}, val));
+  const fig = (text, color) => h("span", { className: "hm", style: color ? `color:${color}` : "" }, text);
+  const tile = (label, val) => h("div", { className: "tile" }, h("div", { className: "cap dim" }, label), typeof val === "string" ? h("b", {}, val) : val);
   const btn = (label, fn) => { const b = h("button", { className: "pill", type: "button" }, label); b.addEventListener("click", fn); return b; };
   let from = 0; const stops = v.R.tones.map(z => { const to = Math.min(z.max, 100), stop = `${z.dark} ${from}% ${to}%`; from = to; return stop; });
-  return row("bot", h("div", { className: "fcardc" },
+  const dot = h("i", { style: "left:3%" }), fairB = h("b", {}, k(F.fair));
+  const r = row("bot", h("div", { className: "fcardc" },
     h("div", { className: "ctop" }, h("div", {}, h("b", {}, flatName(F)), h("div", { className: "dim fine" }, flatDesc(F))), h("span", { className: "tag" }, F.reliability + " reliability")),
     priced ? h("div", { className: "vbig", style: `color:${v.color}` }, v.word) : h("div", { className: "vbig" }, "Worth about " + k(F.fair)),
-    h("div", {}, ...rich(priced ? `${v.R.lead}${money(a)} is ${pc(a / F.fair - 1)} versus our fair value of ${money(F.fair)}. ${v.R.line(v.p)}`
-      : `Half of comparable flats sold between ${k(q(25))} and ${k(q(75))}. Tell me the ${buyer ? "asking" : "listing"} price and I'll give you a verdict.`)),
-    priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, h("i", { style: `left:${Math.min(97, Math.max(3, v.p))}%` })) : null,
-    h("div", { className: "tiles" }, tile("Fair value", k(F.fair)), tile("Likely range", `${k(q(25))} - ${k(q(75))}`), buyer ? tile("Don't pay more than", k(q(75))) : tile("Think twice below", k(q(25)))),
+    priced ? h("div", {}, v.R.lead, fig(money(a), v.color), " is ", fig(pc(a / F.fair - 1), v.color), " versus our fair value of ", fig(money(F.fair)), ". ", ...rich(v.R.line(v.p)))
+      : h("div", {}, ...rich(`Half of comparable flats sold between ${k(q(25))} and ${k(q(75))}. Tell me the ${buyer ? "asking" : "listing"} price and I'll give you a verdict.`)),
+    priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, dot) : null,
+    h("div", { className: "tiles" }, tile("Fair value", fairB), tile("Likely range", `${k(q(25))} - ${k(q(75))}`),
+      buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
     ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
-    u.assumed?.length ? h("div", { className: "note" }, "You didn't say, so I assumed " + u.assumed.join("; ") + ". Tell me if that's off, for example \"it's on the 11th floor\".") : null,
+    u.assumed?.length ? h("div", { className: "fine" }, "Assumed: " + u.assumed.join("; ") + ".") : null,
     h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }))));
+  countUp(fairB, F.fair, k);
+  requestAnimationFrame(() => requestAnimationFrame(() => { dot.style.left = Math.min(97, Math.max(3, v.p)) + "%"; }));
+  return r;
 }
-async function loadFlat(spec, price, u = {}) {
-  const w = waiting("Checking this flat against comparable sales");
+async function loadFlat(spec, price, u = {}, w = waiting("Looking up the flat")) {
+  w.set(u.changed?.length ? "Updating: " + u.changed.join(", ") : `Found Blk ${spec.block} ${title(spec.street_name)}. Comparing it with recent sales`);
+  const t0 = Date.now();
   try { F = await api("/api/assess", { ...spec, price: price || null }); }
-  catch (e) { w.remove(); say("I couldn't check that flat: " + e.message); return; }
+  catch (e) { w.remove(); await say("I couldn't check that flat: " + e.message); return; }
+  await sleep(Math.max(0, 900 - (Date.now() - t0)));
   w.remove(); show(); render(); flatCard(u);
-  await askOikos(null);
+  await sleep(1300);
+  await askOikos(null, u.assumed);
 }
-async function askOikos(question) {
-  const w = waiting(question ? "Thinking" : "Working out your options"), first = !askHistory.length;
+async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
+  const first = !askHistory.length;
+  w.set(question ? "Thinking it through" : "Reading the numbers");
+  const beats = [setTimeout(() => w.set(question ? "Checking the figures" : "Weighing your options"), 2600), setTimeout(() => w.set("Writing it up"), 5600)];
   try {
     const f = F.flat, r = await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
       floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(),
-      question: question || null, history: askHistory.slice(-6) });
+      question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null });
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
-    w.remove();
-    say(...rich(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
+    beats.forEach(clearTimeout); w.remove();
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
-    if (first) row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
+    await say(tinted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
+    if (first) { await sleep(350); row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
       ? [`What if I offer ${k(qOf(F, 25))}?`, "Is the lease a problem for me?", "How should I negotiate?"]
-      : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map(chip)));
-  } catch (e) { w.remove(); say("I couldn't get an answer: " + e.message); }
+      : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map((t, i) => { const c = chip(t); c.style.animationDelay = i * 0.12 + "s"; return c; }))); }
+    refreshMe();
+  } catch (e) {
+    beats.forEach(clearTimeout); w.remove(); await say(e.message.startsWith("You've used") ? e.message : "I couldn't get an answer: " + e.message);
+    if (!ME && e.message.startsWith("You've used")) { const b = h("button", { className: "pill", type: "button" }, "Create a free account"); b.addEventListener("click", () => openAcct("signup")); row("bot", b); }
+  }
 }
 function send(text) {
   text = text.trim(); if (!text || busy) return;
   $("msg").value = ""; grow(); go("chat");
   row("you", h("div", { className: "bub" }, text.length > 500 ? text.slice(0, 500) + "..." : text));
   return working(async () => {
-    const u = await api("/api/understand", { text, current: F ? F.flat : null });
+    await sleep(350);
+    const w = waiting("Reading your message");
+    let u;
+    try { u = await api("/api/understand", { text, current: F ? F.flat : null, history: talk.slice(-6) }); } catch (e) { w.remove(); throw e; }
+    talk.push({ role: "user", content: text.slice(0, 800) });
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.age) { $("age").value = u.age; syncAge("age"); }
-    if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u);
-    else if (F) await askOikos(text);
-    else { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet);
-      say(u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing."); row("bot", b); }
+    if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
+    else if (u.reply || u.note || !F) {
+      const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
+      w.remove(); talk.push({ role: "assistant", content: t }); await say(t);
+      if (!u.reply) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
+    } else await askOikos(text, null, w);
   });
 }
 const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height = Math.min(200, m.scrollHeight) + "px"; };
 $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
-$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
+$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
 $("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 76 sqm, 8th floor, asking $420k", "I'm selling my 5-room at 109A Edgedale Plains for $720k", "What is a 4-room at 456 Ang Mo Kio Ave 10 worth?"].map(chip));
+
+// ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
+let ME = null, acctMode = "login";
+function showMe(m) {
+  ME = m.user; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
+  $("acctInfo").textContent = (ME ? ME.email : "Sign in to keep your flats on every device.") + (m.limit != null ? ` ${m.used_today} of ${m.limit} AI answers used today.` : "");
+}
+const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
+async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
+  if (!ME) return;
+  const r = await api("/api/flats"), ids = new Set(r.flats.map(x => x.id));
+  flats = [...flats.filter(x => !ids.has(x.id)), ...r.flats]; persist();
+  const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+}
+function openAcct(mode = "login") {
+  acctMode = mode; const up = mode === "signup";
+  $("acctTitle").textContent = $("acctGo").textContent = up ? "Create account" : "Sign in"; $("acctHint").hidden = !up;
+  $("acctAsk").textContent = up ? "Already have one?" : "New here?"; $("acctSwap").textContent = up ? "Sign in" : "Create an account";
+  $("acctPw").autocomplete = up ? "new-password" : "current-password"; $("acctMsg").textContent = "";
+  if (!$("acct").open) $("acct").showModal();
+}
+$("acctSwap").addEventListener("click", () => openAcct(acctMode === "login" ? "signup" : "login"));
+$("acctX").addEventListener("click", () => $("acct").close());
+$("acctForm").addEventListener("submit", async e => {
+  e.preventDefault(); $("acctGo").disabled = true; $("acctMsg").textContent = "";
+  try {
+    showMe(await api("/api/" + acctMode, { email: $("acctEmail").value, password: $("acctPw").value }));
+    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats();
+  } catch (err) { $("acctMsg").textContent = err.message; } finally { $("acctGo").disabled = false; }
+});
+$("acctBtn").addEventListener("click", async () => {
+  if (!ME) { openAcct("login"); return; }
+  try { await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
+  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out");  // saved flats stay on the server, not in this browser
+  const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+});
+$("menuBtn").addEventListener("click", () => { const open = document.querySelector(".nav").classList.toggle("open"); $("menuBtn").setAttribute("aria-expanded", open); });
+document.querySelectorAll("#nav button, #newChat").forEach(b => b.addEventListener("click", () => { document.querySelector(".nav").classList.remove("open"); $("menuBtn").setAttribute("aria-expanded", false); }));
 
 // ---- tabs
 function selectTab(name) {
@@ -617,7 +772,9 @@ document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click
 
 // ---- my flats
 const flatId = f => [f.flat.block, f.flat.street_name, f.flat.flat_type, f.flat.flat_model, f.flat.floor_area_sqm, f.flat.storey].join("|");
-const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || ""; };
+let saveTimer = 0;
+const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || "";
+  if (ME) { clearTimeout(saveTimer); saveTimer = setTimeout(() => api("/api/flats", { flats }).catch(() => toast("Could not save to your account")), 600); } };
 $("saveBtn").addEventListener("click", () => saveFlat());
 function saveFlat() {
   const id = flatId(F), price = +$("ask").value, old = flats.find(x => x.id === id);
@@ -694,6 +851,7 @@ addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 const tick = () => $("clock").textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
 tick(); setInterval(tick, 30000); persist(); go("chat");
+api("/api/me").then(m => { showMe(m); return syncFlats(); }).catch(() => {});
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
 </script>
 </body>

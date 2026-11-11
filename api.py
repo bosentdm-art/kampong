@@ -5,6 +5,9 @@ Needs the data and models built first (python src/update.py).
 
   GET  /api/options   lists for the flat picker (town > street > block > flat type) and sensible defaults
   POST /api/parse     pasted listing text -> flat details
+  POST /api/understand  a chat message -> the flat it describes, a change to the flat on screen, or an AI reply
+  POST /api/ask       the AI's advice on a flat, every figure checked against the facts
+  POST /api/signup, /api/login, /api/logout, GET /api/me, GET/POST /api/flats   accounts (see src/accounts.py)
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
   GET  /api/deals     below-estimate sales in a town       GET /api/trend   yearly price per sqm for a town and flat type
 
@@ -20,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -31,6 +34,7 @@ import explain as ex  # noqa: E402
 import forecast as fc  # noqa: E402
 import listing_parser as lp  # noqa: E402
 import llm  # noqa: E402
+import accounts as acc  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -137,6 +141,90 @@ def parse(listing: Listing):
 class Message(BaseModel):
     text: str
     current: dict | None = None  # the flat already on screen, if any
+    history: list[dict] | None = None  # the last few chat turns, for the AI's reply
+
+
+class Login(BaseModel):
+    email: str
+    password: str
+
+
+class Saved(BaseModel):
+    flats: list[dict]
+
+
+# ---- accounts: a session cookie for people who sign in, an anonymous id for everyone else (so usage can be counted)
+def visitor(request, response):
+    """('u:<id>' or 'a:<anonymous id>', the signed-in user or None)."""
+    user = acc.user_for(request.cookies.get("oikos_session"))
+    if user:
+        return f"u:{user['id']}", user
+    anon = request.cookies.get("oikos_anon")
+    if not anon or not re.fullmatch(r"[\w-]{16,64}", anon):
+        anon = acc.secrets.token_urlsafe(18)
+        response.set_cookie("oikos_anon", anon, max_age=365 * 86400, httponly=True, samesite="lax", secure=request.url.scheme == "https")
+    return f"a:{anon}", None
+
+
+def me_view(who, user):
+    return dict(user=dict(email=user["email"]) if user else None, used_today=acc.used_today(who), limit=acc.limit_for(who))
+
+
+def start_session(user_id, request, response):
+    response.set_cookie("oikos_session", acc.new_session(user_id), max_age=acc.SESSION_DAYS * 86400, httponly=True, samesite="lax",
+                        secure=request.url.scheme == "https")
+    return me_view(f"u:{user_id}", acc.user_for_id(user_id))
+
+
+@app.get("/api/me")
+def me(request: Request, response: Response):
+    return me_view(*visitor(request, response))
+
+
+@app.post("/api/signup")
+def signup(body: Login, request: Request, response: Response):
+    try:
+        return start_session(acc.signup(body.email, body.password), request, response)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/login")
+def login(body: Login, request: Request, response: Response):
+    try:
+        uid = acc.login(body.email, body.password)
+    except ValueError as e:
+        raise HTTPException(429, str(e))
+    if uid is None:
+        raise HTTPException(401, "Wrong email or password.")
+    return start_session(uid, request, response)
+
+
+@app.post("/api/logout")
+def logout(request: Request, response: Response):
+    acc.end_session(request.cookies.get("oikos_session"))
+    response.delete_cookie("oikos_session")
+    return dict(ok=True)
+
+
+@app.get("/api/flats")
+def flats_get(request: Request, response: Response):
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Sign in to keep your flats.")
+    return dict(flats=acc.get_flats(user["id"]))
+
+
+@app.post("/api/flats")
+def flats_put(body: Saved, request: Request, response: Response):
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Sign in to keep your flats.")
+    try:
+        acc.put_flats(user["id"], body.flats[:200])
+    except ValueError as e:
+        raise HTTPException(413, str(e))
+    return dict(ok=True)
 
 
 QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
@@ -148,42 +236,59 @@ def band(floor):
     return f"{lo:02d} TO {lo + 2:02d}"
 
 
+OTHER_FLAT = re.compile(r"\b(blk|block|another|other flat|different flat|instead|avenue|ave|street|road|drive|lorong|jalan)\b", re.I)
+
+
+def new_flat(p, base):
+    """The reply for a message that names a flat: its details, with sensible defaults for anything not said."""
+    o = options(town=p["town"], street=p["street_name"], block=p["block"], flat_type=p["flat_type"])
+    sel = o["selected"]
+    if sel["block"] != p["block"] or sel["street"] != p["street_name"]:
+        return {**base, "note": f"I found blk {p['block']} {p['street_name'].title()}, but it has no resale records since 2017, so I can't price it."}
+    d = sales()
+    blk = d[(d["block"] == sel["block"]) & (d["street_name"] == sel["street"])]
+    bands, df, assumed = sorted(blk["storey_range"].unique()), o["defaults"], []
+    if p["flat_type"] != sel["flat_type"]:
+        others = [t.title() for t in o["flat_types"] if t != sel["flat_type"]]
+        assumed.append(f"a {sel['flat_type'].title()} flat" + (f" (this block also has {', '.join(others)})" if others else ""))
+    area = p["floor_area_sqm"] or df["floor_area_sqm"]
+    if not p["floor_area_sqm"]:
+        assumed.append(f"{round(area)} sqm, the usual size here")
+    if p["floor"]:
+        storey = band(p["floor"])
+    elif p["storey_hint"] in ("high", "low") and bands:
+        storey = bands[-1] if p["storey_hint"] == "high" else bands[0]
+        assumed.append(f"storey {storey.replace(' TO ', ' to ')} for a {p['storey_hint']} floor")
+    else:
+        storey = df["storey_range"]
+        assumed.append(f"storey {storey.replace(' TO ', ' to ')}, the most common here")
+    flat = dict(town=sel["town"], street_name=sel["street"], block=sel["block"], flat_type=sel["flat_type"],
+                flat_model=p["flat_model"] if p["flat_model"] in o["flat_models"] else df["flat_model"],
+                floor_area_sqm=float(area), storey_range=storey, lease_commence_date=df["lease_commence_date"])
+    return clean({**base, "found": True, "flat": flat, "price": p["asking"], "assumed": assumed})
+
+
+def num(x, lo, hi, kind=float):
+    try:
+        v = kind(x)
+        return v if lo <= v <= hi else None
+    except (TypeError, ValueError):
+        return None
+
+
 @app.post("/api/understand")
-def understand(m: Message):
+def understand(m: Message, request: Request = None, response: Response = None):
     """Read a chat message. Returns the flat it describes (with sensible defaults for anything not said), or
-    changes to the flat on screen, or found=False when the message is just a question."""
+    changes to the flat on screen, or found=False: then either `reply` holds the AI's answer, or the message is a
+    question about the flat on screen. Rules read the message first; what they miss goes to the AI."""
     p = lp.parse(m.text[:20000])
     cur = {k: m.current[k] for k in SPEC} if m.current and all(k in m.current for k in SPEC) else None
-    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[])
+    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[], reply=None)
     asks = bool(QUESTION.search(m.text[:600]))
     same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
 
     if p["block"] and not same:  # a new flat
-        o = options(town=p["town"], street=p["street_name"], block=p["block"], flat_type=p["flat_type"])
-        sel = o["selected"]
-        if sel["block"] != p["block"] or sel["street"] != p["street_name"]:
-            return {**base, "note": f"I found blk {p['block']} {p['street_name'].title()}, but it has no resale records since 2017, so I can't price it."}
-        d = sales()
-        blk = d[(d["block"] == sel["block"]) & (d["street_name"] == sel["street"])]
-        bands, df, assumed = sorted(blk["storey_range"].unique()), o["defaults"], []
-        if p["flat_type"] != sel["flat_type"]:
-            others = [t.title() for t in o["flat_types"] if t != sel["flat_type"]]
-            assumed.append(f"a {sel['flat_type'].title()} flat" + (f" (this block also has {', '.join(others)})" if others else ""))
-        area = p["floor_area_sqm"] or df["floor_area_sqm"]
-        if not p["floor_area_sqm"]:
-            assumed.append(f"{round(area)} sqm, the usual size here")
-        if p["floor"]:
-            storey = band(p["floor"])
-        elif p["storey_hint"] in ("high", "low") and bands:
-            storey = bands[-1] if p["storey_hint"] == "high" else bands[0]
-            assumed.append(f"storey {storey.replace(' TO ', ' to ')} for a {p['storey_hint']} floor")
-        else:
-            storey = df["storey_range"]
-            assumed.append(f"storey {storey.replace(' TO ', ' to ')}, the most common here")
-        flat = dict(town=sel["town"], street_name=sel["street"], block=sel["block"], flat_type=sel["flat_type"],
-                    flat_model=p["flat_model"] if p["flat_model"] in o["flat_models"] else df["flat_model"],
-                    floor_area_sqm=float(area), storey_range=storey, lease_commence_date=df["lease_commence_date"])
-        return clean({**base, "found": True, "flat": flat, "price": p["asking"], "assumed": assumed})
+        return new_flat(p, base)
 
     if cur and not asks:  # a correction to the flat on screen: "it's on the 11th floor", "asking is 400k", "it's 68 sqm"
         flat, changed = dict(cur), []
@@ -204,6 +309,27 @@ def understand(m: Message):
             changed.append(f"price ${p['asking']:,}")
         if changed:
             return clean({**base, "found": True, "flat": flat, "price": p["asking"], "changed": changed})
+
+    # The rules found no flat. With no flat on screen, or when the message seems to name another one, let the AI read it.
+    who = visitor(request, response)[0] if request is not None else None
+    if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and acc.over_limit(who)):
+        r, cost = llm.route_message(m.text, m.history)
+        if who:
+            acc.record(who, "route", cost, bool(r))
+        if r:
+            hit = lp.match_block(r["block"], r["street"]) if r.get("block") and r.get("street") else None
+            if hit and not (cur and str(r["block"]).upper() == cur["block"] and hit[0] == cur["street_name"]):
+                ft = r.get("flat_type") if r.get("flat_type") in ("1 ROOM", "2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE") else None
+                q = dict(p, block=str(r["block"]).upper(), street_name=hit[0], town=hit[1], flat_type=p["flat_type"] or ft,
+                         floor=p["floor"] or num(r.get("floor"), 1, 60, int), floor_area_sqm=p["floor_area_sqm"] or num(r.get("sqm"), 20, 400),
+                         asking=p["asking"] or num(r.get("price"), 100_000, 3_000_000, int))
+                return new_flat(q, {**base, "role": p["role"] or (r.get("role") if r.get("role") in ("buyer", "seller") else None),
+                                    "age": p["age"] or num(r.get("age"), 21, 90, int)})
+            reply = r.get("reply") if isinstance(r.get("reply"), str) else ""
+            if r.get("block") and r.get("street") and not hit:
+                return {**base, "note": f"I couldn't find blk {str(r['block'])[:8]} {str(r['street'])[:60].title()} in HDB resale records. Check the block number and street, or pick the flat from the list."}
+            if not cur and reply.strip() and not re.search(r"[$%]|\d{3,}", reply):  # a chat reply may not carry figures: nothing here to check them against
+                return {**base, "reply": reply.strip()[:600]}
     return clean(base)
 
 
@@ -270,19 +396,28 @@ class Ask(Flat):
     age: float = 35
     question: str | None = None
     history: list[dict] | None = None
+    assumed: list[str] | None = None  # details the person did not give and we filled in
 
 
 @app.post("/api/ask")
-def ask(a: Ask):
+def ask(a: Ask, request: Request, response: Response):
     """Ask Oikos: a short plain-English explanation of this flat's options, written by a model from the facts."""
     if a.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
+    who, user = visitor(request, response)
+    if acc.over_limit(who):
+        cap = acc.limit_for(who)
+        raise HTTPException(429, f"You've used today's {cap} AI answers. " + ("They reset at midnight." if user else "Create a free account for more, or come back tomorrow."))
     facts = facts_for(*flat_key(a))
     price, question = a.price or facts["fair"], a.question
     if not a.price:  # nothing to judge yet: say what the flat is worth instead of giving a verdict on a made-up price
         question = ("(No price has been given yet, so price_being_checked is only our fair value. Do not give a verdict on it. Say what this flat is worth, what to "
                     + ("offer" if a.role == "buyer" else "list it at") + ", and ask for the " + ("asking" if a.role == "buyer" else "listing") + " price.) " + (question or "What is this flat worth?"))
+    if a.assumed:
+        question = ("(The person did not say these, so we assumed: " + "; ".join(str(x)[:120] for x in a.assumed[:4])
+                    + ". Mention that in one short sentence and invite a correction.) " + (question or "Explain my options."))
     out = llm.explain(facts, a.role, a.age, price, question, a.history)
+    acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model")
     return clean(out)
 
 
