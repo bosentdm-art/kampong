@@ -175,6 +175,7 @@ class Message(BaseModel):
     text: str
     current: dict | None = None  # the flat already on screen, if any
     history: list[dict] | None = None  # the last few chat turns, for the AI's reply
+    context: dict | None = None  # what earlier short messages already told us: town, street, flat type, price, floor, size
 
 
 class Login(BaseModel):
@@ -321,6 +322,73 @@ def new_flat(p, base):
     return clean({**base, "found": True, "flat": flat, "price": p["asking"], "assumed": assumed})
 
 
+def kfmt(v):
+    return f"${v / 1e6:.2f}m" if v >= 1e6 else f"${round(v / 1000)}k"
+
+
+def area_stats(town, street=None, flat_type=None, price=None):
+    """What flats sold for in a town (or on one street) lately: the answer when someone has not named an exact flat."""
+    d = sales()
+    d = d[d["town"] == town]
+    if street:
+        d = d[d["street_name"] == street]
+    d = d.assign(price=d["price_per_sqm"] * d["floor_area_sqm"])
+    end = d["sale_date"].max()
+    recent = d[d["sale_date"] > end - pd.DateOffset(months=12)]
+    by_type = [dict(flat_type=t, median=float(g["price"].median()), low=float(g["price"].quantile(.25)), high=float(g["price"].quantile(.75)), n=int(len(g)))
+               for t, g in recent.groupby("flat_type") if len(g) >= 3]
+    out = dict(town=town, street_name=street, flat_type=flat_type, months=12, by_type=by_type, n=int(len(recent)))
+    if flat_type:
+        g, months = recent[recent["flat_type"] == flat_type], 12
+        if len(g) < 8:  # thin: look back further
+            g, months = d[(d["flat_type"] == flat_type) & (d["sale_date"] > end - pd.DateOffset(months=36))], 36
+        if len(g) < 3:
+            return dict(out, flat_type=None, missing_type=flat_type)
+        before = d[(d["flat_type"] == flat_type) & (d["sale_date"] <= end - pd.DateOffset(months=12)) & (d["sale_date"] > end - pd.DateOffset(months=24))]
+        out.update(months=months, n=int(len(g)), median=float(g["price"].median()), low=float(g["price"].quantile(.25)), high=float(g["price"].quantile(.75)),
+                   typical_sqm=float(g["floor_area_sqm"].median()),
+                   change=float(g["price_per_sqm"].median() / before["price_per_sqm"].median() - 1) if months == 12 and len(before) >= 10 and len(g) >= 10 else None)
+        if price and len(g) >= 10:
+            out.update(price=float(price), price_pct=float((g["price"] < price).mean() * 100))
+        src = g
+    else:
+        src = recent
+    key = "block" if street else "street_name"
+    out["top"] = [str(x) for x in src[key].value_counts().head(6).index]
+    return out
+
+
+def area_answer(a, text, who):
+    """The reply for a town or street: the numbers for the card, a short comment, and choices that narrow it down."""
+    where = (f"on {a['street_name'].title()}" if a["street_name"] else f"in {a['town'].title()}")
+    if a.get("flat_type"):
+        ask = "Which block is it?" if a["street_name"] else "Which block and street is it?"
+        view = dict(area=where, flat_type=a["flat_type"].title(), sales_counted=a["n"], months=a["months"], typical_price=round(a["median"], -3),
+                    half_sold_between=[round(a["low"], -3), round(a["high"], -3)], typical_size_sqm=round(a["typical_sqm"]), ask_next=ask)
+        if a.get("change") is not None:
+            view["price_per_sqm_change_on_year_before_pct"] = round(a["change"] * 100, 1)
+        if a.get("price_pct") is not None:
+            view.update(their_price=round(a["price"]), share_of_these_sales_cheaper_than_their_price_pct=round(a["price_pct"]),
+                        share_of_these_sales_dearer_than_their_price_pct=100 - round(a["price_pct"]))
+        rule = (f"{a['flat_type'].title()} flats {where} sold for about {kfmt(a['median'])} over the last {a['months']} months; half went for between {kfmt(a['low'])} and {kfmt(a['high'])}. "
+                + ((f"{kfmt(a['price'])} is cheaper than about {100 - round(a['price_pct'])}% of those sales" if a["price_pct"] < 50 else f"{kfmt(a['price'])} is dearer than about {round(a['price_pct'])}% of those sales")
+                   + ", as a rough guide. " if a.get("price_pct") is not None else "") + ask + " Then I can check that exact flat.")
+        choices = ([dict(label=f"Blk {b}", send=f"Blk {b} {a['street_name'].title()}") for b in a["top"]] if a["street_name"]
+                   else [dict(label=x.title(), send=x.title()) for x in a["top"]])
+    else:
+        ask = "Which flat type are you looking at?"
+        view = dict(area=where, months=a["months"], typical_price_by_flat_type={t["flat_type"].title(): round(t["median"], -3) for t in a["by_type"]}, ask_next=ask)
+        rule = (f"I don't have enough recent {a['missing_type'].title()} sales {where}. " if a.get("missing_type") else "") + f"Here is what flats {where} sold for over the last 12 months. " + ask
+        choices = [dict(label=t["flat_type"].title(), send=t["flat_type"].title()) for t in a["by_type"]]
+    if who and acc.over_limit(who):
+        reply, made = rule, False
+    else:
+        reply, cost, made = llm.area_reply(view, text, rule)
+        if who:
+            acc.record(who, "area", cost, made)
+    return dict(area=a, reply=reply, ai=made, choices=choices)
+
+
 def num(x, lo, hi, kind=float):
     try:
         v = kind(x)
@@ -342,14 +410,61 @@ def understand(m: Message, request: Request = None, response: Response = None):
     asks = bool(QUESTION.search(m.text[:600]))
     same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
 
+    # Short messages build up: "bishan", then "4 room", then "blk 123". What earlier ones said arrives in m.context.
+    ctx = {k: v for k, v in (m.context or {}).items() if k in ("town", "street_name", "block", "flat_type", "price", "floor", "sqm") and v} if not cur else {}
+    if ctx and not p["block"]:
+        p["flat_type"] = p["flat_type"] or (ctx.get("flat_type") if ctx.get("flat_type") in ("1 ROOM", "2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE") else None)
+        p["asking"] = p["asking"] or num(ctx.get("price"), 100_000, 3_000_000, int)
+        p["floor"] = p["floor"] or num(ctx.get("floor"), 1, 60, int)
+        p["floor_area_sqm"] = p["floor_area_sqm"] or num(ctx.get("sqm"), 20, 400)
+    elif ctx:  # a full address this time: still use the type, price, floor and size given earlier
+        p["flat_type"] = p["flat_type"] or ctx.get("flat_type")
+        p["asking"] = p["asking"] or num(ctx.get("price"), 100_000, 3_000_000, int)
+        p["floor"] = p["floor"] or num(ctx.get("floor"), 1, 60, int)
+        p["floor_area_sqm"] = p["floor_area_sqm"] or num(ctx.get("sqm"), 20, 400)
+
     if p["block"] and not same:  # a new flat
         return new_flat(p, base)
+
+    who = visitor(request, response)[0] if request is not None else None
+    towns, streets = lp.places()
+    known_street = {v[0]: v[1] for v in streets.values()}
+    street = p["street_hint"] or (ctx.get("street_name") if ctx.get("street_name") in known_street and not p["town_hint"] else None)
+    town = known_street[street] if street else (p["town_hint"] or (ctx.get("town") if ctx.get("town") in towns else None))
+    block = p["block_hint"] or (str(ctx.get("block"))[:6].upper() if ctx.get("block") and not (p["street_hint"] or p["town_hint"]) else None)
+    new_place = (p["street_hint"] or p["town_hint"] or p["block_hint"]) and not (cur and (asks or (town == cur["town"] and not p["block_hint"])))
+    if not cur or new_place:
+        base["ctx"] = dict(town=town, street_name=street, block=block, flat_type=p["flat_type"], price=p["asking"], floor=p["floor"], sqm=p["floor_area_sqm"])
+        if block:  # a block number without a full address: find where it could be
+            cands = [h for h in lp.block_index().get(block, []) if (not street or h[1] == street) and (not town or h[2] == town)]
+            if len(cands) == 1:
+                return new_flat(dict(p, block=block, street_name=cands[0][1], town=cands[0][2]), {k: v for k, v in base.items() if k != "ctx"})
+            if cands:
+                base["ctx"].update(street_name=None)
+                return clean({**base, "reply": f"There is a Blk {block} on {len(cands)} streets{' in ' + town.title() if town else ''}. Which one is it?",
+                              "choices": [dict(label=f"{h[1].title()}" + ("" if town else f" ({h[2].title()})"), send=f"Blk {block} {h[1].title()}") for h in sorted(cands, key=lambda h: h[1])[:10]]})
+            base["ctx"].update(block=None)
+            if not (street or town):
+                return clean({**base, "note": f"I can't find a Blk {block} in HDB resale records. Check the number, or tell me the street."})
+        if not town and re.search(r"\bjurong\b", m.text, re.I):
+            return clean({**base, "reply": "Jurong East or Jurong West?", "choices": [dict(label="Jurong East", send="Jurong East"), dict(label="Jurong West", send="Jurong West")]})
+        if not town and (p["flat_type"] or p["asking"]) and not p["street_hint"] and len(m.text) < 40 and not asks:  # "4 room", "600k": we need a place next
+            return clean({**base, "reply": "Which town is it in? Or give me the block and street if you have them.",
+                          "choices": [dict(label=t.title(), send=t.title()) for t in ("ANG MO KIO", "BEDOK", "BISHAN", "JURONG WEST", "PUNGGOL", "SENGKANG", "TAMPINES", "WOODLANDS", "YISHUN")]})
+        if town:
+            return clean({**base, **area_answer(area_stats(town, street, p["flat_type"], p["asking"]), m.text, who)})
 
     if cur and not asks:  # a correction to the flat on screen: "it's on the 11th floor", "asking is 400k", "it's 68 sqm"
         flat, changed = dict(cur), []
         if p["floor"]:
             flat["storey_range"] = band(p["floor"])
             changed.append("storey " + flat["storey_range"].replace(" TO ", " to "))
+        elif p["storey_hint"] in ("high", "low"):
+            d = sales()
+            bands = sorted(d[(d["block"] == cur["block"]) & (d["street_name"] == cur["street_name"])]["storey_range"].unique())
+            if bands and (bands[-1] if p["storey_hint"] == "high" else bands[0]) != cur["storey_range"]:
+                flat["storey_range"] = bands[-1] if p["storey_hint"] == "high" else bands[0]
+                changed.append("storey " + flat["storey_range"].replace(" TO ", " to "))
         if p["floor_area_sqm"]:
             flat["floor_area_sqm"] = float(p["floor_area_sqm"])
             changed.append(f"{round(p['floor_area_sqm'])} sqm")
@@ -366,7 +481,6 @@ def understand(m: Message, request: Request = None, response: Response = None):
             return clean({**base, "found": True, "flat": flat, "price": p["asking"], "changed": changed})
 
     # The rules found no flat. With no flat on screen, or when the message seems to name another one, let the AI read it.
-    who = visitor(request, response)[0] if request is not None else None
     if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and acc.over_limit(who)):
         r, cost = llm.route_message(m.text, m.history)
         if who:

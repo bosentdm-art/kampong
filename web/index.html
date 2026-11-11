@@ -152,13 +152,18 @@
   .row { animation:rise .35s ease-out both; }
   .fcardc > * { animation:rise .5s ease-out both; }
   .fcardc > :nth-child(2) { animation-delay:.15s; } .fcardc > :nth-child(3) { animation-delay:.35s; } .fcardc > :nth-child(4) { animation-delay:.5s; }
-  .fcardc > :nth-child(5) { animation-delay:.65s; } .fcardc > :nth-child(6) { animation-delay:.8s; } .fcardc > :nth-child(n+7) { animation-delay:.95s; }
+  .fcardc > :nth-child(5) { animation-delay:.65s; } .fcardc > :nth-child(6) { animation-delay:.8s; } .fcardc > :nth-child(n+7) { animation-delay:.95s; } .fcardc details > * { animation:none; }
   .mini i { transition:left 1.1s cubic-bezier(.2,.8,.2,1) .5s; }
   .chips .chip { animation:rise .4s ease-out both; }
   .wait { display:flex; gap:10px; align-items:center; }
   .caret::after { content:""; display:inline-block; width:8px; height:8px; margin-left:4px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
   @media (prefers-reduced-motion: reduce) { .row, .fcardc > *, .chips .chip { animation:none; } .mini i { transition:none; } .caret::after { display:none; } }
   .menu { display:none; }
+  .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
+  .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
+  .bars { display:grid; gap:8px; } .br { display:grid; grid-template-columns:86px 1fr auto; gap:10px; align-items:center; } .br .bar { height:10px; border-radius:999px; background:var(--soft); overflow:hidden; }
+  .br .bar i { display:block; height:100%; border-radius:999px; background:var(--accent); opacity:.75; width:0; transition:width .9s cubic-bezier(.2,.8,.2,1) .3s; } .br b { white-space:nowrap; }
   .badge { background:#ef4444; color:#fff; border-radius:999px; font-size:12px; font-weight:700; padding:0 7px; line-height:20px; }
   .alform { display:grid; grid-template-columns:minmax(0, 260px) minmax(0, 200px) auto; gap:10px; align-items:end; margin-top:12px; }
   .acard .bd { display:grid; gap:8px; } .acard .new { color:var(--pos); font-weight:700; }
@@ -220,7 +225,7 @@
     <div class="hero">
       <div class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></div>
       <h2>Which flat are you looking at?</h2>
-      <p class="dim">Paste a listing or describe the flat. I'll check it against about 990,000 HDB sales and tell you what I'd do.</p>
+      <p class="dim">Paste a listing, or just type a few words like "bishan 4 room 800k". I'll check it against about 990,000 HDB sales and tell you what I'd do.</p>
     </div>
     <div class="dock">
       <div class="composer">
@@ -631,7 +636,43 @@ async function say(nodes, tail) {
   await typeInto(box, typeof nodes === "string" ? [nodes] : nodes);
   if (tail) box.append(tail); follow();
 }
-const chip = text => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(text)); return c; };
+const chip = (text, sends = text) => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(sends)); return c; };
+let ctx = {};  // what earlier short messages said (town, street, flat type, price...) until an exact flat is found
+// Advice arrives as plain text. A line that starts with a short label ("Verdict: ...") gets the label set apart, and "- " lines become bullets.
+function formatted(text) {
+  const out = [];
+  String(text).split("\n").forEach((line, i) => {
+    if (i) out.push("\n");
+    const m = line.match(/^([A-Z][A-Za-z' ]{1,22}):\s+(.+)$/);
+    if (m) out.push(h("b", { className: "lbl" }, m[1]), "\n", ...tinted(m[2])); else out.push(...tinted(line.replace(/^- /, "\u2022 ")));
+  });
+  return out;
+}
+// The answer to "bishan 4 room": what such flats sold for lately, and where a price sits among them. Not a verdict on one flat.
+function areaCard(a) {
+  const where = a.street_name ? title(a.street_name) : title(a.town), kids = [];
+  kids.push(h("div", { className: "ctop" }, h("div", {}, h("b", {}, (a.flat_type ? title(a.flat_type) + " flats, " : "Flats, ") + where), h("div", { className: "dim fine" }, a.street_name ? title(a.town) : "Whole town")),
+    h("span", { className: "tag" }, `${a.n} sales in ${a.months} months`)));
+  if (a.flat_type) {
+    kids.push(h("div", { className: "vbig" }, "Around " + k(a.median)));
+    kids.push(h("div", {}, ...rich(`Half sold between ${k(a.low)} and ${k(a.high)}. Typical size ${Math.round(a.typical_sqm)} sqm.` + (a.change != null ? ` Prices per sqm are ${pc(a.change)} on the year before.` : ""))));
+    if (a.price_pct != null) {
+      const T = ROLES[root.role].tones, col = toneAt(a.price_pct), dot = h("i", { style: "left:3%" });
+      let from = 0; const stops = T.map(z => { const to = Math.min(z.max, 100), stop = `${z.dark} ${from}% ${to}%`; from = to; return stop; });
+      kids.push(h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, dot));
+      kids.push(h("div", {}, h("span", { className: "hm", style: `color:${col}` }, k(a.price)), a.price_pct < 50 ? ` is cheaper than about ${Math.round(100 - a.price_pct)}% of these sales.` : ` is dearer than about ${Math.round(a.price_pct)}% of these sales.`,
+        h("span", { className: "dim" }, " A rough guide until I know the exact flat.")));
+      requestAnimationFrame(() => requestAnimationFrame(() => { dot.style.left = Math.min(97, Math.max(3, a.price_pct)) + "%"; }));
+    }
+  } else {
+    const top = Math.max(...a.by_type.map(t => t.median)), fills = [];
+    kids.push(h("div", { className: "bars" }, ...a.by_type.map(t => { const f = h("i"); fills.push([f, t.median / top * 100]);
+      return h("div", { className: "br" }, h("span", {}, title(t.flat_type)), h("div", { className: "bar" }, f), h("b", {}, k(t.median))); })));
+    kids.push(h("div", { className: "fine" }, "Typical sale price by flat type over the last 12 months."));
+    requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach(([f, w]) => { f.style.width = w + "%"; })));
+  }
+  return row("bot", h("div", { className: "fcardc" }, ...kids));
+}
 async function working(fn) {
   busy = true; $("sendBtn").disabled = true;
   try { await fn(); } catch (e) { await say("Something went wrong: " + e.message); }
@@ -685,6 +726,9 @@ function flatCard(u = {}) {
     priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, dot) : null,
     h("div", { className: "tiles" }, tile("Fair value", fairB), tile("Likely range", `${k(q(25))} - ${k(q(75))}`),
       buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
+    F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this block (${F.recent.length})`),
+      ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` storey ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm`), h("b", {}, money(r.price))))) : null,
+    F.notes.length ? h("details", { className: "more" }, h("summary", {}, `Why reliability is ${F.reliability.toLowerCase()}`), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n))))) : null,
     ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
     u.assumed?.length ? h("div", { className: "fine" }, "Assumed: " + u.assumed.join("; ") + ".") : null,
     h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }), btn("Share", () => { use(mine); shareFlat(); }), btn("Watch block", () => { use(mine); watchBlock(); }))));
@@ -693,6 +737,7 @@ function flatCard(u = {}) {
   return r;
 }
 async function loadFlat(spec, price, u = {}, w = waiting("Looking up the flat")) {
+  ctx = {};
   w.set(u.changed?.length ? "Updating: " + u.changed.join(", ") : `Found Blk ${spec.block} ${title(spec.street_name)}. Comparing it with recent sales`);
   const t0 = Date.now();
   try { F = await api("/api/assess", { ...spec, price: price || null }); }
@@ -713,7 +758,7 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
     beats.forEach(clearTimeout); w.remove();
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
-    await say(tinted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
+    await say(formatted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
     if (first) { await sleep(350); row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
       ? [`What if I offer ${k(qOf(F, 25))}?`, "Is the lease a problem for me?", "How should I negotiate?"]
       : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map((t, i) => { const c = chip(t); c.style.animationDelay = i * 0.12 + "s"; return c; }))); }
@@ -731,15 +776,19 @@ function send(text) {
     await sleep(350);
     const w = waiting("Reading your message");
     let u;
-    try { u = await api("/api/understand", { text, current: F ? F.flat : null, history: talk.slice(-6) }); } catch (e) { w.remove(); throw e; }
+    try { u = await api("/api/understand", { text, current: F ? F.flat : null, history: talk.slice(-6), context: ctx }); } catch (e) { w.remove(); throw e; }
     talk.push({ role: "user", content: text.slice(0, 800) });
+    if (u.ctx) ctx = u.ctx;
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.age) { $("age").value = u.age; syncAge("age"); }
     if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
     else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
-      w.remove(); talk.push({ role: "assistant", content: t }); await say(t);
+      w.remove(); talk.push({ role: "assistant", content: t });
+      if (u.area) { areaCard(u.area); await sleep(900); }
+      await say(u.area ? rich(t) : t);
+      if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
       if (!u.reply) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
     } else await askOikos(text, null, w);
   });
@@ -748,8 +797,8 @@ const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height
 $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
-$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
-$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 76 sqm, 8th floor, asking $420k", "I'm selling my 5-room at 109A Edgedale Plains for $720k", "What is a 4-room at 456 Ang Mo Kio Ave 10 worth?"].map(chip));
+$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
+$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k", "bishan 4 room 800k", "I'm selling my 5-room at 109A Edgedale Plains"].map(t => chip(t)));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";
@@ -819,8 +868,8 @@ async function openShared(sid) {
   row("bot", h("div", { className: "txt" }, "Someone shared this flat with you. Here is what Oikos made of it on ", hl(new Date(sh.created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })), "."));
   flatCard(); await sleep(1300);
   askHistory.push({ role: "user", content: "Explain my options." }, { role: "assistant", content: sh.advice });
-  await say(tinted(sh.advice), h("span", { className: "src" }, "Shared advice. Ask a question below to get your own."));
-  row("bot", h("div", { className: "chips" }, ...(sh.role === "buyer" ? ["Is the lease a problem for me?", "How should I negotiate?"] : ["How do I justify my price?", "What should I fix before listing?"]).map(chip)));
+  await say(formatted(sh.advice), h("span", { className: "src" }, "Shared advice. Ask a question below to get your own."));
+  row("bot", h("div", { className: "chips" }, ...(sh.role === "buyer" ? ["Is the lease a problem for me?", "How should I negotiate?"] : ["How do I justify my price?", "What should I fix before listing?"]).map(t => chip(t))));
 }
 
 // ---- alerts: watch a block for new sales, or a town for sales well under our estimate. New matches show as a badge.

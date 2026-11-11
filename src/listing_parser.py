@@ -58,6 +58,39 @@ def match_block(blk, street):
     return next(h[1:] for h in cands if h[0] == close[0]) if close else None
 
 
+TOWN_ALIASES = {"AMK": "ANG MO KIO", "TPY": "TOA PAYOH", "CCK": "CHOA CHU KANG", "BT BATOK": "BUKIT BATOK", "BT MERAH": "BUKIT MERAH",
+                "BT PANJANG": "BUKIT PANJANG", "BT TIMAH": "BUKIT TIMAH", "KALLANG": "KALLANG/WHAMPOA", "WHAMPOA": "KALLANG/WHAMPOA", "CENTRAL": "CENTRAL AREA",
+                "CITY": "CENTRAL AREA", "TIONG BAHRU": "BUKIT MERAH", "REDHILL": "BUKIT MERAH", "BOON LAY": "JURONG WEST", "SIMEI": "TAMPINES",
+                "BUANGKOK": "SENGKANG", "KOVAN": "HOUGANG", "DOVER": "QUEENSTOWN", "COMMONWEALTH": "QUEENSTOWN", "ADMIRALTY": "WOODLANDS", "KHATIB": "YISHUN"}
+
+
+@functools.lru_cache(maxsize=1)
+def places():
+    """(towns, {street as people write it: (HDB street name, town)}), from the sales data."""
+    u = blocks()[["street_name", "town"]].astype(str).drop_duplicates("street_name")
+    return sorted(set(u["town"])), {norm_street(s): (s, t) for s, t in u.itertuples(index=False)}
+
+
+def find_town(text):
+    """The HDB town a short message names ("amk", "bishan", "toa payoh"), or None."""
+    t = " " + re.sub(r"[^A-Z ]", " ", text.upper()) + " "
+    t = " ".join(t.split()).join("  ")
+    for name in sorted(places()[0], key=len, reverse=True):
+        if f" {name} " in t or (name == "KALLANG/WHAMPOA" and " KALLANG WHAMPOA " in t):
+            return name
+    for alias, name in sorted(TOWN_ALIASES.items(), key=lambda kv: -len(kv[0])):
+        if f" {alias} " in t:
+            return name
+    return None
+
+
+def find_street(text):
+    """(HDB street name, town) for a street named without a block ("whampoa drive", "bishan st 22"), longest match first. None if none."""
+    t = " " + norm_street(text) + " "
+    hits = [(n, v) for n, v in places()[1].items() if len(n) >= 6 and f" {n} " in t]
+    return max(hits, key=lambda h: len(h[0]))[1] if hits else None
+
+
 def _money(num, unit):
     v = float(num.replace(",", "").replace(" ", ""))
     unit = (unit or "").lower()
@@ -81,7 +114,8 @@ def parse(text):
     """Works on a pasted listing page and on a typed line like "blk 85 whampoa drive, 3-room, 76 sqm, 8th floor, asking 420k"."""
     t = " ".join(text.split())
     out = dict(block=None, street_name=None, town=None, flat_type=None, flat_model=None, floor_area_sqm=None,
-               asking=find_price(t), lease_commence_date=None, top_year=None, storey_hint=None, floor=None, role=None, age=None)
+               asking=find_price(t), lease_commence_date=None, top_year=None, storey_hint=None, floor=None, role=None, age=None,
+               town_hint=None, street_hint=None, block_hint=None)
 
     m = re.search(r"([\d,]{3,5})\s*sq\s*ft", t, re.I)
     if m:
@@ -99,19 +133,19 @@ def parse(text):
         model = m.group(2).upper().strip()
         out["flat_model"] = model if model in MODELS else None
     if out["flat_type"] is None:
-        m = re.search(r"\b([1-5])[\s-]*(?:room|rm)\b", t, re.I)
+        m = re.search(r"\b([1-5])[\s-]*(?:rooms?|rms?|rm|r|i)\b", t, re.I)
         b = re.search(r"\b([1-4])[\s-]*(?:bed|bedroom|br)s?\b", t, re.I)
         if m:
             out["flat_type"] = f"{m.group(1)} ROOM"
-        elif re.search(r"\b(executive|exec)\b", t, re.I):
+        elif re.search(r"\b(executive|exec)\b", t, re.I) or re.search(r"\b(EA|EM)\b", t):
             out["flat_type"] = "EXECUTIVE"
         elif b:  # an HDB "4-room" flat has 3 bedrooms
             out["flat_type"] = f"{int(b.group(1)) + 1} ROOM"
-    m = re.search(r"\b(high|mid|middle|low)\s+(?:floor|storey|level)", t, re.I)
+    m = re.search(r"\b(high|mid|middle|low)\s*(?:floor|storey|level|flr)", t, re.I)
     if m:
         out["storey_hint"] = m.group(1).lower().replace("middle", "mid")
     m = (re.search(r"#(\d{1,2})-\d+", t) or re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:floor|storey|level)\b", t, re.I)
-         or re.search(r"\b(?:floor|storey|level)\s*(\d{1,2})\b", t, re.I))
+         or re.search(r"\b(?:floor|storey|level|lvl|flr)\s*(\d{1,2})\b", t, re.I) or re.search(r"\b(\d{1,2})\s*(?:f|/f|flr)\b", t, re.I))
     if m and 1 <= int(m.group(1)) <= 60:
         out["floor"] = int(m.group(1))
     if re.search(r"\b(sell|selling|seller|my flat|my unit|my home|i own|list(?:ing)? (?:it|mine|my))\b", t, re.I):
@@ -141,6 +175,18 @@ def parse(text):
         if out["flat_type"] is None and hit["flat_type"].nunique() == 1:
             out["flat_type"] = hit["flat_type"].iloc[0]
         break
+    if out["block"] is None:  # no full address: keep whatever the message does say, so the chat can narrow it down
+        m = re.search(r"\b(?:blk|block)\.?\s*(\d{1,4}[A-Za-z]?)\b", t, re.I)
+        out["block_hint"] = m.group(1).upper() if m else None
+        hit = find_street(t)
+        if hit:
+            out["street_hint"], out["town_hint"] = hit
+        else:
+            out["town_hint"] = find_town(t)
+    if out["asking"] is None:  # "for 600", "asking 480": a bare number after a price word is thousands, unless it is the block
+        m = re.search(r"(?:asking|ask|price|priced|for|at|offer|offered|paid|pay|budget)\s*(?:is|of|about|around)?\s*\$?(\d{3,4})\b(?!\s*(?:sq|th\b|st\b|nd\b|rd\b|floor|[a-z]{4,}))", t, re.I)
+        if m and m.group(1) not in (out["block"], out["block_hint"]) and 100 <= int(m.group(1)) <= 3000:
+            out["asking"] = int(m.group(1)) * 1000
     if out["lease_commence_date"] is None and out["top_year"]:
         out["lease_commence_date"] = out["top_year"]
     return out
