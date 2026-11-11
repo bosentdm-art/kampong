@@ -12,7 +12,8 @@ Safeguards:
   3. The system prompt forbids telling anyone to buy or sell, predicting beyond the outlook figures, and
      following instructions that arrive inside the user's question.
 
-Model and effort come from OIKOS_LLM_MODEL (default claude-haiku-5-5) and OIKOS_LLM_EFFORT (optional).
+Model and effort come from OIKOS_LLM_MODEL (default claude-haiku-5-5; or "openrouter:<model id>", e.g.
+"openrouter:z-ai/glm-5.3", which needs OPENROUTER_API_KEY) and OIKOS_LLM_EFFORT (optional, Claude only).
 """
 import json
 import math
@@ -145,7 +146,7 @@ def numbers_in(obj, out):
     if isinstance(obj, bool) or obj is None:
         return
     if isinstance(obj, (int, float)):
-        out.add(float(obj))
+        out.add(abs(float(obj)))  # a gap of -8,177 is written as "$8,177 under"
         if abs(obj) <= 5:
             out.add(float(obj) * 100)  # a fraction shown as a percentage
     elif isinstance(obj, str):
@@ -223,69 +224,189 @@ def _anthropic():
     return anthropic
 
 
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
 def _cost_cents(model, usage):
     pin, pout = PRICES.get(model, (0, 0))
     return round((usage["input"] * pin + usage["output"] * pout) / 1e6 * 100, 3)
 
 
+def _openrouter_prices():
+    """$ per token (input, output) for every OpenRouter model, fetched once; used only if a response has no cost."""
+    global _OR_PRICES
+    if _OR_PRICES is None:
+        import requests
+        try:
+            data = requests.get("https://openrouter.ai/api/v1/models", timeout=30).json()["data"]
+            _OR_PRICES = {m["id"]: (float(m["pricing"]["prompt"]), float(m["pricing"]["completion"])) for m in data}
+        except Exception:
+            _OR_PRICES = {}
+    return _OR_PRICES
+
+
+_OR_PRICES = None
+
+
+class AnthropicChat:
+    """One conversation with a Claude model through the Anthropic SDK."""
+
+    def __init__(self, model, client=None):
+        anthropic = _anthropic()
+        self.client = client or anthropic.Anthropic(timeout=60.0, max_retries=1)
+        self.model, self.messages, self.usage = model, [], {"input": 0, "output": 0}
+        self.errors = (anthropic.APIError,)
+
+    def add(self, role, content):
+        self.messages.append({"role": role, "content": content})
+
+    def step(self):
+        """Returns ("tools", [(id, name, args)]), ("text", str) or ("refusal", None)."""
+        kwargs = dict(model=self.model, max_tokens=4000, system=SYSTEM, tools=TOOLS, messages=self.messages)
+        if EFFORT:
+            kwargs["output_config"] = {"effort": EFFORT}
+        r = self.client.messages.create(**kwargs)
+        self.usage["input"] += r.usage.input_tokens
+        self.usage["output"] += r.usage.output_tokens
+        if r.stop_reason == "refusal":
+            return "refusal", None
+        self.messages.append({"role": "assistant", "content": r.content})
+        if r.stop_reason == "tool_use":
+            return "tools", [(b.id, b.name, b.input) for b in r.content if b.type == "tool_use"]
+        return "text", "".join(b.text for b in r.content if b.type == "text").strip()
+
+    def tool_results(self, results):
+        self.add("user", [{"type": "tool_result", "tool_use_id": i, "content": c, **({"is_error": True} if err else {})} for i, c, err in results])
+
+    def cost_cents(self):
+        return _cost_cents(self.model, self.usage)
+
+
+class OpenRouterChat:
+    """One conversation with any model on OpenRouter (OpenAI-style chat completions with function tools).
+
+    Model names look like "openrouter:z-ai/glm-5.3". Requests ask OpenRouter to use only providers that do not
+    store or train on the prompts (provider.data_collection = "deny")."""
+
+    def __init__(self, model, client=None):
+        import requests
+        self.http = client or requests.Session()
+        self.model = model.split(":", 1)[1]
+        self.messages = [{"role": "system", "content": SYSTEM}]
+        self.usage, self.cost = {"input": 0, "output": 0}, 0.0
+        self.errors = (requests.RequestException, RuntimeError, KeyError, ValueError)
+        self.tools = [{"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}} for t in TOOLS]
+
+    def add(self, role, content):
+        self.messages.append({"role": role, "content": content})
+
+    def step(self):
+        body = {"model": self.model, "messages": self.messages, "tools": self.tools, "max_tokens": 4000,
+                "usage": {"include": True}, "provider": {"data_collection": "deny"}}
+        r = self.http.post(OPENROUTER_URL, json=body, timeout=120,
+                           headers={"Authorization": "Bearer " + os.environ.get("OPENROUTER_API_KEY", "").strip(), "X-Title": "Oikos"})
+        if r.status_code != 200:
+            raise RuntimeError(f"OpenRouter HTTP {r.status_code}: {r.text[:200]}")
+        data = r.json()
+        if data.get("error"):
+            raise RuntimeError(f"OpenRouter error: {str(data['error'])[:200]}")
+        u = data.get("usage") or {}
+        self.usage["input"] += u.get("prompt_tokens") or 0
+        self.usage["output"] += u.get("completion_tokens") or 0
+        self.cost += float(u.get("cost") or 0)
+        choice = data["choices"][0]
+        msg = choice["message"]
+        calls = msg.get("tool_calls") or []
+        turn = {"role": "assistant", "content": msg.get("content") or ""}
+        if calls:
+            turn["tool_calls"] = calls
+        self.messages.append(turn)
+        if calls:
+            out = []
+            for c in calls:
+                try:
+                    args = json.loads(c["function"].get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                out.append((c["id"], c["function"]["name"], args))
+            return "tools", out
+        if choice.get("finish_reason") == "content_filter":
+            return "refusal", None
+        return "text", (msg.get("content") or "").strip()
+
+    def tool_results(self, results):
+        for i, c, _ in results:
+            self.messages.append({"role": "tool", "tool_call_id": i, "content": c})
+
+    def cost_cents(self):
+        if self.cost:
+            return round(self.cost * 100, 4)
+        pin, pout = _openrouter_prices().get(self.model, (0, 0))
+        return round((self.usage["input"] * pin + self.usage["output"] * pout) * 100, 4)
+
+
 def explain(facts, role, age, price, question=None, history=None, client=None, model=None):
-    """Return {text, source ('model'|'rules'), model, checked, tools_used, cost_cents, reason}."""
+    """Return {text, source ('model'|'rules'), model, checked, retried, tools_used, cost_cents, seconds, reason}.
+
+    model: a Claude model id (Anthropic API) or "openrouter:<openrouter model id>"."""
+    import time
     model = model or MODEL
-    base = {"model": model, "tools_used": [], "cost_cents": 0.0, "checked": False}
-    fall = lambda reason: {**base, "text": fallback_text(facts, role, age, price), "source": "rules", "reason": reason}
-    if client is None:
-        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-            return fall("no_api_key")
-        client = _anthropic().Anthropic(timeout=60.0, max_retries=1)
-    anthropic = _anthropic()
+    via_openrouter = model.startswith("openrouter:")
+    t0, tools_used, retried = time.time(), [], False
+    rules = fallback_text(facts, role, age, price)
+    base = {"model": model, "tools_used": tools_used, "cost_cents": 0.0, "checked": False, "retried": False, "seconds": 0.0}
+    keys = ("OPENROUTER_API_KEY",) if via_openrouter else ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+    if client is None and not any(os.environ.get(k, "").strip() for k in keys):
+        return {**base, "text": rules, "source": "rules", "reason": "no_api_key"}
+    chat = (OpenRouterChat if via_openrouter else AnthropicChat)(model, client)
+
+    def finish(**kw):
+        return {**base, "cost_cents": chat.cost_cents(), "retried": retried, "seconds": round(time.time() - t0, 1), **kw}
+
     view = facts_for_model(facts, role, age, price)
     question = (question or "Explain my options.").strip()[:600]
-    sources, usage, tools_used = [view, question], {"input": 0, "output": 0}, []
-    messages = [{"role": "user", "content": f"FACTS (JSON):\n{json.dumps(view)}"}, {"role": "assistant", "content": "I have the facts for this flat."}]
+    sources = [view, question]
+    chat.add("user", f"FACTS (JSON):\n{json.dumps(view)}")
+    chat.add("assistant", "I have the facts for this flat.")
     for turn in (history or [])[-6:]:
         if turn.get("role") in ("user", "assistant") and isinstance(turn.get("content"), str):
-            messages.append({"role": turn["role"], "content": turn["content"][:2000]})
-            sources.append(turn["content"] if turn["role"] == "user" else "")
-    messages.append({"role": "user", "content": f"QUESTION: {question}"})
-    retried = False
+            chat.add(turn["role"], turn["content"][:2000])
+            if turn["role"] == "user":
+                sources.append(turn["content"])
+    chat.add("user", f"QUESTION: {question}")
     try:
         for _ in range(MAX_TURNS + 2):
-            kwargs = dict(model=model, max_tokens=4000, system=SYSTEM, tools=TOOLS, messages=messages)
-            if EFFORT:
-                kwargs["output_config"] = {"effort": EFFORT}
-            r = client.messages.create(**kwargs)
-            usage["input"] += r.usage.input_tokens
-            usage["output"] += r.usage.output_tokens
-            if r.stop_reason == "refusal":
-                return {**fall("model_refused"), "tools_used": tools_used, "cost_cents": _cost_cents(model, usage)}
-            if r.stop_reason == "tool_use":
-                messages.append({"role": "assistant", "content": r.content})
+            kind, payload = chat.step()
+            if kind == "refusal":
+                return finish(text=rules, source="rules", reason="model_refused")
+            if kind == "tools":
                 results = []
-                for b in r.content:
-                    if b.type != "tool_use":
-                        continue
-                    tools_used.append(b.name)
+                for cid, name, args in payload:
+                    tools_used.append(name)
                     try:
-                        out = price_check(facts, role, float(b.input["price"])) if b.name == "check_price" else lease_runs_until(facts, b.input["age"])
-                        sources.append(out); sources.append(b.input)
-                        results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(out)})
-                    except Exception as e:  # a bad tool input goes back to the model as an error, not a crash
-                        results.append({"type": "tool_result", "tool_use_id": b.id, "content": f"error: {e}", "is_error": True})
-                messages.append({"role": "user", "content": results})
+                        if name == "check_price":
+                            out = price_check(facts, role, float(args["price"]))
+                        elif name == "lease_runs_until":
+                            out = lease_runs_until(facts, args["age"])
+                        else:
+                            raise ValueError(f"unknown tool {name}")
+                        sources += [out, args]
+                        results.append((cid, json.dumps(out), False))
+                    except Exception as e:  # a bad tool call goes back to the model as an error, not a crash
+                        results.append((cid, f"error: {e}", True))
+                chat.tool_results(results)
                 continue
-            text = "".join(b.text for b in r.content if b.type == "text").strip()
-            bad = check_numbers(text, sources)
-            done = {**base, "tools_used": tools_used, "cost_cents": _cost_cents(model, usage)}
+            text = payload
             if not text:
-                return {**fall("empty_answer"), **{k_: done[k_] for k_ in ("tools_used", "cost_cents")}}
+                return finish(text=rules, source="rules", reason="empty_answer")
+            bad = check_numbers(text, sources)
             if not bad:
-                return {**done, "text": text, "source": "model", "checked": True, "reason": None}
+                return finish(text=text, source="model", checked=True, reason=None)
             if retried:
-                return {**fall("failed_number_check:" + ", ".join(bad[:5])), **{k_: done[k_] for k_ in ("tools_used", "cost_cents")}}
+                return finish(text=rules, source="rules", reason="failed_number_check: " + ", ".join(bad[:5]), rejected=text)
             retried = True
-            messages.append({"role": "assistant", "content": r.content})
-            messages.append({"role": "user", "content": "Your reply used figures that are not in the facts or tool results: " + ", ".join(bad[:6]) +
-                             ". Rewrite it using only the numbers provided, calling a tool if you need another one."})
-    except anthropic.APIError as e:
-        return {**fall(f"api_error:{type(e).__name__}"), "tools_used": tools_used, "cost_cents": _cost_cents(model, usage)}
-    return {**fall("too_many_turns"), "tools_used": tools_used, "cost_cents": _cost_cents(model, usage)}
+            chat.add("user", "Your reply used figures that are not in the facts or tool results: " + ", ".join(bad[:6]) +
+                     ". Rewrite it using only the numbers provided, calling a tool if you need another one.")
+    except chat.errors as e:
+        return finish(text=rules, source="rules", reason=f"api_error: {type(e).__name__}: {str(e)[:160]}")
+    return finish(text=rules, source="rules", reason="too_many_turns")

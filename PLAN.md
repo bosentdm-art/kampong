@@ -291,3 +291,14 @@ realestateai/
 - Environment quirk: Windows Application Control blocks the `jiter` DLL that the SDK imports (used only for streaming).
   `llm._anthropic()` stubs it if the import is blocked; streaming is unavailable on this machine, not needed here.
 - To do: add the key, then run the live comparison (answers, check pass rate, voice, cost) on Haiku vs Sonnet.
+
+## Model comparison through OpenRouter (2026-11-11)
+- `src/llm.py` now runs Claude directly (Anthropic SDK) or any OpenRouter model ("openrouter:<id>", OpenAI-style tools,
+  `provider.data_collection = "deny"`); same prompt, tools, figure check and fallback either way.
+- `src/compare_models.py`: 6 cases x 4 models, report in `reports/model_comparison.md`. First run exposed two bugs in
+  OUR checks (negative gaps such as -8,177 were rejected; "I can't tell you to buy it" was flagged as advice); both fixed.
+- Corrected run: all four 6/6 on answered-by-model, figure check first try, right tool, no buy/sell instruction and
+  stating low reliability. Avg cost per answer: DeepSeek V4.1 Flash 0.036c (3.2s), GLM 5.3 Flash 0.041c (16.2s, one
+  empty answer in the first run, up to ~116s), Claude Haiku 5.5 0.084c (6.8s), GLM 5.3 0.43c (8.7s).
+- Limits: six cases, two runs, automatic checks are simple patterns; voice still needs a human read. Provider that
+  served each OpenRouter call was not recorded.
