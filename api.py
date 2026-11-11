@@ -134,6 +134,79 @@ def parse(listing: Listing):
     return clean(lp.parse(listing.text[:20000]))
 
 
+class Message(BaseModel):
+    text: str
+    current: dict | None = None  # the flat already on screen, if any
+
+
+QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
+SPEC = ("town", "street_name", "block", "flat_type", "flat_model", "floor_area_sqm", "storey_range", "lease_commence_date")
+
+
+def band(floor):
+    lo = (floor - 1) // 3 * 3 + 1
+    return f"{lo:02d} TO {lo + 2:02d}"
+
+
+@app.post("/api/understand")
+def understand(m: Message):
+    """Read a chat message. Returns the flat it describes (with sensible defaults for anything not said), or
+    changes to the flat on screen, or found=False when the message is just a question."""
+    p = lp.parse(m.text[:20000])
+    cur = {k: m.current[k] for k in SPEC} if m.current and all(k in m.current for k in SPEC) else None
+    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[])
+    asks = bool(QUESTION.search(m.text[:600]))
+    same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
+
+    if p["block"] and not same:  # a new flat
+        o = options(town=p["town"], street=p["street_name"], block=p["block"], flat_type=p["flat_type"])
+        sel = o["selected"]
+        if sel["block"] != p["block"] or sel["street"] != p["street_name"]:
+            return {**base, "note": f"I found blk {p['block']} {p['street_name'].title()}, but it has no resale records since 2017, so I can't price it."}
+        d = sales()
+        blk = d[(d["block"] == sel["block"]) & (d["street_name"] == sel["street"])]
+        bands, df, assumed = sorted(blk["storey_range"].unique()), o["defaults"], []
+        if p["flat_type"] != sel["flat_type"]:
+            others = [t.title() for t in o["flat_types"] if t != sel["flat_type"]]
+            assumed.append(f"a {sel['flat_type'].title()} flat" + (f" (this block also has {', '.join(others)})" if others else ""))
+        area = p["floor_area_sqm"] or df["floor_area_sqm"]
+        if not p["floor_area_sqm"]:
+            assumed.append(f"{round(area)} sqm, the usual size here")
+        if p["floor"]:
+            storey = band(p["floor"])
+        elif p["storey_hint"] in ("high", "low") and bands:
+            storey = bands[-1] if p["storey_hint"] == "high" else bands[0]
+            assumed.append(f"storey {storey.replace(' TO ', ' to ')} for a {p['storey_hint']} floor")
+        else:
+            storey = df["storey_range"]
+            assumed.append(f"storey {storey.replace(' TO ', ' to ')}, the most common here")
+        flat = dict(town=sel["town"], street_name=sel["street"], block=sel["block"], flat_type=sel["flat_type"],
+                    flat_model=p["flat_model"] if p["flat_model"] in o["flat_models"] else df["flat_model"],
+                    floor_area_sqm=float(area), storey_range=storey, lease_commence_date=df["lease_commence_date"])
+        return clean({**base, "found": True, "flat": flat, "price": p["asking"], "assumed": assumed})
+
+    if cur and not asks:  # a correction to the flat on screen: "it's on the 11th floor", "asking is 400k", "it's 68 sqm"
+        flat, changed = dict(cur), []
+        if p["floor"]:
+            flat["storey_range"] = band(p["floor"])
+            changed.append("storey " + flat["storey_range"].replace(" TO ", " to "))
+        if p["floor_area_sqm"]:
+            flat["floor_area_sqm"] = float(p["floor_area_sqm"])
+            changed.append(f"{round(p['floor_area_sqm'])} sqm")
+        if p["flat_type"] and p["flat_type"] != cur["flat_type"]:
+            o = options(town=cur["town"], street=cur["street_name"], block=cur["block"], flat_type=p["flat_type"])
+            if o["selected"]["flat_type"] == p["flat_type"]:
+                flat.update(flat_type=p["flat_type"], flat_model=o["defaults"]["flat_model"])
+                if not p["floor_area_sqm"]:
+                    flat["floor_area_sqm"] = o["defaults"]["floor_area_sqm"]
+                changed.append(p["flat_type"].title())
+        if p["asking"]:
+            changed.append(f"price ${p['asking']:,}")
+        if changed:
+            return clean({**base, "found": True, "flat": flat, "price": p["asking"], "changed": changed})
+    return clean(base)
+
+
 def deals_nearby(town):
     k = recent_oos()
     k = k[k["town"] == town]
@@ -205,8 +278,11 @@ def ask(a: Ask):
     if a.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
     facts = facts_for(*flat_key(a))
-    price = a.price or facts["fair"]
-    out = llm.explain(facts, a.role, a.age, price, a.question, a.history)
+    price, question = a.price or facts["fair"], a.question
+    if not a.price:  # nothing to judge yet: say what the flat is worth instead of giving a verdict on a made-up price
+        question = ("(No price has been given yet, so price_being_checked is only our fair value. Do not give a verdict on it. Say what this flat is worth, what to "
+                    + ("offer" if a.role == "buyer" else "list it at") + ", and ask for the " + ("asking" if a.role == "buyer" else "listing") + " price.) " + (question or "What is this flat worth?"))
+    out = llm.explain(facts, a.role, a.age, price, question, a.history)
     return clean(out)
 
 

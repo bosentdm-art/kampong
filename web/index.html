@@ -3,118 +3,157 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oikos - HDB resale price check</title>
+<title>Oikos - HDB resale price advice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  /* Oikos application shell: fixed navigation on the left, one view at a time on the right.
-     Sentences use the plain font, labels and numbers the mono one. .hl marks dates and times, .hm marks figures. */
-  :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; }
-  [data-theme="light"] { --bg:#f3f3ef; --fg:#0c0d0e; --dim:#5f6468; --line:#0c0d0e; --panel:#ffffff; --accent:#e2401c; --grid:rgba(0,0,0,.045); --pos:#15803d; --neg:#b42318; --hl:#1d4ed8; --hlbg:#e3ebff; --mk:#ffe97a; }
-  [data-theme="dark"]  { --bg:#06080a; --fg:#e8eef0; --dim:#8a979d; --line:#2a3840; --panel:#0b1014; --accent:#5ef2d6; --grid:rgba(94,242,214,.05); --pos:#4ade80; --neg:#fb7185; --hl:#7dd3fc; --hlbg:#0f2a3a; --mk:#4a3f00; }
-  [data-theme="blue"]  { --bg:#f6f8ff; --fg:#1f3fae; --dim:#5f76c4; --line:#1f3fae; --panel:#ffffff; --accent:#1f3fae; --grid:rgba(31,63,174,.08); --pos:#15803d; --neg:#b42318; --hl:#b45309; --hlbg:#fff1d6; --mk:#dbe4ff; }
+  /* Oikos: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
+     Soft sky background, white rounded cards, pill buttons. .hl marks dates and times, .hm marks figures. */
+  :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; --r:22px; }
+  [data-theme="light"] { --bg:#eef6ff; --sky:linear-gradient(180deg,#b7dbff 0%,#d8ebff 36%,#f4f9ff 100%); --fg:#16283c; --dim:#667b93; --line:#d6e6f7; --panel:#ffffff; --glass:rgba(255,255,255,.66);
+    --accent:#1a8cff; --soft:#dfefff; --pos:#15803d; --neg:#b42318; --hl:#0b74de; --hlbg:#e3f1ff; --mk:#e3f1ff; --shadow:0 14px 44px rgba(40,110,190,.16); --shadow2:0 4px 16px rgba(40,110,190,.10); }
+  [data-theme="dark"]  { --bg:#0c1724; --sky:linear-gradient(180deg,#11294a 0%,#0e1c2e 45%,#0c1724 100%); --fg:#e6eef7; --dim:#8fa3b8; --line:#243a52; --panel:#14243a; --glass:rgba(20,36,58,.72);
+    --accent:#4aa8ff; --soft:#1c3554; --pos:#4ade80; --neg:#fb7185; --hl:#8ccaff; --hlbg:#1c3554; --mk:#1c3554; --shadow:0 14px 44px rgba(0,0,0,.4); --shadow2:0 4px 16px rgba(0,0,0,.3); }
   * { box-sizing: border-box; }
   html, body { height:100%; }
-  body { margin:0; display:grid; grid-template-columns:232px 1fr; background:var(--bg); color:var(--fg); font-family:var(--disp); font-size:15px; line-height:1.5; font-variant-numeric:tabular-nums;
-         background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size:40px 40px; }
-  .cap { font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; font-size:12px; }
+  body { margin:0; display:grid; grid-template-columns:236px 1fr; background:var(--bg); background-image:var(--sky); background-attachment:fixed; color:var(--fg);
+         font-family:var(--disp); font-size:15px; line-height:1.5; font-variant-numeric:tabular-nums; }
+  .cap { font-size:12.5px; font-weight:500; letter-spacing:.01em; }
   .dim { color:var(--dim); }
-  .hl { color:var(--hl); background:var(--hlbg); font-weight:700; padding:0 5px; white-space:nowrap; }
-  .hm { font-weight:700; background:var(--mk); padding:0 3px; white-space:nowrap; }
-  .fine { font-size:13px; color:var(--dim); }
+  .hl { color:var(--hl); background:var(--hlbg); font-weight:600; padding:1px 7px; border-radius:8px; white-space:nowrap; }
+  .hm { font-weight:600; background:var(--mk); padding:1px 5px; border-radius:7px; white-space:nowrap; }
+  .fine { font-size:12.5px; color:var(--dim); }
+  .center { text-align:center; }
   [hidden] { display:none !important; }
 
   /* navigation */
-  .nav { display:flex; flex-direction:column; gap:18px; padding:18px 16px; border-right:1px solid var(--line); background:var(--panel); height:100vh; position:sticky; top:0; overflow:auto; }
-  .brand { font-weight:700; letter-spacing:.18em; font-size:18px; }
+  .nav { display:flex; flex-direction:column; gap:18px; padding:20px 14px; border-right:1px solid var(--line); background:var(--glass); backdrop-filter:blur(18px); height:100vh; position:sticky; top:0; overflow:auto; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:20px; padding:0 8px; }
+  .logo { display:grid; place-items:center; width:34px; height:34px; border-radius:12px; background:var(--accent); color:#fff; box-shadow:var(--shadow2); flex:none; }
   #nav { display:grid; gap:4px; }
-  #nav button { font:inherit; font-size:15px; text-align:left; padding:8px 10px; background:none; color:var(--fg); border:1px solid transparent; cursor:pointer; display:flex; justify-content:space-between; }
-  #nav button:hover { border-color:var(--line); }
-  #nav button.on { background:var(--fg); color:var(--bg); font-weight:700; }
-  .navfoot { margin-top:auto; display:grid; gap:6px; }
-  .seg { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
-  .seg button { font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; background:none; color:var(--dim); border:1px solid var(--line); padding:3px 8px; cursor:pointer; }
-  .seg button.on { color:var(--bg); background:var(--fg); border-color:var(--fg); }
-  .seg.big button { font-family:var(--disp); font-size:17px; font-weight:700; text-transform:none; letter-spacing:0; padding:12px 16px; flex:1; color:var(--fg); }
-  .seg.big button.on { color:var(--bg); }
+  #nav button, .newchat { font:inherit; font-size:15px; text-align:left; padding:9px 12px; background:none; color:var(--fg); border:0; border-radius:14px; cursor:pointer; display:flex; justify-content:space-between; }
+  #nav button:hover, .newchat:hover { background:var(--soft); }
+  #nav button.on { background:var(--soft); color:var(--accent); font-weight:600; }
+  .newchat { background:var(--panel); box-shadow:var(--shadow2); font-weight:600; color:var(--accent); justify-content:flex-start; gap:8px; }
+  .navfoot { margin-top:auto; display:grid; gap:6px; padding:0 6px; }
+  .seg { display:inline-flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; background:var(--soft); border-radius:999px; padding:3px; width:fit-content; }
+  .seg button { font:inherit; font-size:13px; font-weight:500; background:none; color:var(--dim); border:0; border-radius:999px; padding:5px 12px; cursor:pointer; }
+  .seg button.on { color:#fff; background:var(--accent); }
 
   /* workspace */
   .work { display:flex; flex-direction:column; height:100vh; min-width:0; }
-  .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:var(--panel); min-height:62px; }
+  .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 24px; border-bottom:1px solid var(--line); background:var(--glass); backdrop-filter:blur(18px); min-height:62px; }
   .bartitle { font-weight:700; font-size:17px; }
-  .view { flex:1; overflow:auto; padding:20px 24px 28px; }
-  .btn { font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; padding:9px 14px; border:1px solid var(--fg); background:var(--fg); color:var(--bg); }
-  .btn.ghost { background:none; color:var(--fg); } .btn:disabled { opacity:.5; cursor:wait; } .btn + .btn { margin-left:6px; }
-  .panel { border:1px solid var(--line); background:var(--panel); }
-  .panel > .hd { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:4px 10px; }
-  .panel > .bd { padding:12px; }
+  .view { flex:1; overflow:auto; padding:22px 24px 28px; }
+  .btn, .pill { font:inherit; font-size:14px; font-weight:600; cursor:pointer; padding:9px 16px; border:0; border-radius:999px; background:var(--accent); color:#fff; }
+  .btn.ghost, .pill { background:var(--soft); color:var(--accent); } .btn:disabled, .pill:disabled { opacity:.5; cursor:wait; } .btn + .btn { margin-left:6px; }
+  .pill { padding:8px 14px; } .pill:hover, .btn.ghost:hover { filter:brightness(.97); }
+  .panel { border:1px solid var(--line); background:var(--panel); border-radius:var(--r); box-shadow:var(--shadow2); }
+  .panel > .hd { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:9px 16px; }
+  .panel > .bd { padding:16px; }
   label { display:block; }
-  select, input[type=number], input[type=text], textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--bg); border:1px solid var(--line); padding:6px 8px; border-radius:0; }
-  textarea { resize:vertical; min-height:38px; }
+  select, input[type=number], input[type=text], textarea { width:100%; font:inherit; font-size:14px; color:var(--fg); background:var(--panel); border:1px solid var(--line); padding:8px 10px; border-radius:12px; }
+  select:focus, input:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:1px; }
   .msg { margin-top:8px; min-height:1.4em; }
-
-  /* start */
-  .lead { font-size:34px; font-weight:700; margin:6px 0 18px; }
-  .steps { display:grid; grid-template-columns:1fr 1.6fr 1fr; gap:18px; align-items:start; }
-  .steps .bd { display:grid; gap:10px; }
   .pick { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .bigin { font-size:24px !important; font-weight:700; }
+  .bigin { font-size:22px !important; font-weight:700; }
 
-  /* result */
+  /* chat */
+  .view.chat { display:flex; flex-direction:column; padding:0; overflow:hidden; }
+  .thread { flex:1; overflow:auto; padding:28px 24px 8px; }
+  .row { max-width:780px; margin:0 auto 16px; display:flex; }
+  .row.you { justify-content:flex-end; }
+  .bub { background:var(--accent); color:#fff; padding:10px 16px; border-radius:22px 22px 6px 22px; max-width:78%; white-space:pre-wrap; overflow-wrap:anywhere; box-shadow:var(--shadow2); }
+  .txt { white-space:pre-wrap; font-size:16px; line-height:1.65; background:var(--glass); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:14px 18px; max-width:100%; }
+  .txt .hm { background:none; padding:0; }
+  .txt .src { display:block; margin-top:10px; font-size:12px; color:var(--dim); }
+  .dots { display:inline-flex; gap:4px; vertical-align:middle; } .dots i { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
+  .dots i:nth-child(2) { animation-delay:.15s; } .dots i:nth-child(3) { animation-delay:.3s; }
+  @keyframes bob { 0%, 80%, 100% { transform:translateY(0); opacity:.35; } 40% { transform:translateY(-5px); opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { .dots i { animation:none; } }
+  .hero { text-align:center; padding:0 24px 22px; } .hero h2 { font-size:clamp(28px, 3.4vw, 42px); line-height:1.15; margin:14px 0 8px; font-weight:700; letter-spacing:-.01em; }
+  .hero p { max-width:560px; margin:0 auto; font-size:17px; } .hero .logo { width:56px; height:56px; border-radius:20px; margin:0 auto; }
+  .view.chat.empty { justify-content:center; } .view.chat.empty .thread { display:none; } .view.chat:not(.empty) .hero, .view.chat:not(.empty) #starters { display:none; }
+  .dock { padding:8px 24px 16px; } .dock > * { max-width:780px; margin-left:auto; margin-right:auto; }
+  .composer { background:var(--panel); border-radius:30px; box-shadow:var(--shadow); padding:16px 16px 12px 22px; border:1px solid var(--line); }
+  .composer textarea { border:0; outline:0; background:none; resize:none; font-size:18px; padding:4px 0 10px; max-height:200px; border-radius:0; display:block; }
+  .composer textarea::placeholder { color:var(--dim); opacity:.8; }
+  .crow { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .pills { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .pills .seg { margin:0; }
+  .send { width:42px; height:42px; border-radius:50%; border:0; background:var(--accent); color:#fff; cursor:pointer; display:grid; place-items:center; flex:none; box-shadow:var(--shadow2); }
+  .send:disabled { opacity:.45; cursor:wait; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:14px; }
+  .row .chips { justify-content:flex-start; margin-top:0; }
+  .chip { font:inherit; font-size:14px; background:var(--glass); color:var(--fg); border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; text-align:left; }
+  .chip:hover { border-color:var(--accent); color:var(--accent); }
+  .dock .fine { margin-top:10px; }
+  .fcardc { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:26px; box-shadow:var(--shadow); padding:20px 22px; display:grid; gap:12px; }
+  .ctop { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .tag { background:var(--soft); color:var(--accent); font-size:12.5px; font-weight:600; padding:4px 10px; border-radius:999px; white-space:nowrap; }
+  .vbig { font-size:clamp(30px, 4vw, 44px); font-weight:700; line-height:1.05; letter-spacing:-.01em; }
+  .mini { position:relative; height:12px; border-radius:999px; margin:4px 0; } .mini i { position:absolute; top:50%; width:22px; height:22px; border-radius:50%; background:var(--panel); border:5px solid var(--fg); transform:translate(-50%, -50%); box-shadow:var(--shadow2); }
+  .tiles { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; } .tile { background:var(--bg); border-radius:16px; padding:10px 14px; } .tile b { display:block; font-size:20px; white-space:nowrap; }
+  .note { background:var(--soft); border-radius:14px; padding:10px 14px; font-size:14px; }
+  dialog { border:0; border-radius:28px; padding:22px; width:min(580px, 94vw); background:var(--panel); color:var(--fg); box-shadow:var(--shadow); }
+  dialog::backdrop { background:rgba(120,170,230,.35); backdrop-filter:blur(6px); }
+  .sheethd { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; font-size:19px; } .x { font:inherit; font-size:22px; line-height:1; width:36px; height:36px; border-radius:50%; border:0; background:var(--soft); color:var(--accent); cursor:pointer; }
+
+  /* full breakdown */
   .result { display:grid; grid-template-columns:5fr 4fr 3fr; gap:18px 20px; }
   .side { display:grid; gap:12px; align-content:start; } .wide { grid-column:1 / -1; }
-  h1 { font-weight:700; font-size:clamp(44px, 5.2vw, 84px); line-height:.94; letter-spacing:-.02em; margin:8px 0 12px; text-transform:uppercase; }
-  .sub { font-size:18px; line-height:1.4; }
-  .gap { display:inline-block; margin-top:10px; padding:4px 10px; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.08em; color:#06080a; }
-  .ask { margin-top:14px; border:1px solid var(--line); background:var(--panel); padding:10px 14px; max-width:460px; }
-  .ask .row { display:flex; justify-content:space-between; align-items:baseline; } .ask output { font-size:24px; font-weight:700; }
+  h1 { font-weight:700; font-size:clamp(40px, 4.6vw, 72px); line-height:1; letter-spacing:-.02em; margin:8px 0 12px; }
+  .sub { font-size:18px; line-height:1.45; }
+  .gap { display:inline-block; margin-top:10px; padding:5px 12px; border-radius:999px; font-size:12.5px; font-weight:700; letter-spacing:.04em; color:#06080a; }
+  .ask { margin-top:14px; border:1px solid var(--line); background:var(--panel); padding:12px 16px; max-width:460px; border-radius:18px; box-shadow:var(--shadow2); }
+  .ask .row { display:flex; justify-content:space-between; align-items:baseline; margin:0; max-width:none; } .ask output { font-size:24px; font-weight:700; }
   input[type=range] { width:100%; accent-color:var(--accent); margin:6px 0 0; }
   .spec svg { max-height:300px; display:block; margin:0 auto; }
-  .big { font-weight:700; font-size:34px; line-height:1; }
-  .kv { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-top:1px dashed var(--line); } .kv b { white-space:nowrap; font-family:var(--mono); }
-  .meter { display:flex; gap:3px; margin:8px 0 2px; } .meter i { height:10px; flex:1; border:1px solid var(--line); } .meter i.on { background:var(--fg); }
+  .big { font-weight:700; font-size:32px; line-height:1; }
+  .kv { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px solid var(--line); } .kv b { white-space:nowrap; }
+  .meter { display:flex; gap:4px; margin:8px 0 2px; } .meter i { height:10px; flex:1; border-radius:999px; background:var(--soft); } .meter i.on { background:var(--accent); }
   ul { margin:6px 0 0; padding-left:18px; } li { margin:3px 0; }
   svg text { font-family:var(--mono); fill:var(--fg); }
-  .rbar { position:relative; height:22px; margin:12px 0 4px; } .rbar i { position:absolute; }
-  .rbar .w { top:10px; height:2px; background:var(--dim); } .rbar .l { top:6px; height:10px; background:var(--fg); }
-  .rbar .f { top:6px; height:10px; width:2px; background:var(--panel); } .rbar .a { top:0; height:22px; width:3px; background:var(--accent); transition:left .15s; }
-  .track { position:relative; height:24px; margin:30px 0 24px; border:1px solid var(--line); }
-  .mark { position:absolute; top:-9px; bottom:-9px; width:3px; background:var(--fg); transform:translateX(-1px); transition:left .15s; }
-  .mark span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 8px; background:var(--fg); color:var(--bg); font-family:var(--mono); font-size:12px; font-weight:700; }
-  .tick { position:absolute; top:100%; transform:translateX(-50%); padding-top:6px; white-space:nowrap; font-family:var(--mono); font-size:12px; }
-  .tick::before { content:""; position:absolute; top:0; left:50%; height:5px; border-left:1px solid var(--fg); }
-  .zone { position:absolute; top:4px; transform:translateX(-50%); color:#06080a; font-family:var(--mono); font-weight:700; font-size:10px; letter-spacing:.1em; white-space:nowrap; }
+  .rbar { position:relative; height:22px; margin:12px 0 4px; } .rbar i { position:absolute; border-radius:999px; }
+  .rbar .w { top:10px; height:3px; background:var(--line); } .rbar .l { top:6px; height:10px; background:var(--accent); opacity:.45; }
+  .rbar .f { top:6px; height:10px; width:3px; background:var(--fg); } .rbar .a { top:0; height:22px; width:4px; background:var(--accent); transition:left .15s; }
+  .track { position:relative; height:24px; margin:32px 0 26px; border-radius:999px; }
+  .mark { position:absolute; top:-9px; bottom:-9px; width:4px; border-radius:999px; background:var(--fg); transform:translateX(-2px); transition:left .15s; }
+  .mark span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); white-space:nowrap; padding:3px 10px; margin-bottom:3px; border-radius:999px; background:var(--fg); color:var(--bg); font-size:12px; font-weight:700; }
+  .tick { position:absolute; top:100%; transform:translateX(-50%); padding-top:7px; white-space:nowrap; font-size:12.5px; color:var(--dim); }
+  .tick::before { content:""; position:absolute; top:1px; left:50%; height:5px; border-left:1px solid var(--dim); }
+  .zone { position:absolute; top:4px; transform:translateX(-50%); color:#06080a; font-weight:700; font-size:10px; letter-spacing:.08em; white-space:nowrap; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px 0; }
-  .card { padding:2px 18px; border-left:1px dashed var(--line); } .card:first-child { border-left:0; padding-left:0; }
+  .card { padding:2px 18px; border-left:1px solid var(--line); } .card:first-child { border-left:0; padding-left:0; }
   .ot { font-weight:700; font-size:18px; margin:3px 0 5px; } .card .big { color:var(--pos); font-size:30px; }
-  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:6px 10px 6px 0; border-top:1px dashed var(--line); font-weight:400; vertical-align:top; }
-  th { color:var(--dim); border-top:0; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
-  .num td:last-child, .num th:last-child { text-align:right; padding-right:0; font-family:var(--mono); } .num { max-width:760px; }
-  .tabs button { font:inherit; letter-spacing:inherit; text-transform:uppercase; background:none; border:0; color:var(--dim); cursor:pointer; padding:0 18px 0 0; }
-  .tabs button.on { color:var(--fg); text-decoration:underline; text-underline-offset:4px; }
+  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:7px 10px 7px 0; border-top:1px solid var(--line); font-weight:400; vertical-align:top; }
+  th { color:var(--dim); border-top:0; font-size:12.5px; font-weight:500; }
+  .num td:last-child, .num th:last-child { text-align:right; padding-right:0; } .num { max-width:760px; }
+  .tabs { display:flex; flex-wrap:wrap; gap:4px; } .tabs button { font:inherit; font-size:14px; font-weight:500; background:none; border:0; border-radius:999px; color:var(--dim); cursor:pointer; padding:5px 12px; }
+  .tabs button.on { color:var(--accent); background:var(--soft); font-weight:600; }
   .tabbody { min-height:150px; }
-  .askrow { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:end; margin-top:10px; }
-  .bubble { white-space:pre-wrap; border:1px solid var(--line); background:var(--panel); padding:10px 14px; margin:8px 0; max-width:820px; font-size:16px; }
-  .bubble.you { margin-left:auto; background:var(--bg); color:var(--dim); max-width:520px; }
-  .bubble .src { display:block; margin-top:8px; font-size:12px; color:var(--dim); }
-  #askLog { max-height:300px; overflow:auto; }
   .life-top { display:flex; gap:28px; align-items:center; flex-wrap:wrap; }
   .life-top input { width:96px; margin-top:4px; }
-  .life { position:relative; height:18px; margin:30px 0 30px; border:1px solid var(--line); } .life i { position:absolute; left:0; top:0; bottom:0; transition:width .15s; }
-  .warn { border:1px solid var(--line); border-left:10px solid #eab308; background:var(--panel); padding:8px 12px; margin-bottom:8px; }
+  .life { position:relative; height:18px; margin:30px 0 30px; border-radius:999px; background:var(--soft); } .life i { position:absolute; left:0; top:0; bottom:0; border-radius:999px; transition:width .15s; }
+  .warn { border:1px solid var(--line); border-left:8px solid #eab308; border-radius:14px; background:var(--panel); padding:10px 14px; margin-bottom:10px; }
 
   /* my flats, compare */
   .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; }
-  .vword { font-weight:700; font-size:26px; text-transform:uppercase; line-height:1.05; }
+  .vword { font-weight:700; font-size:26px; line-height:1.05; }
   .fcard .bd { display:grid; gap:6px; }
-  .cmp td:first-child, .cmp th:first-child { color:var(--dim); width:210px; } .cmp th { font-family:var(--disp); font-size:16px; text-transform:none; letter-spacing:0; color:var(--fg); font-weight:700; }
+  .cmp td:first-child, .cmp th:first-child { color:var(--dim); width:210px; } .cmp th { font-size:16px; color:var(--fg); font-weight:700; }
   .empty { padding:40px 0; font-size:18px; }
-  .toast { position:fixed; right:24px; bottom:24px; background:var(--fg); color:var(--bg); padding:10px 16px; font-weight:700; z-index:9; }
+  .toast { position:fixed; right:24px; bottom:24px; background:var(--fg); color:var(--bg); padding:10px 18px; border-radius:999px; font-weight:600; z-index:9; box-shadow:var(--shadow); }
 
   [data-mode="simple"] .pro, [data-mode="pro"] .simple { display:none; }
   [data-role="buyer"] .seller, [data-role="seller"] .buyer { display:none; }
   #brief { display:none; }
-  @media (max-width: 1150px) { body { grid-template-columns:1fr; } .nav { height:auto; position:static; border-right:0; border-bottom:1px solid var(--line); } .work { height:auto; } .result, .steps { grid-template-columns:1fr; } }
+  @media (max-width: 1000px) {
+    body { grid-template-columns:1fr; display:block; } .nav { height:auto; position:static; border-right:0; border-bottom:1px solid var(--line); flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; }
+    #nav { display:flex; flex-wrap:wrap; } .navfoot { margin:0; display:flex; flex-wrap:wrap; align-items:center; } .navfoot > .cap, .navfoot > .fine { display:none; } .seg { margin:0; }
+    .work { height:auto; min-height:calc(100dvh - 120px); } .view.chat { overflow:visible; min-height:calc(100dvh - 120px); } .thread { overflow:visible; padding:18px 12px 8px; }
+    .dock { position:sticky; bottom:0; padding:8px 12px 12px; background:linear-gradient(180deg, transparent, var(--bg) 26px); } .view.chat:not(.empty) .dock .fine { display:none; }
+    .composer { padding:12px 12px 10px 18px; border-radius:26px; } .hero p { font-size:16px; } .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr; } .view { padding:16px 12px 24px; }
+  }
   @media print {  /* the brief is the only thing that prints */
     body { display:block; background:#fff; color:#000; } body > *:not(#brief) { display:none !important; }
     #brief { display:block; padding:0 8mm; font-size:12pt; } #brief h2 { font-size:26pt; margin:0 0 4pt; text-transform:uppercase; } #brief h3 { margin:14pt 0 4pt; font-size:11pt; text-transform:uppercase; letter-spacing:.08em; border-bottom:1px solid #000; }
@@ -124,56 +163,50 @@
 </head>
 <body>
 <aside class="nav">
-  <div><div class="brand">OIKOS</div><div class="cap dim">HDB resale price check</div></div>
+  <div class="brand"><span class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span>Oikos</div>
+  <button class="newchat" id="newChat" type="button">+ New chat</button>
   <nav id="nav">
-    <button data-go="check">Check a flat</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
+    <button data-go="chat">Ask Oikos</button><button data-go="check">Full breakdown</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
     <button data-go="compare">Compare</button><button data-go="deals">Deals</button><button data-go="market">Market</button>
   </nav>
   <div class="navfoot">
-    <div class="cap dim">I am</div><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div>
     <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
-    <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button><button data-t="blue">Blueprint</button></div>
+    <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
     <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
     <div class="fine">Indicative estimates, not valuations. Data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; locations from OneMap (SLA). Not affiliated with HDB or any government agency.</div>
   </div>
 </aside>
 
 <div class="work">
-  <div class="bar">
+  <div class="bar" id="bar" hidden>
     <div><div class="cap dim" id="crumb"></div><div class="bartitle" id="flatcap"></div></div>
-    <div id="actions" hidden><button class="btn" id="saveBtn" type="button">Save flat</button><button class="btn ghost" id="briefBtn" type="button">Get the brief</button><button class="btn ghost" id="newBtn" type="button">New check</button></div>
+    <div id="actions" hidden><button class="btn" id="saveBtn" type="button">Save flat</button><button class="btn ghost" id="briefBtn" type="button">Get the brief</button><button class="btn ghost" id="newBtn" type="button">Back to chat</button></div>
   </div>
 
-  <!-- CHECK -->
-  <div class="view" data-view="check">
-    <div id="start">
-      <div class="lead">Is the price right? <span class="dim">Three steps.</span></div>
-      <div class="steps">
-        <section class="panel"><div class="hd cap"><span>01 You</span></div><div class="bd">
-          <div class="seg big"><button data-r="buyer">I'm buying</button><button data-r="seller">I'm selling</button></div>
-          <label class="buyer"><span class="cap dim">Your age (for the lease check)</span><input id="age0" class="bigin" type="number" min="21" max="90" step="1" value="35"></label>
-          <div class="fine seller">We'll check your listing price against what comparable flats sold for.</div>
-        </div></section>
-        <section class="panel"><div class="hd cap"><span>02 The flat</span><span class="dim">Paste a listing, or pick it</span></div><div class="bd">
-          <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
-            <label><span class="cap dim">Listing text (optional)</span><textarea id="paste" rows="1" placeholder="Copy the text of a listing page and paste it here"></textarea></label>
-            <button class="btn ghost" id="readBtn" type="button">Read listing</button></div>
-          <div class="fine" id="parseMsg"></div>
-          <div class="pick">
-            <label><span class="cap dim">Town</span><select id="town"></select></label><label><span class="cap dim">Street</span><select id="street"></select></label>
-            <label><span class="cap dim">Block</span><select id="block"></select></label><label><span class="cap dim">Flat type</span><select id="ftype"></select></label>
-            <label><span class="cap dim">Flat model</span><select id="fmodel"></select></label><label><span class="cap dim">Size (sqm)</span><input id="area" type="number" min="20" max="400" step="1"></label>
-            <label><span class="cap dim">Storey</span><select id="storey"></select></label><label><span class="cap dim">Lease start year</span><input id="lease" type="number" min="1960" max="2030" step="1"></label>
-          </div>
-        </div></section>
-        <section class="panel"><div class="hd cap"><span>03 The price</span></div><div class="bd">
-          <label><span class="cap dim"><span class="buyer">Asking price ($)</span><span class="seller">Your listing price ($)</span></span><input id="price" class="bigin" type="number" min="0" step="1000" placeholder="optional"></label>
-          <button class="btn" id="checkBtn" type="button" style="padding:14px">Check price</button>
-          <div class="msg" id="formMsg" role="status"></div>
-        </div></section>
-      </div>
+  <!-- CHAT: the home page -->
+  <div class="view chat empty" data-view="chat" id="chat">
+    <div class="thread" id="thread" aria-live="polite"></div>
+    <div class="hero">
+      <div class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></div>
+      <h2>Which flat are you looking at?</h2>
+      <p class="dim">Paste a listing or describe the flat. I'll check it against about 990,000 HDB sales and tell you what I'd do.</p>
     </div>
+    <div class="dock">
+      <div class="composer">
+        <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Oikos" aria-label="Message Oikos"></textarea>
+        <div class="crow">
+          <div class="pills"><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div></div>
+          <button class="send" id="sendBtn" type="button" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg></button>
+        </div>
+      </div>
+      <div class="chips" id="starters"></div>
+      <div class="fine center">Price advice from an AI, built on public HDB sales. A guide, not a valuation. It does not cover loans, CPF or what you can afford, and it cannot see renovation or view.</div>
+    </div>
+  </div>
 
+  <!-- FULL BREAKDOWN -->
+  <div class="view" data-view="check" hidden>
+    <div class="empty dim" id="noFlat">Tell Oikos about a flat first, then come back here for every number behind the answer.</div>
     <div id="result" hidden>
       <div id="checks"></div>
       <div class="result">
@@ -196,12 +229,12 @@
           <div class="panel seller"><div class="hd cap"><span>Pricing guide</span></div><div class="bd" id="guideS"></div></div>
         </aside>
         <section class="wide">
-          <div class="cap dim">[ Where this price sits among comparable sales ]</div>
+          <div class="cap dim">Where this price sits among comparable sales</div>
           <div class="track" id="track"><span id="zones"></span><div class="mark" id="mark"><span id="markLbl"></span></div><span id="ticks"></span></div>
         </section>
         <section class="panel wide">
-          <div class="hd cap"><span class="tabs" id="tabs">
-            <button data-tab="options" class="on">Your options</button><button data-tab="ask">Ask Oikos</button><button data-tab="life" class="buyer">Will it last you?</button>
+          <div class="hd"><span class="tabs" id="tabs">
+            <button data-tab="options" class="on">Your options</button><button data-tab="life" class="buyer">Will it last you?</button>
             <button data-tab="sales" class="pro">Recent sales</button><button data-tab="whatif" class="pro">What if</button><button data-tab="why" class="pro">Reliability</button>
             <button data-tab="outlook" class="pro">Outlook</button><button data-tab="trend" class="pro">Trend</button><button data-tab="deals" class="buyer">Bargains nearby</button></span></div>
           <div class="bd tabbody">
@@ -211,14 +244,6 @@
                 <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
               <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div><div class="pro" id="lifeRows"></div>
               <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
-            </div>
-            <div data-pane="ask" hidden>
-              <div id="askLog"><div class="dim" id="askHint">Ask anything about this flat: "Explain my options", "What if I offer $380k?", "Is the lease a problem for me?"</div></div>
-              <div class="askrow">
-                <label><span class="cap dim">Your question</span><input id="askQ" type="text" maxlength="500" placeholder="e.g. What if I offer $380k?"></label>
-                <button class="btn" id="askBtn" type="button">Ask</button><button class="btn ghost" id="explainBtn" type="button">Explain my options</button>
-              </div>
-              <div class="fine" style="margin-top:8px">Advice on the price from an AI, using only the numbers on this page. It does not cover loans, CPF or whether you can afford it, and it cannot see renovation, view or the exact floor.</div>
             </div>
             <div data-pane="sales" id="paneSales" hidden></div><div data-pane="whatif" id="paneWhatif" hidden></div><div data-pane="why" id="paneWhy" hidden></div><div data-pane="outlook" id="paneOutlook" hidden></div>
             <div data-pane="trend" hidden><div id="trendText"></div><svg id="trend" viewBox="0 0 700 120" width="100%" style="max-width:720px;margin-top:6px" role="img" aria-label="Price per square metre by year"></svg></div>
@@ -241,10 +266,25 @@
   </div>
   <!-- MARKET -->
   <div class="view" data-view="market" hidden>
-    <div style="display:grid;grid-template-columns:320px 220px;gap:12px"><label><span class="cap dim">Town</span><select id="mTown"></select></label><label><span class="cap dim">Flat type</span><select id="mType"></select></label></div>
+    <div style="display:grid;grid-template-columns:minmax(0,320px) minmax(0,220px);gap:12px"><label><span class="cap dim">Town</span><select id="mTown"></select></label><label><span class="cap dim">Flat type</span><select id="mType"></select></label></div>
     <div class="panel" style="margin-top:16px"><div class="bd"><div id="mText"></div><svg id="mTrend" viewBox="0 0 700 120" width="100%" style="max-width:900px;margin-top:8px" role="img" aria-label="Price per square metre by year"></svg></div></div>
   </div>
 </div>
+
+<!-- Flat details: pick a flat from lists, or correct what Oikos read -->
+<dialog id="sheet" aria-label="Flat details">
+  <div class="sheethd"><b>Flat details</b><button class="x" id="sheetX" type="button" aria-label="Close">&times;</button></div>
+  <div class="pick">
+    <label><span class="cap dim">Town</span><select id="town"></select></label><label><span class="cap dim">Street</span><select id="street"></select></label>
+    <label><span class="cap dim">Block</span><select id="block"></select></label><label><span class="cap dim">Flat type</span><select id="ftype"></select></label>
+    <label><span class="cap dim">Flat model</span><select id="fmodel"></select></label><label><span class="cap dim">Size (sqm)</span><input id="area" type="number" min="20" max="400" step="1"></label>
+    <label><span class="cap dim">Storey</span><select id="storey"></select></label><label><span class="cap dim">Lease start year</span><input id="lease" type="number" min="1960" max="2030" step="1"></label>
+    <label><span class="cap dim"><span class="buyer">Asking price ($)</span><span class="seller">Your listing price ($)</span></span><input id="price" type="number" min="0" step="1000" placeholder="optional"></label>
+    <label class="buyer"><span class="cap dim">Your age (for the lease check)</span><input id="age0" type="number" min="21" max="90" step="1" value="35"></label>
+  </div>
+  <div class="msg fine" id="formMsg" role="status"></div>
+  <button class="btn" id="checkBtn" type="button" style="width:100%;padding:13px">Check this flat</button>
+</dialog>
 <div id="brief"></div>
 
 <script>
@@ -303,16 +343,18 @@ let F = null;                         // facts for the flat on screen, from /api
 let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
 
 // ---- views
-const VIEWS = { check: "Check a flat", flats: "My flats", compare: "Compare", deals: "Deals", market: "Market" };
+const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My flats", compare: "Compare", deals: "Deals", market: "Market" };
 function go(view) {
   document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
   document.body.dataset.current = view;  // not data-view: that attribute marks the view containers
   const inResult = view === "check" && F;
+  $("bar").hidden = view === "chat"; $("result").hidden = !F; $("noFlat").hidden = !!F;
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
   if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket();
   if (inResult) fitVerdict();
+  if (view === "chat") $("msg").focus();
 }
 document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
 
@@ -333,33 +375,32 @@ const picked = upTo => { const all = { town: $("town").value, street: $("street"
 [["town", "town"], ["street", "street"], ["block", "block"], ["ftype", "flat_type"]].forEach(([id, key]) =>
   $(id).addEventListener("change", () => loadOptions(picked(key)).catch(e => $("formMsg").textContent = e.message)));
 
-$("readBtn").addEventListener("click", async () => {
-  const msg = $("parseMsg"); msg.textContent = "Reading...";
+async function openSheet() {
+  $("formMsg").textContent = ""; $("sheet").showModal();
+  if (!F) return;
+  const f = F.flat;
   try {
-    const p = await api("/api/parse", { text: $("paste").value });
-    if (!p.block) { msg.textContent = "Couldn't match this listing to an HDB block. Pick the flat below."; return; }
-    const o = await loadOptions({ town: p.town, street: p.street_name, block: p.block, flat_type: p.flat_type });
-    if (p.flat_model && o.flat_models.includes(p.flat_model)) $("fmodel").value = p.flat_model;
-    if (p.floor_area_sqm) $("area").value = Math.round(p.floor_area_sqm);
-    if (p.asking) $("price").value = p.asking;
-    msg.replaceChildren("Found blk " + p.block + " " + title(p.street_name) + (p.asking ? ", asking " + money(p.asking) : "") + ". ", h("b", {}, "Check the storey:"), " listings rarely state it.");
-  } catch (e) { msg.textContent = e.message; }
-});
-
+    const o = await loadOptions({ town: f.town, street: f.street_name, block: f.block, flat_type: f.flat_type });
+    if (o.flat_models.includes(f.flat_model)) $("fmodel").value = f.flat_model;
+    $("area").value = f.floor_area_sqm; $("storey").value = f.storey_range; $("lease").value = f.lease_commence_date; $("price").value = hasPrice() ? +$("ask").value : "";
+  } catch (e) { $("formMsg").textContent = e.message; }
+}
+$("pickBtn").addEventListener("click", openSheet);
+$("sheetX").addEventListener("click", () => $("sheet").close());
 $("checkBtn").addEventListener("click", async () => {
-  const msg = $("formMsg"), btn = $("checkBtn"); msg.textContent = "Checking..."; btn.disabled = true;
-  try {
-    F = await api("/api/assess", { town: $("town").value, street_name: $("street").value, block: $("block").value, flat_type: $("ftype").value,
-      flat_model: $("fmodel").value, floor_area_sqm: +$("area").value, storey_range: $("storey").value, lease_commence_date: +$("lease").value, price: +$("price").value || null });
-    msg.textContent = ""; openResult();
-  } catch (e) { msg.textContent = e.message; } finally { btn.disabled = false; }
+  if (busy) return;
+  const spec = { town: $("town").value, street_name: $("street").value, block: $("block").value, flat_type: $("ftype").value, flat_model: $("fmodel").value,
+    floor_area_sqm: +$("area").value, storey_range: $("storey").value, lease_commence_date: +$("lease").value }, price = +$("price").value || null;
+  if (!spec.block || !spec.floor_area_sqm) { $("formMsg").textContent = "Pick a block and enter the size first."; return; }
+  $("sheet").close(); go("chat");
+  row("you", h("div", { className: "bub" }, `Blk ${spec.block} ${title(spec.street_name)}, ${title(spec.flat_type)}, ${Math.round(spec.floor_area_sqm)} sqm, storey ${spec.storey_range.replace(" TO ", " to ")}` + (price ? ", " + money(price) : "")));
+  await working(() => loadFlat(spec, price));
 });
-function openResult() { show(); $("start").hidden = true; $("result").hidden = false; selectTab("options"); go("check"); render(); }
-$("newBtn").addEventListener("click", () => { F = null; $("result").hidden = true; $("start").hidden = false; go("check"); });
+$("newBtn").addEventListener("click", () => go("chat"));
 
 // ---- the result: everything that depends only on the flat
 function show() {
-  askHistory = []; $("askLog").replaceChildren(h("div", { className: "dim", id: "askHint" }, "Ask anything about this flat: \"Explain my options\", \"What if I offer $380k?\", \"Is the lease a problem for me?\""));
+  askHistory = [];
   const f = F.flat, fair = F.fair, q = l => qOf(F, l), lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
   const a = $("ask"); a.min = lo; a.max = hi; a.value = Math.min(hi, Math.max(lo, F.price || Math.round(fair / 1000) * 1000));
   $("checks").replaceChildren(...F.checks.map(c => h("div", { className: "warn" }, h("b", {}, "Check your input: "), ...rich(c))));
@@ -487,29 +528,85 @@ function drawTrend(g, text, t, flatType, town) {
     if (i % 2 === 0 || i === last) sv("text", { x: x(i), y: 116, "font-size": 10, "text-anchor": "middle", style: "fill:var(--dim)" }, g).textContent = years[i]; });
 }
 
-// ---- Ask Oikos: a model explains this flat's numbers; the server checks every figure and falls back to rule-based text
-let askHistory = [];
+// ---- the chat. A message either describes a flat (read by /api/understand, priced by /api/assess, then explained by the model),
+// corrects the flat on screen, or is a question about it. The server checks every figure the model writes and falls back to rule-based text.
+let askHistory = [], busy = false;
 const REASONS = { no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
+const hasPrice = () => !!F && F.price != null;
+function row(who, ...kids) {
+  const r = h("div", { className: "row " + who }, ...kids);
+  $("thread").append(r); $("chat").classList.remove("empty"); r.scrollIntoView({ block: "end" });
+  return r;
+}
+const say = (...kids) => row("bot", h("div", { className: "txt" }, ...kids));
+const waiting = text => row("bot", h("div", { className: "txt dim" }, h("span", { className: "dots" }, h("i"), h("i"), h("i")), "  " + text));
+const chip = text => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(text)); return c; };
+async function working(fn) {
+  busy = true; $("sendBtn").disabled = true;
+  try { await fn(); } catch (e) { say("Something went wrong: " + e.message); }
+  finally { busy = false; $("sendBtn").disabled = false; if (!matchMedia("(pointer: coarse)").matches) $("msg").focus(); }
+}
+function use(f) { if (F !== f) { F = f; show(); render(); } }  // a card's buttons act on that card's flat
+
+function flatCard(u = {}) {
+  const mine = F, priced = hasPrice(), a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
+  const tile = (label, val) => h("div", { className: "tile" }, h("div", { className: "cap dim" }, label), h("b", {}, val));
+  const btn = (label, fn) => { const b = h("button", { className: "pill", type: "button" }, label); b.addEventListener("click", fn); return b; };
+  let from = 0; const stops = v.R.tones.map(z => { const to = Math.min(z.max, 100), stop = `${z.dark} ${from}% ${to}%`; from = to; return stop; });
+  return row("bot", h("div", { className: "fcardc" },
+    h("div", { className: "ctop" }, h("div", {}, h("b", {}, flatName(F)), h("div", { className: "dim fine" }, flatDesc(F))), h("span", { className: "tag" }, F.reliability + " reliability")),
+    priced ? h("div", { className: "vbig", style: `color:${v.color}` }, v.word) : h("div", { className: "vbig" }, "Worth about " + k(F.fair)),
+    h("div", {}, ...rich(priced ? `${v.R.lead}${money(a)} is ${pc(a / F.fair - 1)} versus our fair value of ${money(F.fair)}. ${v.R.line(v.p)}`
+      : `Half of comparable flats sold between ${k(q(25))} and ${k(q(75))}. Tell me the ${buyer ? "asking" : "listing"} price and I'll give you a verdict.`)),
+    priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, h("i", { style: `left:${Math.min(97, Math.max(3, v.p))}%` })) : null,
+    h("div", { className: "tiles" }, tile("Fair value", k(F.fair)), tile("Likely range", `${k(q(25))} - ${k(q(75))}`), buyer ? tile("Don't pay more than", k(q(75))) : tile("Think twice below", k(q(25)))),
+    ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
+    u.assumed?.length ? h("div", { className: "note" }, "You didn't say, so I assumed " + u.assumed.join("; ") + ". Tell me if that's off, for example \"it's on the 11th floor\".") : null,
+    h("div", { className: "pills" }, btn("Full breakdown", () => { use(mine); go("check"); }), btn("Edit details", () => { use(mine); openSheet(); }), btn("Save flat", () => { use(mine); saveFlat(); }))));
+}
+async function loadFlat(spec, price, u = {}) {
+  const w = waiting("Checking this flat against comparable sales");
+  try { F = await api("/api/assess", { ...spec, price: price || null }); }
+  catch (e) { w.remove(); say("I couldn't check that flat: " + e.message); return; }
+  w.remove(); show(); render(); flatCard(u);
+  await askOikos(null);
+}
 async function askOikos(question) {
-  const btns = [$("askBtn"), $("explainBtn")], log = $("askLog");
-  $("askHint")?.remove(); btns.forEach(b => b.disabled = true);
-  if (question) log.append(h("div", { className: "bubble you" }, question));
-  const wait = h("div", { className: "bubble dim" }, "Thinking..."); log.append(wait); log.scrollTop = log.scrollHeight;
+  const w = waiting(question ? "Thinking" : "Working out your options"), first = !askHistory.length;
   try {
     const f = F.flat, r = await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
-      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: +$("ask").value, role: root.role, age: age(),
+      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(),
       question: question || null, history: askHistory.slice(-6) });
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
-    wait.replaceWith(h("div", { className: "bubble" }, ...rich(r.text), h("span", { className: "src" },
-      r.source === "model" ? "Written by an AI from this page's numbers. Every figure was checked against them." : "Rule-based answer (" + why + ")")));
+    w.remove();
+    say(...rich(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
-  } catch (e) { wait.replaceWith(h("div", { className: "bubble dim" }, "Could not get an answer: " + e.message)); }
-  finally { btns.forEach(b => b.disabled = false); log.scrollTop = log.scrollHeight; }
+    if (first) row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
+      ? [`What if I offer ${k(qOf(F, 25))}?`, "Is the lease a problem for me?", "How should I negotiate?"]
+      : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map(chip)));
+  } catch (e) { w.remove(); say("I couldn't get an answer: " + e.message); }
 }
-$("explainBtn").addEventListener("click", () => askOikos(null));
-$("askBtn").addEventListener("click", () => { const q = $("askQ").value.trim(); if (q) { $("askQ").value = ""; askOikos(q); } });
-$("askQ").addEventListener("keydown", e => { if (e.key === "Enter") $("askBtn").click(); });
+function send(text) {
+  text = text.trim(); if (!text || busy) return;
+  $("msg").value = ""; grow(); go("chat");
+  row("you", h("div", { className: "bub" }, text.length > 500 ? text.slice(0, 500) + "..." : text));
+  return working(async () => {
+    const u = await api("/api/understand", { text, current: F ? F.flat : null });
+    if (u.role && u.role !== root.role) pick("r", u.role);
+    if (u.age) { $("age").value = u.age; syncAge("age"); }
+    if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u);
+    else if (F) await askOikos(text);
+    else { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet);
+      say(u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing."); row("bot", b); }
+  });
+}
+const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height = Math.min(200, m.scrollHeight) + "px"; };
+$("msg").addEventListener("input", grow);
+$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
+$("sendBtn").addEventListener("click", () => send($("msg").value));
+$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
+$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 76 sqm, 8th floor, asking $420k", "I'm selling my 5-room at 109A Edgedale Plains for $720k", "What is a 4-room at 456 Ang Mo Kio Ave 10 worth?"].map(chip));
 
 // ---- tabs
 function selectTab(name) {
@@ -521,14 +618,15 @@ document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click
 // ---- my flats
 const flatId = f => [f.flat.block, f.flat.street_name, f.flat.flat_type, f.flat.flat_model, f.flat.floor_area_sqm, f.flat.storey].join("|");
 const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || ""; };
-$("saveBtn").addEventListener("click", () => {
+$("saveBtn").addEventListener("click", () => saveFlat());
+function saveFlat() {
   const id = flatId(F), price = +$("ask").value, old = flats.find(x => x.id === id);
   if (old) Object.assign(old, { price, F }); else flats.unshift({ id, saved: new Date().toISOString().slice(0, 10), price, status: "Watching", notes: "", compare: false, F });
   persist(); $("saveBtn").textContent = "Update saved flat"; toast(old ? "Saved flat updated" : "Saved to My flats");
-});
+}
 function renderFlats() {
   const box = $("flatList");
-  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved flats yet. Check a flat, then press Save flat.")); return; }
+  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved flats yet. Ask Oikos about a flat, then press Save flat.")); return; }
   box.replaceChildren(...flats.map(item => {
     const v = verdictFor(item.F, item.price), status = h("select", {}, ...["Watching", "Viewed", "Offer made", "Dropped"].map(s => h("option", { selected: s === item.status }, s)));
     const notes = h("textarea", { rows: 2, placeholder: "Your notes", value: item.notes }), cmp = h("input", { type: "checkbox", checked: item.compare });
@@ -536,7 +634,7 @@ function renderFlats() {
     notes.addEventListener("input", () => { item.notes = notes.value; persist(); });
     cmp.addEventListener("change", () => { if (cmp.checked && flats.filter(x => x.compare).length >= 3) { cmp.checked = false; toast("Compare up to 3 flats"); return; } item.compare = cmp.checked; persist(); });
     const open = h("button", { className: "btn ghost", type: "button" }, "Open"), del = h("button", { className: "btn ghost", type: "button" }, "Remove");
-    open.addEventListener("click", () => { F = item.F; F.price = item.price; openResult(); });
+    open.addEventListener("click", () => { F = item.F; F.price = item.price; show(); render(); go("chat"); flatCard(); });
     del.addEventListener("click", () => { flats = flats.filter(x => x !== item); persist(); renderFlats(); });
     return h("div", { className: "panel fcard" }, h("div", { className: "bd" }, h("div", { className: "vword", style: `color:${v.color}` }, v.word), h("div", { className: "ot", style: "margin:0" }, flatName(item.F)), h("div", { className: "dim" }, flatDesc(item.F)),
       kv(v.R.priceLabel, money(item.price)), kv("Our fair value", money(item.F.fair)), h("div", { className: "kv" }, h("span", { className: "dim" }, "Saved"), hl(new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))),
@@ -588,13 +686,14 @@ function pick(attr, val, save = true) {
   render(); const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
 }
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
+if (!["light", "dark"].includes(store.get("theme", "light"))) store.set("theme", "light");
 for (const a in KEYS) pick(a, store.get(KEYS[a], root[KEYS[a]]), false);
 $("age").value = $("age0").value = store.get("age", "35");
-$("ask").addEventListener("input", render);
+$("ask").addEventListener("input", () => { if (F) F.price = +$("ask").value; render(); });
 addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 const tick = () => $("clock").textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" });
-tick(); setInterval(tick, 30000); persist(); go("check");
+tick(); setInterval(tick, 30000); persist(); go("chat");
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
 </script>
 </body>
