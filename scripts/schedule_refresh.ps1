@@ -8,6 +8,6 @@ if ($Remove) { Unregister-ScheduledTask -TaskName $name -Confirm:$false; "Remove
 $bat = Join-Path (Split-Path $PSScriptRoot -Parent) "scripts\refresh.bat"
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$bat`""
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 3am
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 8) -Priority 4 -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Description "Downloads the latest HDB resale data and retrains the Oikos models." -Force | Out-Null
 Get-ScheduledTask -TaskName $name | Get-ScheduledTaskInfo | Select-Object TaskName, NextRunTime, LastRunTime, LastTaskResult
