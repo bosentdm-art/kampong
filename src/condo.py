@@ -70,7 +70,7 @@ def assess(project, area, floor, asking=None):
     row = pd.DataFrame([dict(project=name, property_type=p["property_type"], district=p["district"], market_segment=p["market_segment"], area=float(area),
                              floor_low=low, floor_mid=low + 2 if low == low else np.nan, freehold=freehold, lease_start=lease_start, lease_left=lease_left,
                              t=int(cf.month_index(pd.Series([now])).iloc[0]), sale_month=now.month, x=p["x"], y=p["y"],
-                             dist_cbd=float(np.hypot(p["x"] - cf.CBD[0], p["y"] - cf.CBD[1]) / 1000), is_new=0,
+                             dist_cbd=float(np.hypot(p["x"] - cf.CBD[0], p["y"] - cf.CBD[1]) / 1000), is_new=0, **{c: p[c] for c in cf.LOC},
                              comps_lp=p["comps_lp"], n_proj_24m=p["n_proj_24m"], n_proj_12m=p["n_proj_12m"])])
     row = cf.as_categories(row, m["levels"])
     pred_lp = float(np.mean([b.predict(row[m["features"]]) for b in point]))

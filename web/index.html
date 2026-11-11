@@ -159,6 +159,9 @@
   .caret::after { content:""; display:inline-block; width:8px; height:8px; margin-left:4px; border-radius:50%; background:var(--accent); animation:bob 1s infinite ease-in-out; }
   @media (prefers-reduced-motion: reduce) { .row, .fcardc > *, .chips .chip { animation:none; } .mini i { transition:none; } .caret::after { display:none; } }
   .menu { display:none; }
+  .around { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:6px; }
+  .ar { display:grid; grid-template-columns:150px 1fr; gap:10px; font-size:14.5px; } .ar > span:first-child { color:var(--dim); } .ar b { font-weight:600; }
+  .soon { background:var(--soft); color:var(--accent); border-radius:8px; padding:0 6px; font-size:12px; font-weight:700; margin-right:6px; }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -186,7 +189,7 @@
     .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr 1fr; } .tiles .tile:first-child { grid-column:1 / -1; } .view { padding:16px 12px 24px; }
     .bar { padding:8px 12px; flex-wrap:wrap; min-height:0; } .txt { font-size:15.5px; padding:12px 14px; } .fcardc { padding:16px; border-radius:22px; } .bub { max-width:88%; }
     .chips { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding-bottom:4px; scrollbar-width:none; } .chip { white-space:nowrap; flex:none; }
-    .toast { bottom:auto; top:66px; right:12px; } .alform { grid-template-columns:1fr; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
+    .toast { bottom:auto; top:66px; right:12px; } .alform { grid-template-columns:1fr; } .ar { grid-template-columns:1fr; gap:0; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
   }
   @media print {  /* the brief is the only thing that prints */
     body { display:block; background:#fff; color:#000; } body > *:not(#brief) { display:none !important; }
@@ -209,7 +212,7 @@
     <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
     <div class="cap"><span class="dim">Singapore time</span> <span class="hl" id="clock"></span></div>
-    <div class="fine">Indicative estimates, not valuations. Data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; locations from OneMap (SLA). Not affiliated with HDB or any government agency.</div>
+    <div class="fine">Indicative estimates, not valuations. Data: data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" style="color:inherit">Singapore Open Data Licence v1.0</a>; locations and routes from OneMap (SLA); shops, parks and clinics &copy; OpenStreetMap contributors. Not affiliated with HDB or any government agency.</div>
   </div>
 </aside>
 
@@ -711,6 +714,44 @@ function countUp(el, to, fmt) {
   el.textContent = fmt(to * 0.9); requestAnimationFrame(step);
 }
 
+// What is around the block: MRT (open and planned), schools, daily needs, what the location does to the price, and the commute.
+function aroundBlock(f) {
+  const n = f.nearby; if (!n) return null;
+  const ar = (label, ...val) => h("div", { className: "ar" }, h("span", {}, label), h("div", {}, ...val));
+  const near = x => x ? `${x.metres} m` : null, loc = (f.drivers.find(d => d[0] === "Location and surroundings") || [])[1];
+  const needs = [["Hawker", n.hawker], ["Supermarket", n.supermarket], ["Mall", n.mall], ["Park", n.park], ["Clinic", n.clinic]].filter(x => x[1]);
+  const commuteRow = ar("Commute", ""), work = store.get("work", "");
+  const fillCommute = () => {
+    const w = store.get("work", ""), box = commuteRow.lastChild;
+    if (!w) { const b = h("button", { className: "linkbtn", type: "button" }, "Add your workplace"); b.addEventListener("click", () => { $("msg").value = "I work at "; $("msg").focus(); }); box.replaceChildren(b); return; }
+    box.replaceChildren(h("span", { className: "dim" }, `Working out the trip to ${w}...`));
+    api("/api/commute", { block: f.flat.block, street_name: f.flat.street_name, place: w })
+      .then(c => box.replaceChildren(h("b", {}, `${c.minutes} min`), ` to ${c.place} by public transport`, h("span", { className: "dim" }, ` (${c.legs.join(", ")})`)))
+      .catch(e => box.replaceChildren(h("span", { className: "dim" }, e.message)));
+  };
+  f.fillCommute = fillCommute; fillCommute();
+  return h("div", { className: "around" }, h("div", { className: "cap dim" }, "Around this flat"),
+    n.mrt[0] ? ar(n.mrt[0].rail === "LRT" ? "Nearest LRT" : "Nearest MRT", h("b", {}, n.mrt[0].name), `, ${n.mrt[0].metres} m (about ${n.mrt[0].walk_min} min walk)`,
+      ...n.mrt.slice(1).map(x => h("span", { className: "dim" }, `; ${x.name} ${x.rail} ${x.metres} m`))) : null,
+    ...n.future_mrt.map(x => ar("Coming", h("span", { className: "soon" }, x.year), h("b", {}, x.name), ` on the ${x.line}, ${x.metres} m` + (x.kind === "new station" ? "" : " (a new line at this station)"))),
+    ar("Primary schools", n.schools_1km.length ? h("b", {}, n.schools_1km.length + " within 1 km") : "None within 1 km", n.schools_1km.length ? ": " + n.schools_1km.join(", ") : "",
+      h("span", { className: "dim" }, n.schools_2km.length ? `. ${n.schools_2km.length} more within 2 km.` : ".")),
+    needs.length ? ar("Daily needs", needs.map(([l, x]) => `${l} ${near(x)}`).join("  ·  ")) : null,
+    loc != null ? ar("Location's effect", h("b", { style: `color:var(${loc >= 0 ? "--pos" : "--neg"})` }, pc(loc)), " on the price, against the average HDB flat") : null,
+    commuteRow,
+    h("details", { className: "more" }, h("summary", {}, "Names and notes"),
+      ...needs.map(([l, x]) => h("div", { className: "kv" }, h("span", { className: "dim" }, l), h("span", {}, `${x.name}, ${x.metres} m`))),
+      n.schools_2km.length ? h("div", { className: "fine", style: "margin-top:6px" }, "Primary schools 1 to 2 km away: " + n.schools_2km.join(", ") + ".") : null,
+      h("div", { className: "fine", style: "margin-top:6px" }, "Distances are straight lines, and walking times are estimates. For Primary 1 registration, confirm the school distance on OneMap's School Query, which uses the official measure. Planned stations and their dates can change.")));
+}
+async function sayCommute() {
+  try {
+    const c = await api("/api/commute", { block: F.flat.block, street_name: F.flat.street_name, place: store.get("work", "") });
+    await say(rich(`From ${flatName(F)} to ${c.place}: about ${c.minutes} minutes by public transport on a weekday morning (${c.legs.join(", ")}${c.transfers ? `, ${c.transfers} ${c.transfers === 1 ? "change" : "changes"}` : ""}). I'll show this for every flat you check.`));
+  } catch (e) { await say(e.message); }
+  if (F.fillCommute) F.fillCommute();
+}
+
 function flatCard(u = {}) {
   const mine = F, priced = hasPrice(), a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
   const fig = (text, color) => h("span", { className: "hm", style: color ? `color:${color}` : "" }, text);
@@ -726,6 +767,7 @@ function flatCard(u = {}) {
     priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, dot) : null,
     h("div", { className: "tiles" }, tile("Fair value", fairB), tile("Likely range", `${k(q(25))} - ${k(q(75))}`),
       buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
+    aroundBlock(mine),
     F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this block (${F.recent.length})`),
       ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` storey ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm`), h("b", {}, money(r.price))))) : null,
     F.notes.length ? h("details", { className: "more" }, h("summary", {}, `Why reliability is ${F.reliability.toLowerCase()}`), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n))))) : null,
@@ -781,7 +823,8 @@ function send(text) {
     if (u.ctx) ctx = u.ctx;
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.age) { $("age").value = u.age; syncAge("age"); }
-    if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
+    if (u.work && !u.found) { w.remove(); store.set("work", u.work); if (F) await sayCommute(); else await say(`Noted. I'll show the commute to ${u.work} for each flat you check.`); }
+    else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
     else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";

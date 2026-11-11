@@ -38,6 +38,7 @@ import forecast as fc  # noqa: E402
 import listing_parser as lp  # noqa: E402
 import llm  # noqa: E402
 import accounts as acc  # noqa: E402
+import nearby as nb  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -58,7 +59,7 @@ def refresh_if_new(force_check=False):
     if mtime == _fresh["mtime"]:
         return False
     _fresh["mtime"] = mtime
-    for mod in (sys.modules[__name__], adv, ex, fc, lp):
+    for mod in (sys.modules[__name__], adv, ex, fc, lp, nb):
         for obj in vars(mod).values():
             if callable(getattr(obj, "cache_clear", None)):
                 obj.cache_clear()
@@ -280,6 +281,7 @@ def flats_put(body: Saved, request: Request, response: Response):
     return dict(ok=True)
 
 
+WORK = re.compile(r"\b(?:i work|i'm working|my (?:office|work|workplace|job)(?: is)?|office is|work(?:ing)? (?:is )?(?:at|in|near)|commute|travel(?:ling)? to work|get to work)\b[^.?!]*?\b(?:at|in|to|near|is)\s+([A-Za-z0-9][A-Za-z0-9 '&-]{2,50})", re.I)
 WATCH = re.compile(r"\b(alert me|notify me|let me know when|tell me when|watch this|keep an eye)\b", re.I)
 QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
 SPEC = ("town", "street_name", "block", "flat_type", "flat_model", "floor_area_sqm", "storey_range", "lease_commence_date")
@@ -304,7 +306,10 @@ def new_flat(p, base):
     bands, df, assumed = sorted(blk["storey_range"].unique()), o["defaults"], []
     if p["flat_type"] != sel["flat_type"]:
         others = [t.title() for t in o["flat_types"] if t != sel["flat_type"]]
-        assumed.append(f"a {sel['flat_type'].title()} flat" + (f" (this block also has {', '.join(others)})" if others else ""))
+        if p["flat_type"]:  # they named a type this block does not have: say so plainly, the verdict depends on it
+            assumed.append(f"a {sel['flat_type'].title()} flat, because this block has no {p['flat_type'].title()} flats on record" + (f" (it has {', '.join([sel['flat_type'].title()] + others)})" if others else ""))
+        else:
+            assumed.append(f"a {sel['flat_type'].title()} flat" + (f" (this block also has {', '.join(others)})" if others else ""))
     area = p["floor_area_sqm"] or df["floor_area_sqm"]
     if not p["floor_area_sqm"]:
         assumed.append(f"{round(area)} sqm, the usual size here")
@@ -405,6 +410,10 @@ def understand(m: Message, request: Request = None, response: Response = None):
     p = lp.parse(m.text[:20000])
     cur = {k: m.current[k] for k in SPEC} if m.current and all(k in m.current for k in SPEC) else None
     base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[], reply=None, watch=bool(WATCH.search(m.text[:600])))
+    w = WORK.search(m.text[:600])
+    base["work"] = re.sub(r"\s+(?:and|but|so|then|every|daily|now)\b.*$", "", w.group(1).strip(), flags=re.I) if w else None
+    if base["work"] and not p["block"]:  # "I work at one-north": the page works out the commute
+        return base
     if base["watch"] and not p["block"]:  # "alert me when this block has a new sale": the page sets the alert up
         return base
     asks = bool(QUESTION.search(m.text[:600]))
@@ -547,7 +556,7 @@ def facts_for(town, street_name, block, flat_type, flat_model, floor_area_sqm, s
         reliability=a["badge"], notes=a["notes"], checks=[c["message"] for c in adv.input_checks(spec)],
         average_flat=base, drivers=[[g, e] for g, e in effects.items()], what_ifs=[[k, v] for k, v in ex.what_if(spec).items()],
         recent=recent, outlook=[{k: v for k, v in r.items()} for r in out["rows"]], growth=math.expm1(out["growth_effective"]),
-        deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta()))
+        deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta(), nearby=nb.around_block(f.block, f.street_name)))
 
 
 
@@ -596,6 +605,28 @@ def ask(a: Ask, request: Request, response: Response):
 
 def advice_key(f, role):
     return json.dumps([*flat_key(f), role])
+
+
+class Commute(BaseModel):
+    block: str
+    street_name: str
+    place: str
+
+
+@app.post("/api/commute")
+def commute(c: Commute):
+    """Public transport time from a block to a workplace or landmark, on a weekday morning."""
+    pos = nb.block_coords().get((c.block, c.street_name))
+    if not pos:
+        raise HTTPException(404, "I don't have a map position for that block.")
+    try:
+        return nb.commute(pos[0], pos[1], c.place[:80])
+    except nb.Unavailable as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception:
+        raise HTTPException(502, "The map service did not answer. Try again in a moment.")
 
 
 class Share(Flat):

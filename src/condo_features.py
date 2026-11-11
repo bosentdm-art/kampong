@@ -4,6 +4,8 @@ Covers condominiums, apartments and executive condominiums. One row per sale, wi
   the unit       area, floor range (URA gives a 5-floor band, not the unit), property type
   the project    name, district, market segment, tenure (freehold or years left), location (SVY21 x, y)
   the moment     month index, calendar month, type of sale (new sale / sub sale / resale)
+  surroundings   distance to the nearest MRT exit, hawker centre and primary school, MRT exits within 500 m, primary
+                 schools within 1 km (URA gives SVY21 x, y; svy21_to_latlon() converts them)
   history        sales in the same project in the 24 months BEFORE the sale, and what those sales say this unit's
                  price per sqm should be (their median, moved to the sale month by the market index). Earlier months
                  only, so nothing leaks from the future.
@@ -18,6 +20,7 @@ from geocode_blocks import ROOT
 TYPES = ["Apartment", "Condominium", "Executive Condominium"]
 CATS = ["project", "property_type", "district", "market_segment"]
 NUM = ["area", "floor_low", "floor_mid", "freehold", "lease_start", "lease_left", "t", "sale_month", "x", "y", "dist_cbd", "is_new"]
+LOC = ["dist_mrt", "n_mrt_exits_500m", "dist_hawker", "dist_primary_school", "n_primary_1km"]
 HIST = ["comps_lp", "n_proj_24m", "n_proj_12m"]
 CBD = (29800.0, 29700.0)  # Raffles Place, SVY21 metres (approximate)
 T0 = 2021 * 12
@@ -42,6 +45,59 @@ def tenure_fields(tenure, sale_year):
     return 0, (float(start.group(1)) if start else np.nan), (length - (sale_year - int(start.group(1))) if start else np.nan)
 
 
+def svy21_to_latlon(x, y):
+    """SVY21 easting and northing (metres, as URA gives them) to latitude and longitude: the standard inverse
+    transverse Mercator on WGS84 with Singapore's origin. Takes arrays, returns an (n, 2) array of (lat, lon)."""
+    E, N = np.asarray(x, float), np.asarray(y, float)
+    a, f = 6378137.0, 1 / 298.257223563
+    o_lat, o_lon, o_n, o_e, k = np.radians(1.366666), np.radians(103.833333), 38744.572, 28001.642, 1.0
+    b = a * (1 - f)
+    e2 = 2 * f - f * f
+    e4, e6 = e2 * e2, e2 ** 3
+    A0, A2, A4, A6 = 1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256, 3 / 8 * (e2 + e4 / 4 + 15 * e6 / 128), 15 / 256 * (e4 + 3 * e6 / 4), 35 * e6 / 3072
+    m0 = a * (A0 * o_lat - A2 * np.sin(2 * o_lat) + A4 * np.sin(4 * o_lat) - A6 * np.sin(6 * o_lat))
+    mp = m0 + (N - o_n) / k
+    n = (a - b) / (a + b)
+    n2, n3, n4 = n * n, n ** 3, n ** 4
+    g = a * (1 - n) * (1 - n2) * (1 + 9 * n2 / 4 + 225 * n4 / 64) * (np.pi / 180)
+    sg = mp * np.pi / (180 * g)
+    lp = (sg + (3 * n / 2 - 27 * n3 / 32) * np.sin(2 * sg) + (21 * n2 / 16 - 55 * n4 / 32) * np.sin(4 * sg)
+          + (151 * n3 / 96) * np.sin(6 * sg) + (1097 * n4 / 512) * np.sin(8 * sg))
+    s2 = np.sin(lp) ** 2
+    rho, v = a * (1 - e2) / (1 - e2 * s2) ** 1.5, a / np.sqrt(1 - e2 * s2)
+    psi = v / rho
+    t = np.tan(lp)
+    t2, t4, t6 = t * t, t ** 4, t ** 6
+    ep = E - o_e
+    xx = ep / (k * v)
+    x3, x5, x7 = xx ** 3, xx ** 5, xx ** 7
+    lf = t / (k * rho)
+    lat = (lp - lf * (ep * xx / 2) + lf * (ep * x3 / 24) * (-4 * psi ** 2 + 9 * psi * (1 - t2) + 12 * t2)
+           - lf * (ep * x5 / 720) * (8 * psi ** 4 * (11 - 24 * t2) - 12 * psi ** 3 * (21 - 71 * t2) + 15 * psi ** 2 * (15 - 98 * t2 + 15 * t4) + 180 * psi * (5 * t2 - 3 * t4) + 360 * t4)
+           + lf * (ep * x7 / 40320) * (1385 - 3633 * t2 + 4095 * t4 + 1575 * t6))
+    sec = 1 / np.cos(lp)
+    lon = (o_lon + xx * sec - x3 * sec / 6 * (psi + 2 * t2)
+           + x5 * sec / 120 * (-4 * psi ** 3 * (1 - 6 * t2) + psi ** 2 * (9 - 68 * t2) + 72 * psi * t2 + 24 * t4)
+           - x7 * sec / 5040 * (61 + 662 * t2 + 1320 * t4 + 720 * t6))
+    return np.column_stack([np.degrees(lat), np.degrees(lon)])
+
+
+def surroundings(x, y):
+    """The LOC features for arrays of SVY21 points (NaN where the point is missing)."""
+    import nearby as nb
+    t, ll = nb.tables(), svy21_to_latlon(x, y)
+    out = {c: np.full(len(ll), np.nan) for c in LOC}
+    for i, (lat, lon) in enumerate(ll):
+        if lat != lat:
+            continue
+        m = nb.metres(lat, lon, t["mrt"]["lat"].to_numpy(), t["mrt"]["lon"].to_numpy())
+        p = nb.metres(lat, lon, t["primary"]["lat"].to_numpy(), t["primary"]["lon"].to_numpy())
+        out["dist_mrt"][i], out["n_mrt_exits_500m"][i] = m.min(), (m <= 500).sum()
+        out["dist_hawker"][i] = nb.metres(lat, lon, t["hawker"]["lat"].to_numpy(), t["hawker"]["lon"].to_numpy()).min()
+        out["dist_primary_school"][i], out["n_primary_1km"][i] = p.min(), (p <= 1000).sum()
+    return out
+
+
 def month_index(dates):
     return dates.dt.year * 12 + dates.dt.month - T0
 
@@ -64,6 +120,8 @@ def load():
     tf = [tenure_fields(a, b) for a, b in zip(d["tenure"], d["sale_date"].dt.year)]
     d["freehold"], d["lease_start"], d["lease_left"] = [x[0] for x in tf], [x[1] for x in tf], [x[2] for x in tf]
     d["dist_cbd"] = np.hypot(d["x"] - CBD[0], d["y"] - CBD[1]) / 1000
+    spots = d[["x", "y"]].drop_duplicates()
+    d = d.merge(spots.assign(**surroundings(spots["x"].to_numpy(), spots["y"].to_numpy())), on=["x", "y"], how="left")
     d["lp"] = np.log(d["price_per_sqm"])
     return add_history(d.sort_values(["sale_date", "project"]).reset_index(drop=True))
 
