@@ -77,3 +77,18 @@ carries over. Launch without a long-run outlook for private property, then add o
 - **Legal exposure** grows with price. The open question in `legal_review.md` about giving price advice matters
   more at $2m than at $500k.
 - **Cost.** Data and training stay free on the laptop; the 5070 PC is not needed for this size of data.
+
+## Update 2026-11-11: first data pull and accuracy check
+
+`python src/download_ura.py` pulled 123,485 sales in 2,959 projects, Nov 2021 to Nov 2026 (about 71,000 condo,
+apartment and EC resales; about 9,400 landed resales). `python src/experiments_ura.py` held out the last six months:
+
+| | Typical error | Within 10% |
+|---|---|---|
+| Condos, apartments, ECs: recent sales in the same project (available for 93% of sales) | 4.1% | 83% |
+| Condos, apartments, ECs: quick model, no tuning | 3.2% | 90% |
+| Same, for projects with no sales in the last 12 months | 5.7% | 71% |
+| Landed: recent sales on the same street (available for 68% of sales) | 13.8% | 38% |
+
+So a condo model is worth building: an untuned one already beats the same-project comparison and is close to the
+HDB model's 2.7%. Landed is as hard as expected. The URA terms of use are still unread.
