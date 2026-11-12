@@ -63,7 +63,10 @@ def assess(spec, asking=None, when=None):
         n_block_24m=len(w24), comps_est=comps, flat_type=spec["flat_type"], town=spec["town"], flat_model=spec["flat_model"])]))
     q = np.sort([models[qq].predict(x[rm.RANGE_FEATS])[0] for qq in meta["quantiles"]])
     med = q[meta["quantiles"].index(0.50)]
-    qs = med + meta["scale"] * (q - med)  # widened so the 80% band really covers 80% on later months
+    # centred on where sales of flats this age have landed against our estimate in the last three months, then widened
+    # below and above so that 1 sale in 10 falls under the 80% band and 1 in 10 over it (see recentre.py)
+    centre = meta["centre"].get(rm.age_band(int(when) - spec["lease_commence_date"]), meta["centre"]["all"])
+    qs = centre + med + np.where(q < med, meta["scale_low"], meta["scale_high"]) * (q - med)
     at = lambda level: pred * np.exp(qs[meta["quantiles"].index(level)])
     fair = pred  # a bias correction from the quantile model was tested and made validation accuracy worse
     width = float(qs[meta["quantiles"].index(0.90)] - qs[meta["quantiles"].index(0.10)])

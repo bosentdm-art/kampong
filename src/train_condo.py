@@ -5,9 +5,11 @@ Same method as the HDB model, on URA sales of condominiums, apartments and execu
   1. Holdout check   train through six months before the latest complete month, test on those six months of resales.
   2. Walk forward    for each 4-month chunk from mid-2023, train on earlier sales only and predict the chunk, so the
                      errors are what they would have been in real use (kept in data/processed/condo_oos/).
-  3. Ranges          one quantile model per level learns how far off we tend to be for a unit like this one, from
-                     those errors; widened by `scale` until the 80% range really holds 80% of later sales.
-                     The width of the 80% range sets the reliability badge.
+  3. Ranges          one quantile model per level learns how widely sales scatter for a unit like this one, from
+                     those errors. The range is centred on the last three months' median error for the same market
+                     segment and widened separately below and above, so that 1 later sale in 10 lands under the
+                     80% range and 1 in 10 over it (recentre.py). Its width sets the reliability badge.
+                     python src/train_condo.py --ranges-only   redoes just this step from the files on disk.
   4. Production      retrain on everything (three seeds averaged) and save the models and a table of projects.
 
 Recipe (from experiments_condo.py): LightGBM on log price per sqm, 255 leaves, 2,000 rounds at 0.03, recent sales
@@ -24,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 import condo_features as cf
+import recentre as rc
 from geocode_blocks import ROOT
 
 FEATS = cf.CATS + cf.NUM + cf.LOC + cf.HIST
@@ -100,43 +103,56 @@ def range_frame(o):
     o = o.copy()
     o["proj_gap"] = o["comps_lp"] - o["pred_lp"]
     o["e"] = o["lp"] - o["pred_lp"]
+    o["m"] = o["sale_date"].dt.to_period("M")
+    o["band"] = o["market_segment"].astype(str)  # the centre is kept per market segment: the suburbs and the core move apart
+    o["e_flat"] = rc.flatten(o)
     for c in RANGE_CATS:
         o[c] = pd.Categorical(o[c].astype(str))
     return o
 
 
 def fit_range(o):
-    return {q: lgb.LGBMRegressor(alpha=q, **RANGE_PARAMS).fit(o[RANGE_FEATS], o["e"]) for q in QUANTILES}
+    return {q: lgb.LGBMRegressor(alpha=q, **RANGE_PARAMS).fit(o[RANGE_FEATS], o["e_flat"]) for q in QUANTILES}
 
 
 def quantile_matrix(models, o):
     return np.sort(np.column_stack([models[q].predict(o[RANGE_FEATS]) for q in QUANTILES]), axis=1)
 
 
-def scaled(q, scale):
-    med = q[:, QUANTILES.index(0.50)][:, None]
-    return med + scale * (q - med)
-
-
 def ranges(o, last):
     o = range_frame(o)
     val_start = last - pd.DateOffset(months=RANGE_VAL_MONTHS - 1)
-    tr, va = o[o["sale_date"] < val_start], o[o["sale_date"] >= val_start]
+    is_val = (o["sale_date"] >= val_start).to_numpy()
+    tr, va = o[~is_val], o[is_val]
     q = quantile_matrix(fit_range(tr), va)
-    e, i = va["e"].to_numpy(), QUANTILES.index
-    cover = lambda m, a, b: float(((e >= m[:, i(a)]) & (e <= m[:, i(b)])).mean())
-    scale = next((s for s in np.arange(1.0, 2.01, 0.02) if cover(scaled(q, s), 0.10, 0.90) >= 0.80), 2.0)
-    m = scaled(q, scale)
+    e, centre, i = va["e"].to_numpy(), rc.trailing(o)[is_val], QUANTILES.index  # each month's centre uses only the months before it
+    s_lo, s_hi = rc.solve(e, q, centre, i(0.50), i(0.10), i(0.90))
+    m = rc.spread(q, centre, i(0.50), s_lo, s_hi)
+    (under, over), (u50, o50) = rc.sides(e, m, i(0.10), i(0.90)), rc.sides(e, m, i(0.25), i(0.75))
     width = m[:, i(0.90)] - m[:, i(0.10)]
     badge = np.where(width <= BADGE_HIGH, "High", np.where(width <= BADGE_MEDIUM, "Medium", "Low"))
     err = np.abs(np.exp(-e) - 1)
     print(f"\nRANGES: fitted on {len(tr):,} walk-forward sales, checked on {len(va):,} from {val_start:%b %Y}")
-    print(f"  scale {scale:.2f}: 80% range holds {cover(m, .10, .90) * 100:.1f}%, 50% range holds {cover(m, .25, .75) * 100:.1f}% (unscaled 80%: {cover(q, .10, .90) * 100:.1f}%)")
+    print(f"  widening {s_lo:.2f} below the centre, {s_hi:.2f} above: {under:.1f}% of sales under the 80% range, {over:.1f}% over it; {u50:.1f}% under the 50% range, {o50:.1f}% over it")
+    t = pd.DataFrame(dict(segment=va["band"].to_numpy(), badge=badge, err=err, under=e < m[:, i(0.10)], over=e > m[:, i(0.90)], width=width))
+    print(t.groupby("segment").agg(n=("err", "size"), under=("under", "mean"), over=("over", "mean"), width=("width", "mean")).round(3).to_string())
     print("  80% range width percentiles (log units):", {p: round(float(np.quantile(width, p)), 3) for p in (0.1, 0.25, 0.5, 0.75, 0.9)})
-    t = pd.DataFrame(dict(badge=badge, err=err, inside=(e >= m[:, i(0.10)]) & (e <= m[:, i(0.90)])))
     print(t.groupby("badge").agg(share=("err", lambda x: len(x) / len(t)), median_error=("err", "median"), within10=("err", lambda x: (x < .1).mean()),
-                                 range_holds=("inside", "mean")).reindex(["High", "Medium", "Low"]).round(3).to_string())
-    return fit_range(o), dict(scale=float(scale), coverage80=cover(m, .10, .90), coverage50=cover(m, .25, .75), rows=int(len(va))), {c: list(o[c].cat.categories) for c in RANGE_CATS}
+                                 under=("under", "mean"), over=("over", "mean")).reindex(["High", "Medium", "Low"]).round(3).to_string())
+    now, newest = rc.centres(o), o["m"].max()
+    print(f"  centre now ({newest - rc.MONTHS + 1} to {newest}), in log units: {({k: round(v, 4) for k, v in now.items()})}")
+    val = dict(scale_low=s_lo, scale_high=s_hi, centre=now, centre_months=[str(newest - rc.MONTHS + 1), str(newest)], coverage80=(100 - under - over) / 100,
+               under80=under / 100, over80=over / 100, coverage50=(100 - u50 - o50) / 100, rows=int(len(va)))
+    return fit_range(o), val, {c: list(o[c].cat.categories) for c in RANGE_CATS}
+
+
+def save_ranges(range_models, val, range_levels, meta):
+    for q, m in range_models.items():
+        m.booster_.save_model(str(ROOT / f"models/condo_range_q{int(q * 100):02d}.txt"))
+    meta.pop("scale", None)  # the single widening used before November 2026
+    meta.update(quantiles=QUANTILES, range_features=RANGE_FEATS, range_levels=range_levels, scale_low=val["scale_low"], scale_high=val["scale_high"], centre=val["centre"],
+                centre_months=val["centre_months"], badge_high=BADGE_HIGH, badge_medium=BADGE_MEDIUM, validation={k: v for k, v in val.items() if k not in ("centre", "centre_months")})
+    (ROOT / "models/condo.json").write_text(json.dumps(meta), encoding="utf-8")
 
 
 def project_table(d, last):
@@ -157,6 +173,11 @@ def project_table(d, last):
 
 
 def main():
+    if "--ranges-only" in sys.argv[1:]:  # the walk-forward files are already on disk: refit the ranges from them, leave the price model alone
+        o = pd.concat([pd.read_parquet(f) for f in sorted(OOS.glob("chunk_*.parquet"))], ignore_index=True)
+        save_ranges(*ranges(o, o["sale_date"].max()), json.loads((ROOT / "models/condo.json").read_text(encoding="utf-8")))
+        print("saved models/condo_range_q*.txt and the range settings in models/condo.json")
+        return
     d = cf.load()
     last = cf.latest_complete_month(d)
     d = cf.as_categories(d[d["sale_date"] <= last])
@@ -169,13 +190,10 @@ def main():
     (ROOT / "models").mkdir(exist_ok=True)
     for i, m in enumerate(fit(d)):
         m.booster_.save_model(str(ROOT / f"models/condo_prod_{i}.txt"))
-    for q, m in range_models.items():
-        m.booster_.save_model(str(ROOT / f"models/condo_range_q{int(q * 100):02d}.txt"))
     project_table(d, last).to_parquet(ROOT / "data/processed/condo_projects.parquet", index=False)
     meta = dict(trained_through=f"{last:%Y-%m}", rows=int(len(d)), resales=int((d["is_new"] == 0).sum()), projects=int(d["project"].nunique()), models=len(SEEDS),
-                holdout_median_error=round(med, 4), holdout_mean_error=round(mean, 4), features=FEATS, levels={c: list(d[c].cat.categories) for c in cf.CATS},
-                quantiles=QUANTILES, range_features=RANGE_FEATS, range_levels=range_levels, scale=val["scale"], badge_high=BADGE_HIGH, badge_medium=BADGE_MEDIUM, validation=val)
-    (ROOT / "models/condo.json").write_text(json.dumps(meta), encoding="utf-8")
+                holdout_median_error=round(med, 4), holdout_mean_error=round(mean, 4), features=FEATS, levels={c: list(d[c].cat.categories) for c in cf.CATS})
+    save_ranges(range_models, val, range_levels, meta)
     print("saved models/condo_prod_*.txt, models/condo_range_q*.txt, models/condo.json, data/processed/condo_projects.parquet")
 
 

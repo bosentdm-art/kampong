@@ -1,15 +1,17 @@
-"""Flat-specific ranges and a bias-corrected fair value, learned from out-of-sample errors.
+"""Flat-specific ranges, learned from out-of-sample errors and centred on the recent market.
 
-Target: e = log(actual / predicted) from the walk-forward chunks (oos_residuals.py). One LightGBM quantile
-model per level in QUANTILES predicts the distribution of e for a flat, from its features plus data-richness
-signals (sales in the block in the last 24 months, gap to recent comparables).
+Target: e = log(actual / predicted) from the walk-forward chunks (oos_residuals.py). One LightGBM quantile model per
+level in QUANTILES predicts how widely sales scatter for a flat, from its features plus data-richness signals (sales
+in the block in the last 24 months, gap to recent comparables). Where the range sits is not learned: it is centred on
+the median error of the last three months for flats of the same age (see recentre.py for why).
 
-  fair value   = the point estimate (a bias correction from q50 was tested: validation error got WORSE)
-  80% range    = fair value widened by `scale` around q50 so coverage on later months is really 80%
-  percentiles  = interpolate the scaled quantiles -> where an asking price sits among comparable sales
+  fair value   the point estimate (moving it by the recent centre is reported below, and left out: it changes little)
+  80% range    centre + spread, widened separately below and above so that 1 sale in 10 lands under it and 1 in 10 over
+  percentiles  interpolate those quantiles -> where an asking price sits among comparable sales
 
-Validation: train on chunks before VAL_START, test after. Prints coverage and error by segment against the old
-single global band. Then retrains on everything and saves models/range_q*.txt and models/range.json.
+Validation: train on chunks before VAL_START, test after, with each month's centre taken from the months before it.
+Prints how many sales land on each side of the ranges, by segment. Then retrains on everything and saves
+models/range_q*.txt and models/range.json. Run weekly by update.py, so the centre follows the market.
 """
 import json
 
@@ -17,6 +19,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
+import recentre as rc
 from geocode_blocks import ROOT
 
 OOS = ROOT / "data/processed/oos"
@@ -25,14 +28,25 @@ VAL_START = pd.Timestamp("2025-07-01")
 CATS = ["flat_type", "town", "flat_model"]
 RANGE_FEATS = ["pred_log", "floor_area_sqm", "storey_mid", "remaining_lease_years", "lease_commence_date", "dist_cbd",
                "dist_mrt", "n_block_24m", "block_gap"] + CATS
-BADGE_HIGH, BADGE_MEDIUM = 0.12, 0.15  # 80% band width in log units (0.12 is about +-6%)
+# 80% band width in log units (0.11 is about +-5.5%). Lowered from 0.12 / 0.15 in Nov 2026, when re-centring made the
+# bands about 8% narrower, so that each badge still means the same realised error as before.
+BADGE_HIGH, BADGE_MEDIUM = 0.11, 0.14
 PARAMS = dict(objective="quantile", n_estimators=400, learning_rate=0.05, num_leaves=31, min_child_samples=300,
               feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=5.0, verbose=-1)
 
 
+def age_band(age):
+    """The kind of flat the centre is kept for. In 2026 older flats were slipping while newer ones rose."""
+    return "new" if age <= 20 else "mid" if age <= 40 else "old"
+
+
 def load():
     d = pd.concat([pd.read_parquet(f) for f in sorted(OOS.glob("chunk_*.parquet"))], ignore_index=True)
-    return prepare(d).assign(e=lambda x: np.log(x["resale_price"] / x["pred"]))
+    d = prepare(d).assign(e=lambda x: np.log(x["resale_price"] / x["pred"]))
+    d["m"] = d["sale_date"].dt.to_period("M")
+    d["band"] = [age_band(a) for a in d["sale_date"].dt.year - d["lease_commence_date"]]
+    d["e_flat"] = rc.flatten(d)
+    return d
 
 
 def prepare(d):
@@ -45,8 +59,8 @@ def prepare(d):
     return d
 
 
-def fit(d):
-    return {q: lgb.LGBMRegressor(alpha=q, **PARAMS).fit(d[RANGE_FEATS], d["e"]) for q in QUANTILES}
+def fit(d, target="e_flat"):
+    return {q: lgb.LGBMRegressor(alpha=q, **PARAMS).fit(d[RANGE_FEATS], d[target]) for q in QUANTILES}
 
 
 def quantile_matrix(models, d):
@@ -54,74 +68,64 @@ def quantile_matrix(models, d):
     return np.sort(m, axis=1)  # undo any crossing between quantile levels
 
 
-def scaled(q, scale):
-    """Widen deviations from the median by `scale`."""
-    med = q[:, QUANTILES.index(0.50)][:, None]
-    return med + scale * (q - med)
-
-
-def band(q, level):
-    i = {"80": (QUANTILES.index(0.10), QUANTILES.index(0.90)), "50": (QUANTILES.index(0.25), QUANTILES.index(0.75))}[level]
-    return q[:, i[0]], q[:, i[1]]
-
-
 def main():
     d = load()
-    train, val = d[d["sale_date"] < VAL_START], d[d["sale_date"] >= VAL_START].copy()
+    is_val = (d["sale_date"] >= VAL_START).to_numpy()
+    train, val = d[~is_val], d[is_val].copy()
     print(f"out-of-sample rows: {len(d)} (train {len(train)} before {VAL_START:%Y-%m}, validate {len(val)})")
 
-    models = fit(train)
-    q = quantile_matrix(models, val)
+    i = QUANTILES.index
+    q = quantile_matrix(fit(train), val)
+    e, centre = val["e"].to_numpy(), rc.trailing(d)[is_val]  # each month's centre uses only the months before it
 
-    # point accuracy: raw vs bias-corrected
-    med = q[:, QUANTILES.index(0.50)]
-    ape_raw = (val["pred"] - val["resale_price"]).abs() / val["resale_price"]
-    ape_adj = (val["pred"] * np.exp(med) - val["resale_price"]).abs() / val["resale_price"]
-    print(f"\nPOINT ACCURACY on validation: raw median {ape_raw.median():.2%} mean {ape_raw.mean():.2%} within10 {(ape_raw <= .1).mean():.1%}"
-          f"  ->  bias-corrected median {ape_adj.median():.2%} mean {ape_adj.mean():.2%} within10 {(ape_adj <= .1).mean():.1%}")
+    ape = lambda shift: (np.exp(shift - e) - 1)
+    print(f"\nPOINT ACCURACY on validation: median {np.median(np.abs(ape(0))):.2%} within10 {(np.abs(ape(0)) <= .1).mean():.1%}"
+          f"  (moved by the recent centre: median {np.median(np.abs(ape(centre))):.2%})")
 
-    # choose the widening so the validation 80% band covers 80%
-    def cover(scale, level="80"):
-        lo, hi = band(scaled(q, scale), level)
-        return float(((val["e"] >= lo) & (val["e"] <= hi)).mean())
-    grid = np.arange(0.6, 2.01, 0.02)
-    scale = float(grid[np.argmin([abs(cover(s) - 0.80) for s in grid])])
-    print(f"\nwidening factor {scale:.2f}: 80% band covers {cover(scale):.1%}, 50% band covers {cover(scale, '50'):.1%}")
+    s_lo, s_hi = rc.solve(e, q, centre, i(0.50), i(0.10), i(0.90))
+    m = rc.spread(q, centre, i(0.50), s_lo, s_hi)
+    below, above = rc.sides(e, m, i(0.10), i(0.90))
+    b50, a50 = rc.sides(e, m, i(0.25), i(0.75))
+    print(f"\nwidening {s_lo:.2f} below the centre, {s_hi:.2f} above: {below:.1f}% of sales under the 80% range, {above:.1f}% over it; "
+          f"{b50:.1f}% under the 50% range, {a50:.1f}% over it")
+    half = (val["m"] < sorted(val["m"].unique())[val["m"].nunique() // 2]).to_numpy()  # is the widening stable? choose it on the first half, test on the second
+    t_lo, t_hi = rc.solve(e[half], q[half], centre[half], i(0.50), i(0.10), i(0.90))
+    tb, ta = rc.sides(e[~half], rc.spread(q[~half], centre[~half], i(0.50), t_lo, t_hi), i(0.10), i(0.90))
+    print(f"check: widening chosen on the first half of these months ({t_lo:.2f}, {t_hi:.2f}) leaves {tb:.1f}% under and {ta:.1f}% over on the second half")
 
-    lo, hi = band(scaled(q, scale), "80")
-    val["lo"], val["hi"], val["width"] = lo, hi, hi - lo
-    val["inside"] = (val["e"] >= val["lo"]) & (val["e"] <= val["hi"])
-    g10, g90 = train["e"].quantile([0.10, 0.90])  # the old single band, from the same training rows
-    val["g_inside"] = (val["e"] >= g10) & (val["e"] <= g90)
-    val["ape_adj"] = ape_adj.values
-    print(f"old single band: {np.exp(g10) - 1:+.1%} to {np.exp(g90) - 1:+.1%}, covers {val['g_inside'].mean():.1%} overall")
+    val["lo"], val["hi"], val["width"] = m[:, i(0.10)], m[:, i(0.90)], m[:, i(0.90)] - m[:, i(0.10)]
+    val["under"], val["over"] = val["e"] < val["lo"], val["e"] > val["hi"]
+    val["miss"] = np.abs(ape(0))
 
     def seg(name, key):
-        g = val.groupby(key, observed=True).agg(n=("e", "size"), old_band_cover=("g_inside", "mean"), new_band_cover=("inside", "mean"),
-                                                old_width=("e", lambda x: g90 - g10), new_width=("width", "mean")).round(3)
+        g = val.groupby(key, observed=True).agg(n=("e", "size"), under=("under", "mean"), over=("over", "mean"), width=("width", "mean")).round(3)
         print(f"--- {name}"); print(g[g.n >= 150].to_string()); print()
     print()
+    seg("age of flat", val["band"])
     seg("remaining lease", pd.cut(val["remaining_lease_years"], [0, 55, 65, 75, 85, 100]))
-    seg("price band", pd.qcut(val["resale_price"], 5))
+    seg("estimate", pd.cut(val["pred"], [0, 4e5, 6e5, 8e5, 1e6, 1e8]))
     seg("flat type", val["flat_type"])
 
     print(f"80% band width percentiles (log units): {val['width'].quantile([.1, .25, .5, .75, .9]).round(3).to_dict()}")
     val["badge"] = np.where(val["width"] <= BADGE_HIGH, "High", np.where(val["width"] <= BADGE_MEDIUM, "Medium", "Low"))
-    b = val.groupby("badge").agg(share=("e", lambda x: len(x) / len(val)), median_error=("ape_adj", "median"),
-                                 within10=("ape_adj", lambda x: (x <= .1).mean()), band_cover=("inside", "mean")).round(3)
+    b = val.groupby("badge").agg(share=("e", lambda x: len(x) / len(val)), median_error=("miss", "median"), within10=("miss", lambda x: (x <= .1).mean()),
+                                 under=("under", "mean"), over=("over", "mean")).round(3)
     print("\nRELIABILITY BADGE (by band width) vs realised error on validation:")
     print(b.reindex(["High", "Medium", "Low"]).to_string())
 
-    # final models on all out-of-sample rows
-    final = fit(d)
+    # final models on all out-of-sample rows, with the centre as it stands after the newest month on file
+    final, now = fit(d), rc.centres(d)
     (ROOT / "models").mkdir(exist_ok=True)
-    for qq, m in final.items():
-        m.booster_.save_model(str(ROOT / f"models/range_q{int(qq * 100):02d}.txt"))
-    meta = dict(quantiles=QUANTILES, features=RANGE_FEATS, scale=scale, badge_high=BADGE_HIGH, badge_medium=BADGE_MEDIUM,
-                trained_rows=int(len(d)), validation=dict(rows=int(len(val)), coverage80=cover(scale), coverage50=cover(scale, "50"),
-                                                          median_error_raw=float(ape_raw.median()), median_error_adjusted=float(ape_adj.median())))
+    for qq, model in final.items():
+        model.booster_.save_model(str(ROOT / f"models/range_q{int(qq * 100):02d}.txt"))
+    last = d["m"].max()
+    meta = dict(quantiles=QUANTILES, features=RANGE_FEATS, scale_low=s_lo, scale_high=s_hi, centre=now, centre_months=[str(last - rc.MONTHS + 1), str(last)],
+                badge_high=BADGE_HIGH, badge_medium=BADGE_MEDIUM, trained_rows=int(len(d)),
+                validation=dict(rows=int(len(val)), coverage80=(100 - below - above) / 100, under80=below / 100, over80=above / 100, coverage50=(100 - b50 - a50) / 100,
+                                under50=b50 / 100, over50=a50 / 100, median_error_raw=float(np.median(np.abs(ape(0)))), median_error_moved=float(np.median(np.abs(ape(centre))))))
     (ROOT / "models/range.json").write_text(json.dumps(meta, indent=2))
-    print("\nsaved models/range_q*.txt and models/range.json")
+    print(f"\ncentre now ({meta['centre_months'][0]} to {meta['centre_months'][1]}), in log units: {({k: round(v, 4) for k, v in now.items()})}")
+    print("saved models/range_q*.txt and models/range.json")
 
 
 if __name__ == "__main__":

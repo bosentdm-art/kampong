@@ -105,7 +105,9 @@ def assess(project, area, floor, asking=None):
         r[c] = pd.Categorical(r[c].astype(str), categories=levels)
     q = np.sort([float(rng[x].predict(r[m["range_features"]])[0]) for x in m["quantiles"]])
     med = q[m["quantiles"].index(0.5)]
-    q = med + m["scale"] * (q - med)
+    # centred on where recent resales in this market segment landed against our estimate, then widened below and above (recentre.py)
+    centre = m["centre"].get(str(p["market_segment"]), m["centre"]["all"])
+    q = centre + med + np.where(q < med, m["scale_low"], m["scale_high"]) * (q - med)
     quantiles = [(lvl, fair * float(np.exp(v))) for lvl, v in zip(m["quantiles"], q)]
     width = q[m["quantiles"].index(0.9)] - q[m["quantiles"].index(0.1)]
     badge = "High" if width <= m["badge_high"] else "Medium" if width <= m["badge_medium"] else "Low"

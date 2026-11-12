@@ -11,6 +11,7 @@ Needs the data and models built first (python src/update.py).
   GET/POST /api/alerts  watch a block for new sales, or a town for sales well under our estimate
   POST /api/signup, /api/login, /api/logout, GET /api/me, GET/POST /api/flats   accounts (see src/accounts.py)
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
+  POST /api/compare   two homes side by side: the AI's comparison, every figure checked
   GET  /api/deals     below-estimate sales in a town       GET /api/trend   yearly price per sqm for a town and flat type
 
 The page works out verdicts for any price from the returned price quantiles, so dragging the price needs no
@@ -19,6 +20,7 @@ new request. Everything returned comes from the models and the sales data; nothi
 import functools
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -204,6 +206,41 @@ def visitor(request, response):
     return f"a:{anon}", None
 
 
+def client_ip(request):
+    """The visitor's network address as a daily hash (None on this machine itself), for the per-network allowance."""
+    if request is None:
+        return None
+    ip = request.client.host if request.client else None
+    if os.environ.get("OIKOS_TRUST_PROXY", "").strip() == "1":
+        ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or ip
+    return acc.ip_key(ip)
+
+
+def gate(request, response):
+    """(who, network address) for an AI answer, or a 429 that says which allowance ran out."""
+    who, user = visitor(request, response)
+    ip = client_ip(request)
+    if acc.over_limit(who, ip):
+        cap = acc.limit_for(who)
+        if acc.used_today(who) < cap and acc.network_full(who, ip):
+            raise HTTPException(429, "Visitors on this network have used today's free AI answers. A free account gives you your own.")
+        more = ("A free account gives you more, or come back tomorrow." if not user else
+                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
+        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
+    return who, ip
+
+
+def answer(who, ip, facts, a, price, question):
+    """The AI's answer, recorded. An answer that only turns the question away does not use up one of the person's answers."""
+    if acc.budget_spent():
+        out = dict(text=llm.fallback_text(facts, a.role, a.age, price), source="rules", reason="daily_budget", cost_cents=0.0)
+    else:
+        out = llm.explain(facts, a.role, a.age, price, question, a.history, profile=a.profile, assumed=a.assumed)
+    out["counted"] = out.get("source") == "model" and not out.get("declined")
+    acc.record(who, "ask", out.get("cost_cents"), out["counted"], ip)
+    return out
+
+
 def me_view(who, user):
     plan = acc.plan_of(who)
     return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], used_today=acc.used_today(who),
@@ -240,8 +277,13 @@ def me(request: Request, response: Response):
 
 @app.post("/api/signup")
 def signup(body: Login, request: Request, response: Response):
+    ip = client_ip(request)
+    if acc.signups_today(ip) >= 3:
+        raise HTTPException(429, "Too many new accounts from this network today. Try again tomorrow.")
     try:
-        return start_session(acc.signup(body.email, body.password), request, response)
+        uid = acc.signup(body.email, body.password)
+        acc.record(f"u:{uid}", "signup", 0, False, ip)
+        return start_session(uid, request, response)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -288,6 +330,12 @@ WORK = re.compile(r"\b(?:i work|i'm working|my (?:office|work|workplace|job)(?: 
 WATCH = re.compile(r"\b(alert me|notify me|let me know when|tell me when|watch this|keep an eye)\b", re.I)
 QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
 SPEC = ("town", "street_name", "block", "flat_type", "flat_model", "floor_area_sqm", "storey_range", "lease_commence_date")
+COMPARE = re.compile(r"\b(compare|compared|comparing|comparison|versus|vs|better|worse|which one|which is|which should|which would|rather|instead of|cheaper than|dearer than)\b", re.I)
+SWITCH = re.compile(r"\b(what about|how about|what of|look at|check|instead|switch|another|as well|also)\b", re.I)
+BEDS = re.compile(r"\b[1-5][\s-]*(?:bed|bedroom|bedder|br)s?\b", re.I)
+TIMING = re.compile(r"\b(good time|right time|bad time|best time|should (?:i|we) wait|wait (?:for|till|until|a bit|a while|a year|and see)|buy now|sell now|hold off|"
+                    r"prices? (?:are |is |will |going to |to |keep )?(?:\w+ )?(?:drop|dropping|fall|falling|fell|crash|rise|rising|going up|going down|go up|go down|increase|decrease|peak|peaked|soften|cool)|"
+                    r"market (?:now|doing|trend|outlook|crash|cooling|heading|conditions?)|bubble|how is the market|hows the market|how's the market)\b", re.I)
 
 
 def band(floor):
@@ -358,6 +406,11 @@ def area_stats(town, street=None, flat_type=None, price=None):
                    change=float(g["price_per_sqm"].median() / before["price_per_sqm"].median() - 1) if months == 12 and len(before) >= 10 and len(g) >= 10 else None)
         if price and len(g) >= 10:
             out.update(price=float(price), price_pct=float((g["price"] < price).mean() * 100))
+        if not street:  # the cheapest and dearest streets for this flat type, for the comment under the card
+            st = g.groupby("street_name")["price"].agg(["median", "size"])
+            st = st[st["size"] >= 5].sort_values("median")
+            if len(st) >= 3:
+                out["streets"] = [[str(st.index[0]), float(st["median"].iloc[0])], [str(st.index[-1]), float(st["median"].iloc[-1])]]
         src = g
     else:
         src = recent
@@ -366,7 +419,7 @@ def area_stats(town, street=None, flat_type=None, price=None):
     return out
 
 
-def area_answer(a, text, who):
+def area_answer(a, text, who, ip=None):
     """The reply for a town or street: the numbers for the card, a short comment, and choices that narrow it down."""
     where = (f"on {a['street_name'].title()}" if a["street_name"] else f"in {a['town'].title()}")
     if a.get("flat_type"):
@@ -378,9 +431,11 @@ def area_answer(a, text, who):
         if a.get("price_pct") is not None:
             view.update(their_price=round(a["price"]), share_of_these_sales_cheaper_than_their_price_pct=round(a["price_pct"]),
                         share_of_these_sales_dearer_than_their_price_pct=100 - round(a["price_pct"]))
-        rule = (f"{a['flat_type'].title()} flats {where} sold for about {kfmt(a['median'])} over the last {a['months']} months; half went for between {kfmt(a['low'])} and {kfmt(a['high'])}. "
-                + ((f"{kfmt(a['price'])} is cheaper than about {100 - round(a['price_pct'])}% of those sales" if a["price_pct"] < 50 else f"{kfmt(a['price'])} is dearer than about {round(a['price_pct'])}% of those sales")
-                   + ", as a rough guide. " if a.get("price_pct") is not None else "") + ask + " Then I can check that exact flat.")
+        if a.get("streets"):
+            view["cheapest_and_dearest_streets_typical_price"] = {x[0].title(): round(x[1], -3) for x in a["streets"]}
+        # the card already shows the typical price and the range, so the words only add what it does not
+        rule = ((f"{kfmt(a['price'])} is cheaper than about {100 - round(a['price_pct'])}% of those sales" if a["price_pct"] < 50 else f"{kfmt(a['price'])} is dearer than about {round(a['price_pct'])}% of those sales")
+                + ", a rough guide until I know the exact flat. " if a.get("price_pct") is not None else f"That is what {a['flat_type'].title()} flats {where} have sold for lately. ") + ask
         choices = ([dict(label=f"Blk {b}", send=f"Blk {b} {a['street_name'].title()}") for b in a["top"]] if a["street_name"]
                    else [dict(label=x.title(), send=x.title()) for x in a["top"]])
     else:
@@ -388,13 +443,128 @@ def area_answer(a, text, who):
         view = dict(area=where, months=a["months"], typical_price_by_flat_type={t["flat_type"].title(): round(t["median"], -3) for t in a["by_type"]}, ask_next=ask)
         rule = (f"I don't have enough recent {a['missing_type'].title()} sales {where}. " if a.get("missing_type") else "") + f"Here is what flats {where} sold for over the last 12 months. " + ask
         choices = [dict(label=t["flat_type"].title(), send=t["flat_type"].title()) for t in a["by_type"]]
-    if who and acc.over_limit(who):
+    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
         reply, made = rule, False
     else:
         reply, cost, made = llm.area_reply(view, text, rule)
         if who:
-            acc.record(who, "area", cost, made)
+            acc.record(who, "area", cost, made, ip)
     return dict(area=a, reply=reply, ai=made, choices=choices)
+
+
+# ---- "is now a good time?": what prices and sales have done lately. Never a forecast.
+def like_for_like(now, then):
+    """Change in price per sqm between two sets of sales, comparing the same town, flat type and age group, weighted by sales. None if too thin."""
+    key = ["town", "flat_type", "older"]
+    a = now.groupby(key, observed=True)["price_per_sqm"].agg(med="median", n="size")
+    b = then.groupby(key, observed=True)["price_per_sqm"].agg(med="median", n="size")
+    j = a.join(b, lsuffix="_a", rsuffix="_b", how="inner")
+    j = j[(j["n_a"] >= 5) & (j["n_b"] >= 5)]
+    w = j[["n_a", "n_b"]].min(axis=1)
+    if w.sum() < 40:
+        return None
+    return float(np.expm1((w * np.log(j["med_a"] / j["med_b"])).sum() / w.sum()))
+
+
+@functools.lru_cache(maxsize=64)
+def market_stats(town=None):
+    """The last three complete months against the same months a year before (and the three months before), like for like."""
+    d, end = sales(), pd.Timestamp(meta()["trained_through"] + "-01")
+    d = d[d["sale_date"] <= end]
+    if town:
+        d = d[d["town"] == town]
+    d = d.assign(older=(d["sale_year"] - d["lease_commence_date"]) > 20)
+    win = lambda a, b: d[(d["sale_date"] > end - pd.DateOffset(months=a)) & (d["sale_date"] <= end - pd.DateOffset(months=b))]
+    now, prev, yago = win(3, 0), win(6, 3), win(15, 12)
+    rows = []
+    for t in ("3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"):
+        f = lambda x: x[x["flat_type"] == t]
+        ch = like_for_like(f(now), f(yago))
+        if ch is not None:
+            rows.append(dict(flat_type=t, change_year=ch, change_quarter=like_for_like(f(now), f(prev)), sales=int(len(f(now))), sales_year_ago=int(len(f(yago)))))
+    return dict(town=town, months=f"{end - pd.DateOffset(months=2):%b} to {end:%b %Y}", all=like_for_like(now, yago), sales=int(len(now)), sales_year_ago=int(len(yago)), by_type=rows,
+                newer=like_for_like(now[~now["older"]], yago[~yago["older"]]), older=like_for_like(now[now["older"]], yago[yago["older"]]))
+
+
+def pct1(x):
+    return None if x is None else round(x * 100, 1)
+
+
+def market_for_flat(town, flat_type, lease_commence_date):
+    """The market facts the model may use when asked about timing, for one flat's town, type and age group."""
+    isl, twn = market_stats(None), market_stats(town)
+    row = lambda m: next((dict(price_per_sqm_change_pct=pct1(r["change_year"]), sales=r["sales"], sales_a_year_before=r["sales_year_ago"]) for r in m["by_type"] if r["flat_type"] == flat_type), None)
+    older = int(meta()["trained_through"][:4]) - int(lease_commence_date) > 20
+    return {"what_this_is": f"what resale prices did over {isl['months']} against the same months a year before, like for like. Not a forecast.",
+            f"{flat_type.title()} flats in {town.title()}": row(twn), f"{flat_type.title()} flats across Singapore": row(isl),
+            ("flats over 20 years old" if older else "flats up to 20 years old") + " across Singapore, price_per_sqm_change_pct": pct1(isl["older" if older else "newer"])}
+
+
+def market_answer(town, text, who, ip=None):
+    m = market_stats(town)
+    if m["all"] is None:
+        m = market_stats(None)
+    where = f"in {m['town'].title()}" if m["town"] else "across Singapore"
+    ask = "Which flat are you looking at?"
+    view = dict(area=where, period=f"{m['months']} against the same months a year before, like for like", all_flats_price_per_sqm_change_pct=pct1(m["all"]), sales=m["sales"], sales_a_year_before=m["sales_year_ago"],
+                by_flat_type={r["flat_type"].title(): dict(price_per_sqm_change_pct=pct1(r["change_year"]), sales=r["sales"], sales_a_year_before=r["sales_year_ago"]) for r in m["by_type"]},
+                flats_up_to_20_years_old_change_pct=pct1(m["newer"]), flats_over_20_years_old_change_pct=pct1(m["older"]), ask_next=ask)
+    rule = (f"I can't tell you where prices go next, and nobody can reliably. What I can show is what they have done: over {m['months']}, resale prices {where} were {m['all'] * 100:+.1f}% on the same months a year before, "
+            f"like for like, with {m['sales']:,} sales against {m['sales_year_ago']:,}. Give me a block and street and I'll tell you whether that flat is fairly priced today. " + ask)
+    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
+        reply, made = rule, False
+    else:
+        reply, cost, made = llm.market_reply(view, text, rule)
+        if who:
+            acc.record(who, "area", cost, made, ip)
+    return dict(market=m, reply=reply, ai=made)
+
+
+# ---- how close our estimates have been for homes like this one, on sales we estimated before they happened
+@functools.lru_cache(maxsize=1)
+def oos_track():
+    d = pd.concat([pd.read_parquet(f, columns=["sale_date", "town", "flat_type", "lease_commence_date", "pred", "resale_price"]) for f in sorted((ROOT / "data/processed/oos").glob("chunk_*.parquet"))], ignore_index=True)
+    d = d[d["sale_date"] > d["sale_date"].max() - pd.DateOffset(months=18)]
+    return pd.DataFrame(dict(town=d["town"].astype(str), flat_type=d["flat_type"].astype(str), age=d["sale_date"].dt.year - d["lease_commence_date"], pred=d["pred"],
+                             miss=(d["resale_price"] / d["pred"] - 1).abs()))
+
+
+def track_summary(g, group, months=18):
+    share = float((g["miss"] > 0.10).mean() * 100)
+    return dict(sales_we_estimated_beforehand=int(len(g)), months=months, homes_like_this=group, half_were_within_pct=round(float(g["miss"].median() * 100), 1),
+                within_5pct_share_pct=round(float((g["miss"] <= 0.05).mean() * 100)), off_by_more_than_10pct_share_pct=round(share, 1),
+                off_by_more_than_10pct_in_words="fewer than 1 in 100" if share < 0.8 else f"about 1 in {round(100 / share)}")
+
+
+def track_record(town, flat_type, lease_commence_date, fair):
+    d, age, ft = oos_track(), int(meta()["trained_through"][:4]) - int(lease_commence_date), flat_type.title()
+    same, near, price = (d["town"] == town) & (d["flat_type"] == flat_type), (d["age"] - age).abs() <= 8, (d["pred"] / fair - 1).abs() <= 0.20
+    span = f"{max(0, age - 8)} to {age + 8} years old"
+    for mask, group in ((same & near & price, f"{ft} flats in {town.title()}, {span}, estimated within 20% of this one"), (same & near, f"{ft} flats in {town.title()}, {span}"),
+                        (same, f"{ft} flats in {town.title()}"), ((d["flat_type"] == flat_type) & near & price, f"{ft} flats across Singapore, {span}, estimated within 20% of this one"),
+                        (d["flat_type"] == flat_type, f"{ft} flats across Singapore")):
+        if mask.sum() >= 150:
+            return track_summary(d[mask], group)
+    return track_summary(d, "HDB flats across Singapore")
+
+
+@functools.lru_cache(maxsize=1)
+def condo_track_data():
+    files = sorted((ROOT / "data/processed/condo_oos").glob("chunk_*.parquet"))
+    d = pd.concat([pd.read_parquet(f, columns=["sale_date", "project", "property_type", "market_segment", "area", "lp", "pred_lp"]) for f in files], ignore_index=True)
+    d = d[d["sale_date"] > d["sale_date"].max() - pd.DateOffset(months=18)]
+    return pd.DataFrame(dict(project=d["project"].astype(str), property_type=d["property_type"].astype(str), market_segment=d["market_segment"].astype(str), area=d["area"],
+                             miss=(np.exp(d["lp"] - d["pred_lp"]) - 1).abs()))
+
+
+def condo_track(project, property_type, market_segment, area):
+    d = condo_track_data()
+    seg, size = (d["market_segment"] == market_segment) & (d["property_type"] == property_type), (d["area"] / area - 1).abs() <= 0.30
+    kind = {"Condominium": "condos", "Apartment": "apartments", "Executive Condominium": "executive condos"}.get(property_type, "units")
+    for mask, group, need in ((d["project"] == project, f"resales in {project.title()}", 40), (seg & size, f"{market_segment} {kind} of a similar size", 100), (seg, f"{market_segment} {kind}", 100)):
+        if mask.sum() >= need:
+            return track_summary(d[mask], group)
+    return track_summary(d, "private condos and apartments")
 
 
 def num(x, lo, hi, kind=float):
@@ -412,7 +582,9 @@ def understand(m: Message, request: Request = None, response: Response = None):
     question about the flat on screen. Rules read the message first; what they miss goes to the AI."""
     p = lp.parse(m.text[:20000])
     cur = {k: m.current[k] for k in SPEC} if m.current and all(k in m.current for k in SPEC) else None
-    base = dict(found=False, role=p["role"], age=p["age"], price=None, assumed=[], changed=[], reply=None, watch=bool(WATCH.search(m.text[:600])))
+    base = dict(found=False, role=p["role"], age=p["age"], profile=p["profile"], price=None, assumed=[], changed=[], reply=None, watch=bool(WATCH.search(m.text[:600])))
+    who = visitor(request, response)[0] if request is not None else None
+    ip = client_ip(request)
     w = WORK.search(m.text[:600])
     base["work"] = re.sub(r"\s+(?:and|but|so|then|every|daily|now)\b.*$", "", w.group(1).strip(), flags=re.I) if w else None
     if base["work"] and not p["block"]:  # "I work at one-north": the page works out the commute
@@ -425,15 +597,19 @@ def understand(m: Message, request: Request = None, response: Response = None):
     # A condo is on screen: the message changes it, names another home, or is a question about it.
     on_condo = m.current if (m.current or {}).get("kind") == "condo" and condo_ready() and m.current.get("project") in cc.projects().index else None
     named = cc.find_in_text(m.text[:2000]) if condo_ready() and not p["block"] else None
+    on_screen = bool(cur or on_condo)
+    compare = on_screen and bool(COMPARE.search(m.text[:600]))  # "is Parc Esta better?": put the two side by side, keep the first on screen
+    details = bool(p["floor_area_sqm"] or p["floor"] or p["asking"] or p["storey_hint"] or BEDS.search(m.text))
+    # Another condo is named. Go to it, unless this reads as a question about the home on screen that merely mentions it.
+    if named and not (on_condo and named == on_condo["project"]) and (not on_screen or not asks or compare or details or SWITCH.search(m.text[:600])):
+        return condo_answer(named, p, {**base, "compare": compare}, m.text)
     if on_condo:
-        if named and named != on_condo["project"] and not asks:
-            return condo_answer(named, p, base, m.text)
-        if not p["block"] and not asks and (p["floor_area_sqm"] or p["floor"] or p["asking"] or p["storey_hint"] or re.search(r"\b[1-5][\s-]*(?:bed|bedroom|bedder|br)s?\b", m.text, re.I)):
+        if not p["block"] and not asks and details:
             return condo_answer(on_condo["project"], p, base, m.text, cur=on_condo)
         if not p["block"]:
             return clean(base)  # a question about the condo on screen
-    elif named and not (cur and asks):
-        return condo_answer(named, p, base, m.text)
+    if not on_screen and not p["block"] and TIMING.search(m.text[:600]):  # "is now a good time?": what the market has done, never a forecast
+        return clean({**base, **market_answer(p["town_hint"], m.text, who, ip)})
 
     # Short messages build up: "bishan", then "4 room", then "blk 123". What earlier ones said arrives in m.context.
     ctx = {k: v for k, v in (m.context or {}).items() if k in ("town", "street_name", "block", "flat_type", "price", "floor", "sqm") and v} if not cur else {}
@@ -449,9 +625,8 @@ def understand(m: Message, request: Request = None, response: Response = None):
         p["floor_area_sqm"] = p["floor_area_sqm"] or num(ctx.get("sqm"), 20, 400)
 
     if p["block"] and not same:  # a new flat
-        return new_flat(p, base)
+        return new_flat(p, {**base, "compare": compare})
 
-    who = visitor(request, response)[0] if request is not None else None
     towns, streets = lp.places()
     known_street = {v[0]: v[1] for v in streets.values()}
     street = p["street_hint"] or (ctx.get("street_name") if ctx.get("street_name") in known_street and not p["town_hint"] else None)
@@ -477,7 +652,7 @@ def understand(m: Message, request: Request = None, response: Response = None):
             return clean({**base, "reply": "Which town is it in? Or give me the block and street if you have them.",
                           "choices": [dict(label=t.title(), send=t.title()) for t in ("ANG MO KIO", "BEDOK", "BISHAN", "JURONG WEST", "PUNGGOL", "SENGKANG", "TAMPINES", "WOODLANDS", "YISHUN")]})
         if town:
-            return clean({**base, **area_answer(area_stats(town, street, p["flat_type"], p["asking"]), m.text, who)})
+            return clean({**base, **area_answer(area_stats(town, street, p["flat_type"], p["asking"]), m.text, who, ip)})
 
     if cur and not asks:  # a correction to the flat on screen: "it's on the 11th floor", "asking is 400k", "it's 68 sqm"
         flat, changed = dict(cur), []
@@ -506,10 +681,11 @@ def understand(m: Message, request: Request = None, response: Response = None):
             return clean({**base, "found": True, "flat": flat, "price": p["asking"], "changed": changed})
 
     # The rules found no flat. With no flat on screen, or when the message seems to name another one, let the AI read it.
-    if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and acc.over_limit(who)):
+    if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and (acc.over_limit(who, ip) or acc.budget_spent())):
         r, cost = llm.route_message(m.text, m.history)
+        base = {**base, "compare": compare}
         if who:
-            acc.record(who, "route", cost, bool(r))
+            acc.record(who, "route", cost, bool(r), ip)
         if r and r.get("condo") and condo_ready() and cc.find_project(str(r["condo"])[:80]):  # the AI read a condo name the rules missed (a typo, a nickname)
             q = dict(p, floor=p["floor"] or num(r.get("floor"), 1, 80, int), floor_area_sqm=p["floor_area_sqm"] or num(r.get("sqm"), 20, 1000),
                      asking=p["asking"] or num(r.get("price"), 100_000, 30_000_000, int))
@@ -576,7 +752,8 @@ def facts_for(town, street_name, block, flat_type, flat_model, floor_area_sqm, s
         reliability=a["badge"], notes=a["notes"], checks=[c["message"] for c in adv.input_checks(spec)],
         average_flat=base, drivers=[[g, e] for g, e in effects.items()], what_ifs=[[k, v] for k, v in ex.what_if(spec).items()],
         recent=recent, outlook=[{k: v for k, v in r.items()} for r in out["rows"]], growth=math.expm1(out["growth_effective"]),
-        deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta(), nearby=nb.around_block(f.block, f.street_name)))
+        deals=deals_nearby(f.town), trend=trend(f.town, f.flat_type), meta=meta(), nearby=nb.around_block(f.block, f.street_name),
+        market=market_for_flat(f.town, f.flat_type, f.lease_commence_date), track=track_record(f.town, f.flat_type, f.lease_commence_date, a["fair"])))
 
 
 
@@ -591,7 +768,8 @@ def flat_key(f):
 
 class Ask(Flat):
     role: str = "buyer"
-    age: float = 35
+    age: float | None = None  # the youngest buyer's age, only if they told us
+    profile: dict | None = None  # what else they told us: who (alone or couple), first_home, timeline
     question: str | None = None
     history: list[dict] | None = None
     assumed: list[str] | None = None  # details the person did not give and we filled in
@@ -602,12 +780,7 @@ def ask(a: Ask, request: Request, response: Response):
     """Ask Oikos: a short plain-English explanation of this flat's options, written by a model from the facts."""
     if a.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
-    who, user = visitor(request, response)
-    if acc.over_limit(who):
-        cap = acc.limit_for(who)
-        more = ("A free account gives you more, or come back tomorrow." if not user else
-                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
-        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
+    who, ip = gate(request, response)
     facts = facts_for(*flat_key(a))
     price, question = a.price or facts["fair"], a.question
     if not a.price:  # nothing to judge yet: say what the flat is worth instead of giving a verdict on a made-up price
@@ -616,8 +789,7 @@ def ask(a: Ask, request: Request, response: Response):
     if a.assumed:
         question = ("(The person did not say these, so we assumed: " + "; ".join(str(x)[:120] for x in a.assumed[:4])
                     + ". Mention that in one short sentence and invite a correction.) " + (question or "Explain my options."))
-    out = llm.explain(facts, a.role, a.age, price, question, a.history)
-    acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model")
+    out = answer(who, ip, facts, a, price, question)
     if not a.question and out.get("source") == "model":  # the opening advice, kept so a shared link can show it
         acc.put_advice(advice_key(a, a.role), out["text"])
     return clean(out)
@@ -644,7 +816,8 @@ class CondoSpec(BaseModel):
 
 class CondoAsk(CondoSpec):
     role: str = "buyer"
-    age: float = 35
+    age: float | None = None
+    profile: dict | None = None
     question: str | None = None
     history: list[dict] | None = None
     assumed: list[str] | None = None
@@ -679,7 +852,8 @@ def condo_facts(project, area, floor, price):
         reliability=a["badge"], notes=a["notes"], checks=[], drivers=[],
         recent=[dict(month=r["month"], storey=r["floor"], floor_area_sqm=r["area"], price=r["price"], sale_type=r["sale_type"]) for r in a["recent"]],
         meta=dict(trained_through=m["trained_through"], holdout_median_error=m["holdout_median_error"], total_sales=m["rows"]),
-        nearby=dict(nb.around(*pos), lat=pos[0], lon=pos[1]) if pos else None))
+        nearby=dict(nb.around(*pos), lat=pos[0], lon=pos[1]) if pos else None,
+        track=condo_track(a["project"], a["property_type"], a["market_segment"], a["area"])))
 
 
 def condo_answer(name, p, base, text, cur=None):
@@ -719,12 +893,7 @@ def condo_ask(a: CondoAsk, request: Request, response: Response):
     """The AI's advice on a condo unit, with every figure checked, under the same daily limits as HDB advice."""
     if a.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
-    who, user = visitor(request, response)
-    if acc.over_limit(who):
-        cap = acc.limit_for(who)
-        more = ("A free account gives you more, or come back tomorrow." if not user else
-                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
-        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
+    who, ip = gate(request, response)
     facts = condo_facts(a.project, float(a.area), a.floor, a.price or None)
     price = a.price or facts["fair"]
     note = ("(This is a private condo unit, not an HDB flat. Do not mention HDB, the HDB-registered size or CPF. Stamp duties (including ABSD), loans and "
@@ -732,9 +901,47 @@ def condo_ask(a: CondoAsk, request: Request, response: Response):
             + ("No price has been given yet, so price_being_checked is only our fair value: do not give a verdict on it; say what the unit is worth and ask for the price. " if not a.price else "")
             + ("The person did not say these, so we assumed: " + "; ".join(str(x)[:140] for x in a.assumed[:4]) + ". Mention that in one short sentence and invite a correction. " if a.assumed else "")
             + ("The size is our guess and the verdict depends heavily on it: call the verdict provisional until they confirm the size, and do not tell them to move fast. " if any("sqm" in str(x) for x in (a.assumed or [])) else "") + ") ")
-    out = llm.explain(facts, a.role, a.age, price, note + (a.question or "Explain my options."), a.history)
-    acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model")
-    return clean(out)
+    return clean(answer(who, ip, facts, a, price, note + (a.question or "Explain my options.")))
+
+
+class Home(BaseModel):
+    kind: str = "hdb"
+    flat: dict | None = None   # the Flat fields, for an HDB flat
+    condo: dict | None = None  # project, area, floor
+    price: float | None = None
+
+
+class Pair(BaseModel):
+    a: Home
+    b: Home
+    role: str = "buyer"
+    question: str | None = None
+
+
+def home_facts(h):
+    try:
+        if h.kind == "condo":
+            c = CondoSpec(**(h.condo or {}))
+            return condo_facts(c.project, float(c.area), c.floor, h.price or None), c.project.title()
+        f = Flat(**(h.flat or {}), price=h.price or None)
+        return facts_for(*flat_key(f)), f"Blk {f.block} {f.street_name.title()}"
+    except (TypeError, ValueError):
+        raise HTTPException(422, "That home's details are incomplete.")
+
+
+@app.post("/api/compare")
+def compare(c: Pair, request: Request, response: Response):
+    """Two homes side by side, in the AI's words with every figure checked. Counts as one AI answer."""
+    if c.role not in ("buyer", "seller"):
+        raise HTTPException(422, "role must be buyer or seller")
+    who, ip = gate(request, response)
+    (fa, na), (fb, nb_) = home_facts(c.a), home_facts(c.b)
+    if acc.budget_spent():
+        text, cost, made = llm.compare_fallback(fa, fb, c.a.price, c.b.price, na, nb_), 0.0, False
+    else:
+        text, cost, made = llm.compare(fa, fb, c.role, c.a.price, c.b.price, na, nb_, (c.question or "Which is the better deal?")[:600])
+    acc.record(who, "ask", cost, made, ip)
+    return dict(text=text, source="model" if made else "rules", names=[na, nb_])
 
 
 @app.post("/api/commute")

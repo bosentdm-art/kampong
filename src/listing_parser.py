@@ -110,6 +110,49 @@ def find_price(t):
     return None
 
 
+# ---- what a person says about themselves: age, buying alone or as a couple, first home, how soon
+_NOT_AGE = r"(?!\s*(?:k\b|m\b|mil|sqm|sq\b|min|mins|minutes?|th\b|st\b|nd\b|rd\b|%|floors?|storey|rooms?|rm\b|,\d{3}|\.\d|-))"
+_AGES = [re.compile(r"\b(?:i'?m|i am|im|my age is|(?<!flat )(?<!block )(?<!lease )age(?: is|:)?|turning)\s+(\d{2})\b" + _NOT_AGE, re.I),
+         re.compile(r"\b(?:we(?:'re| are)?|both(?: of us)?|(?:husband|wife|hubby|partner|fianc[eé]e?|girlfriend|boyfriend|gf|bf|spouse) and (?:i|me)|me and my \w+|my \w+ and i)\s+(?:are\s+)?(?:both\s+)?(\d{2})\b(?:\s*(?:and|&|,|/)\s*(\d{2})\b)?" + _NOT_AGE, re.I),
+         re.compile(r"\b(\d{2})\s*(?:years? old|yrs? old|y/?o\b)", re.I)]
+_A_THING = re.compile(r"\b(flat|block|blk|unit|building|condo|project|estate|lease|it'?s|it is|place|house|home|hdb)\b[^.,;!?]{0,25}$", re.I)
+_COUPLE = re.compile(r"\b(couple|husband|wife|hubby|fianc[eé]e?|partner|spouse|girlfriend|boyfriend|gf|bf|married|wedding|both of us|we are both|we're both|the two of us)\b", re.I)
+_ALONE = re.compile(r"\b(single|alone|on my own|by myself|just me|bachelor)\b", re.I)
+_FIRST = re.compile(r"\b(first[- ]?tim(?:e|er|ers)|first (?:home|flat|property|house|place|hdb)|1st (?:time|home|flat)|never (?:bought|owned))\b", re.I)
+_NOT_FIRST = re.compile(r"\b(second[- ]?tim(?:e|er|ers)|2nd[- ]tim(?:e|er)|upgrad(?:e|ing|er|ers)|downgrad\w*|downsiz\w*|right[- ]?siz\w*|already own|my current (?:flat|home|place|condo|hdb)|our current (?:flat|home|place|condo|hdb)|sold (?:my|our)|selling (?:my|our) (?:flat|home|place|condo|hdb) (?:to|and) (?:buy|upgrade|move))\b", re.I)
+_SOON = re.compile(r"\b(urgent(?:ly)?|asap|as soon as possible|in a (?:hurry|rush)|need to (?:move|buy|sell) (?:by|before|soon|fast|quickly|within)|have to (?:move|buy|sell) (?:by|before|soon|fast|quickly|within)|deadline|"
+                   r"within (?:a |one |two |three |\d )?(?:weeks?|months?)|baby (?:is )?(?:due|coming)|(?:lease|tenancy|rental) (?:is )?(?:ending|expiring|ends|expires))\b", re.I)
+_RELAXED = re.compile(r"\b(no (?:rush|hurry)|not in (?:a|any) (?:rush|hurry)|just (?:looking|browsing|exploring|curious|checking)|taking (?:my|our) time|next year|in a year|a year or two|few years|someday|eventually|no deadline|can wait)\b", re.I)
+
+
+def find_profile(text):
+    """What the message says about the person: {age (the youngest, if two are given), who, first_home, timeline}. Only what was said."""
+    t, out = " ".join(text.split())[:2000], {}
+    for pat in _AGES:
+        for m in pat.finditer(t):
+            ages = [int(g) for g in m.groups() if g]
+            if pat is _AGES[2] and _A_THING.search(t[:m.start()]):  # "the flat is 30 years old" is not about the person
+                continue
+            if ages and all(21 <= a <= 90 for a in ages):
+                out["age"] = min(ages)
+                break
+        if "age" in out:
+            break
+    if _ALONE.search(t):
+        out["who"] = "alone"
+    elif _COUPLE.search(t):
+        out["who"] = "couple"
+    if _NOT_FIRST.search(t):
+        out["first_home"] = False
+    elif _FIRST.search(t):
+        out["first_home"] = True
+    if _SOON.search(t):
+        out["timeline"] = "soon"
+    elif _RELAXED.search(t):
+        out["timeline"] = "relaxed"
+    return out
+
+
 def parse(text):
     """Works on a pasted listing page and on a typed line like "blk 85 whampoa drive, 3-room, 76 sqm, 8th floor, asking 420k"."""
     t = " ".join(text.split())
@@ -145,16 +188,15 @@ def parse(text):
     if m:
         out["storey_hint"] = m.group(1).lower().replace("middle", "mid")
     m = (re.search(r"#(\d{1,2})-\d+", t) or re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:floor|storey|level)\b", t, re.I)
-         or re.search(r"\b(?:floor|storey|level|lvl|flr)\s*(\d{1,2})\b", t, re.I) or re.search(r"\b(\d{1,2})\s*(?:f|/f|flr)\b", t, re.I))
+         or re.search(r"\b(?:floor|storey|level|lvl|flr)\s*(\d{1,2})\b(?![.,]\d)", t, re.I) or re.search(r"\b(\d{1,2})\s*(?:f|/f|flr)\b", t, re.I))
     if m and 1 <= int(m.group(1)) <= 60:
         out["floor"] = int(m.group(1))
     if re.search(r"\b(sell|selling|seller|my flat|my unit|my home|i own|list(?:ing)? (?:it|mine|my))\b", t, re.I):
         out["role"] = "seller"
     elif re.search(r"\b(buy|buying|buyer|offer|looking at|viewing|viewed)\b", t, re.I):
         out["role"] = "buyer"
-    m = re.search(r"\b(?:i'?m|i am|aged?)\s+(\d{2})\b|\b(\d{2})\s*(?:years? old|yo)\b", t, re.I)
-    if m and 21 <= int(m.group(1) or m.group(2)) <= 90:
-        out["age"] = int(m.group(1) or m.group(2))
+    out["profile"] = find_profile(t)
+    out["age"] = out["profile"].get("age")
 
     # block + street: try every "<number><letter?> <words>" in the text against the HDB data, longest street match first
     idx, d = block_index(), blocks()
@@ -189,6 +231,9 @@ def parse(text):
             out["asking"] = int(m.group(1)) * 1000
     if out["lease_commence_date"] is None and out["top_year"]:
         out["lease_commence_date"] = out["top_year"]
+    if out["age"] and str(out["age"]) in (out["block"], out["block_hint"]):  # "we are 85 whampoa drive": that is the block, not an age
+        out["age"] = None
+        out["profile"].pop("age", None)
     return out
 
 

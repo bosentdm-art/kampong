@@ -4,7 +4,12 @@ Passwords are stored only as salted scrypt hashes. A session is a random token k
 database holds only its SHA-256. Visitors without an account get a random anonymous id so their usage can be counted.
 
 Plans set how many AI answers a person gets per day (Singapore time): see PLANS. OIKOS_LIMIT_ANON and
-OIKOS_LIMIT_USER override the visitor and free numbers. There is no payment yet: "I want this plan" is recorded in
+OIKOS_LIMIT_USER override the visitor and free numbers. Only answers that helped count: one that just turns a question away
+does not. Visitors are also counted per network address (kept only as a hash that changes daily), so clearing cookies
+does not reset the allowance; OIKOS_LIMIT_ANON_IP sets that cap (default 5 times the visitor number), and
+OIKOS_DAILY_BUDGET_CENTS (default 300) is the most the AI may cost in a day before answers fall back to rule-based text.
+Set OIKOS_TRUST_PROXY=1 when the app runs behind a reverse proxy, so the visitor's address is read from X-Forwarded-For.
+There is no payment yet: "I want this plan" is recorded in
 the interest table, and a plan is switched by hand:  python src/accounts.py set-plan someone@example.com plus
 No email verification or password reset yet: both need a mail service.
 """
@@ -52,6 +57,10 @@ def init():
         """)
         if "plan" not in [r["name"] for r in c.execute("pragma table_info(users)")]:
             c.execute("alter table users add column plan text not null default 'free'")
+        if "ip" not in [r["name"] for r in c.execute("pragma table_info(usage)")]:
+            c.execute("alter table usage add column ip text")
+        c.execute("create table if not exists settings (key text primary key, value text not null)")
+        c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
 
 def _hash(password, salt=None):
@@ -167,9 +176,19 @@ def _sg_midnight():
     return (now + 8 * 3600) // 86400 * 86400 - 8 * 3600
 
 
-def record(who, kind, cost_cents, answered):
+def ip_key(ip):
+    """A network address as we keep it: a hash that changes every day, so it cannot be traced back or followed over time.
+    None for this machine itself (local development), which is never capped."""
+    if not ip or ip in ("localhost", "testclient", "::1") or ip.startswith("127."):
+        return None
     with db() as c:
-        c.execute("insert into usage (who, kind, at, cost_cents, answered) values (?, ?, ?, ?, ?)", (who, kind, time.time(), float(cost_cents or 0), int(bool(answered))))
+        salt = c.execute("select value from settings where key = 'ip_salt'").fetchone()["value"]
+    return hashlib.sha256(f"{salt}|{int(_sg_midnight())}|{ip}".encode()).hexdigest()[:20]
+
+
+def record(who, kind, cost_cents, answered, ip=None):
+    with db() as c:
+        c.execute("insert into usage (who, kind, at, cost_cents, answered, ip) values (?, ?, ?, ?, ?, ?)", (who, kind, time.time(), float(cost_cents or 0), int(bool(answered)), ip))
 
 
 def used_today(who):
@@ -178,9 +197,38 @@ def used_today(who):
         return c.execute("select count(*) from usage where who = ? and at >= ? and answered = 1 and kind = 'ask'", (who, _sg_midnight())).fetchone()[0]
 
 
-def over_limit(who):
+def _count(where, args):
+    with db() as c:
+        return c.execute("select count(*) from usage where at >= ? and " + where, (_sg_midnight(), *args)).fetchone()[0]
+
+
+def network_full(who, ip):
+    """True when visitors without an account on this network address have used up the day's shared allowance."""
+    if not ip or not who.startswith("a:"):
+        return False
+    cap = _limit("OIKOS_LIMIT_ANON_IP")
+    cap = cap if cap is not None else 5 * limit_for(who)
+    return _count("ip = ? and who like 'a:%' and answered = 1 and kind = 'ask'", (ip,)) >= cap
+
+
+def over_limit(who, ip=None):
+    """Out of answers for today: their own allowance, far too many AI calls of any kind, or (for visitors) the network's shared allowance."""
     cap = limit_for(who)
-    return cap is not None and used_today(who) >= cap
+    if cap is None:
+        return False
+    return used_today(who) >= cap or _count("who = ? and kind in ('ask', 'route', 'area')", (who,)) >= 4 * cap + 10 or network_full(who, ip)
+
+
+def budget_spent():
+    """True when today's AI calls have cost more than the daily budget, so answers should be rule-based until midnight."""
+    cap = _limit("OIKOS_DAILY_BUDGET_CENTS")
+    with db() as c:
+        spent = c.execute("select coalesce(sum(cost_cents), 0) from usage where at >= ?", (_sg_midnight(),)).fetchone()[0]
+    return spent >= (cap if cap is not None else 300)
+
+
+def signups_today(ip):
+    return _count("ip = ? and kind = 'signup'", (ip,)) if ip else 0
 
 
 # ---- saved flats

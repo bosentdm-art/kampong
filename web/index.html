@@ -162,6 +162,12 @@
   .around { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:6px; }
   .ar { display:grid; grid-template-columns:150px 1fr; gap:10px; font-size:14.5px; } .ar > span:first-child { color:var(--dim); } .ar b { font-weight:600; }
   .soon { background:var(--soft); color:var(--accent); border-radius:8px; padding:0 6px; font-size:12px; font-weight:700; margin-right:6px; }
+  .you { display:grid; gap:10px; } .you .q { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .you .q > span { min-width:150px; }
+  .you input { width:84px; font:inherit; padding:7px 10px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--fg); }
+  .opt { font:inherit; font-size:14px; padding:7px 13px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer; }
+  .opt.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .fcardc table.cmp { width:100%; border-collapse:collapse; font-size:14.5px; } .fcardc table.cmp td, .fcardc table.cmp th { padding:7px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }
+  .fcardc table.cmp tr:first-child th { border-top:0; } .fcardc table.cmp td:first-child { color:var(--dim); }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -189,6 +195,7 @@
     .result { grid-template-columns:1fr; } .tiles { grid-template-columns:1fr 1fr; } .tiles .tile:first-child { grid-column:1 / -1; } .view { padding:16px 12px 24px; }
     .bar { padding:8px 12px; flex-wrap:wrap; min-height:0; } .txt { font-size:15.5px; padding:12px 14px; } .fcardc { padding:16px; border-radius:22px; } .bub { max-width:88%; }
     .chips { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding-bottom:4px; scrollbar-width:none; } .chip { white-space:nowrap; flex:none; }
+    #starters { flex-wrap:wrap; overflow:visible; justify-content:center; }
     .toast { bottom:auto; top:66px; right:12px; } .alform { grid-template-columns:1fr; } .ar { grid-template-columns:1fr; gap:0; } .pick { grid-template-columns:1fr; } dialog { padding:18px; max-height:92dvh; }
   }
   @media print {  /* the brief is the only thing that prints */
@@ -279,7 +286,7 @@
           <div class="bd tabbody">
             <div data-pane="options"><div class="cards" id="opts"></div><div class="fine" id="optNote" style="margin-top:10px"></div></div>
             <div data-pane="life" hidden>
-              <div class="life-top"><label class="cap dim">Your age<input id="age" class="bigin" type="number" min="21" max="90" step="1" value="35"></label>
+              <div class="life-top"><label class="cap dim">Your age<input id="age" class="bigin" type="number" min="21" max="90" step="1" placeholder="?"></label>
                 <div><div class="big" id="lifeWord"></div><div id="lifeLine" style="margin-top:6px"></div></div></div>
               <div class="life"><i id="lifeBar"></i><span id="lifeTicks"></span></div><div class="pro" id="lifeRows"></div>
               <div class="fine" style="margin-top:8px">HDB loan and CPF rules can depend on the lease covering the youngest buyer to age 95. Check the current rules with HDB and CPF before you commit.</div>
@@ -331,7 +338,7 @@
     <label><span class="cap dim">Flat model</span><select id="fmodel"></select></label><label><span class="cap dim">Size (sqm)</span><input id="area" type="number" min="20" max="400" step="1"></label>
     <label><span class="cap dim">Storey</span><select id="storey"></select></label><label><span class="cap dim">Lease start year</span><input id="lease" type="number" min="1960" max="2030" step="1"></label>
     <label><span class="cap dim"><span class="buyer">Asking price ($)</span><span class="seller">Your listing price ($)</span></span><input id="price" type="number" min="0" step="1000" placeholder="optional"></label>
-    <label class="buyer"><span class="cap dim">Your age (for the lease check)</span><input id="age0" type="number" min="21" max="90" step="1" value="35"></label>
+    <label class="buyer"><span class="cap dim">Your age (for the lease check)</span><input id="age0" type="number" min="21" max="90" step="1" placeholder="optional"></label>
   </div>
   <div class="msg fine" id="formMsg" role="status"></div>
   <button class="btn" id="checkBtn" type="button" style="width:100%;padding:13px">Check this flat</button>
@@ -370,7 +377,7 @@ const FIGURE = /(\$[\d,]+(?:\.\d+)?[km]?|[+-]?\d+(?:\.\d+)?%|\d+ in \d+|\d+ of \
 const rich = text => String(text).split(FIGURE).map((part, i) => i % 2 ? h("span", { className: "hm" }, part) : part).filter(part => part !== "");
 const kv = (label, value, cls = "") => h("div", { className: "kv " + cls }, h("span", { className: "dim" }, label), h("b", {}, value));
 const api = (path, body) => fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
-  .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(typeof e.detail === "string" ? e.detail : "The request could not be completed")), () => Promise.reject(new Error("The server did not answer"))));
+  .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(Object.assign(new Error(typeof e.detail === "string" ? e.detail : "The request could not be completed"), { status: r.status })), () => Promise.reject(new Error("The server did not answer"))));
 // Settings and saved flats live in this browser only (no accounts yet). Everything works if storage is unavailable.
 const store = { get(key, fallback) { try { const v = localStorage.getItem("oikos-" + key); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
                 set(key, v) { try { localStorage.setItem("oikos-" + key, JSON.stringify(v)); } catch (e) {} } };
@@ -406,7 +413,21 @@ const isCondo = f => !!f && f.kind === "condo";  // a private condo unit: same c
 const flatName = f => isCondo(f) ? title(f.project) : `Blk ${f.flat.block} ${title(f.flat.street_name)}`;
 const flatDesc = f => isCondo(f) ? `${f.property_type}, ${title(f.street)} (D${f.district}), ${Math.round(f.flat.floor_area_sqm)} sqm, floors ${f.flat.storey}, ${f.freehold ? "freehold" : Math.round(f.lease_now) + " years of lease left"}`
   : `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
-const age = () => Math.min(90, Math.max(21, Math.round(+$("age").value) || 35));
+// What the person has told us about themselves: { age (the youngest buyer), who: "alone" | "couple", first_home, timeline: "soon" | "relaxed", asked }.
+// Nothing is assumed: with no age, the lease is given in years and Oikos asks.
+let profile = store.get("profile", {});
+const age = () => profile.age >= 21 && profile.age <= 90 ? profile.age : null;
+const you = () => ({ who: profile.who || null, first_home: typeof profile.first_home === "boolean" ? profile.first_home : null, timeline: profile.timeline || null });
+function setProfile(p) {
+  const a = Math.round(+p.age);
+  if (a >= 21 && a <= 90) profile.age = a; else if (p.age === null) delete profile.age;
+  if (["alone", "couple"].includes(p.who)) profile.who = p.who;
+  if (typeof p.first_home === "boolean") profile.first_home = p.first_home;
+  if (["soon", "relaxed"].includes(p.timeline)) profile.timeline = p.timeline;
+  if (p.asked) profile.asked = true;
+  store.set("profile", profile); $("age").value = $("age0").value = age() || ""; renderLife();
+  if (document.body.dataset.current === "compare") renderCompare();
+}
 
 let F = null;                         // facts for the flat on screen, from /api/assess
 let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
@@ -453,7 +474,7 @@ async function openSheet() {
   try {
     const o = await loadOptions({ town: f.town, street: f.street_name, block: f.block, flat_type: f.flat_type });
     if (o.flat_models.includes(f.flat_model)) $("fmodel").value = f.flat_model;
-    $("area").value = f.floor_area_sqm; $("storey").value = f.storey_range; $("lease").value = f.lease_commence_date; $("price").value = hasPrice() ? +$("ask").value : "";
+    $("area").value = f.floor_area_sqm; $("storey").value = f.storey_range; $("lease").value = f.lease_commence_date; $("price").value = hasPrice() ? F.price : "";
   } catch (e) { $("formMsg").textContent = e.message; }
 }
 $("pickBtn").addEventListener("click", openSheet);
@@ -472,8 +493,10 @@ $("newBtn").addEventListener("click", () => go("chat"));
 // ---- the result: everything that depends only on the flat
 function show() {
   askHistory = [];
-  const f = F.flat, fair = F.fair, q = l => qOf(F, l), lo = Math.floor(q(5) * 0.92 / 1000) * 1000, hi = Math.ceil(q(95) * 1.08 / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
-  const a = $("ask"); a.min = lo; a.max = hi; a.value = Math.min(hi, Math.max(lo, F.price || Math.round(fair / 1000) * 1000));
+  const f = F.flat, fair = F.fair, q = l => qOf(F, l), p0 = F.price || Math.round(fair / 1000) * 1000;
+  // the slider stretches to hold their price, however far from our range it is
+  const lo = Math.floor(Math.min(q(5) * 0.92, p0 * 0.97) / 1000) * 1000, hi = Math.ceil(Math.max(q(95) * 1.08, p0 * 1.03) / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
+  const a = $("ask"); a.min = lo; a.max = hi; a.value = p0;
   if (isCondo(F)) return;  // the rest fills the full breakdown page, which is HDB only for now
   $("checks").replaceChildren(...F.checks.map(c => h("div", { className: "warn" }, h("b", {}, "Check your input: "), ...rich(c))));
   $("fair").textContent = money(fair);
@@ -497,7 +520,8 @@ function show() {
     : "No sales of this flat type in this block in the last 24 months.");
   $("paneWhatif").replaceChildren(h("table", { className: "num" }, h("tr", {}, h("th", {}, "If this flat were..."), h("th", {}, "Fair value changes by")), ...F.what_ifs.map(([l, v]) => h("tr", {}, h("td", {}, l), h("td", {}, pc(v))))),
     h("div", { className: "fine", style: "margin-top:8px" }, "Patterns the model learned from past sales, not guarantees."));
-  $("paneWhy").replaceChildren(h("div", {}, "Reliability is ", h("b", {}, F.reliability), F.notes.length ? " for this flat because:" : ": estimates for flats like this one have matched real sales closely."), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n)))));
+  $("paneWhy").replaceChildren(h("div", {}, "Reliability is ", h("b", {}, F.reliability), F.notes.length ? " for this flat because:" : ": estimates for flats like this one have matched real sales closely."), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n)))),
+    F.track ? h("div", {}, ...rich(`On ${F.track.sales_we_estimated_beforehand} sales over ${F.track.months} months that we estimated before they sold (${F.track.homes_like_this}), half landed within ${F.track.half_were_within_pct}% of our estimate and ${F.track.off_by_more_than_10pct_in_words} was off by more than 10%.`)) : null);
   $("paneOutlook").replaceChildren(h("table", { className: "num" }, h("tr", {}, ...["In", "Lease left", "Central", "Likely range"].map(t => h("th", {}, t))),
     ...F.outlook.map(r => h("tr", {}, h("td", {}, hl(r.years + " years")), h("td", {}, Math.round(r.lease_left) + " yrs"), ...(r.central ? [h("td", {}, k(r.central)), h("td", {}, `${k(r.likely_low)} - ${k(r.likely_high)}`)] : [h("td", { colSpan: 2 }, title(r.note[0]) + r.note.slice(1))])))),
     h("div", { className: "fine", style: "margin-top:8px" }, ...rich(`Projections, not guarantees. The central case works out to about ${(F.growth * 100).toFixed(1)}% a year market growth plus lease decay. No figure is shown where the lease would fall under 50 years.`)));
@@ -518,7 +542,7 @@ function dealCards(box, note, d) {
 // ---- the result: everything that depends on the price, role, mode or theme
 function render() {
   if (!F || isCondo(F)) return;
-  const a = +$("ask").value, { R, p, t, i, word, color } = verdictFor(F, a), fair = F.fair, diff = a / fair - 1, under = a < fair;
+  const a = asked(), { R, p, t, i, word, color } = verdictFor(F, a), fair = F.fair, diff = a / fair - 1, under = a < fair;
   $("verdict").textContent = word + "."; $("verdict").style.color = color;
   $("sub").replaceChildren(...rich((root.mode === "simple" ? "" : R.line(p) + " ") + R.lead + money(a) + " is "), h("b", { className: "hm", style: `color:${color}` }, pc(diff)), ...rich(" versus our fair value of " + money(fair) + "."));
   $("gap").textContent = Math.abs(a - fair) < 500 ? "AT FAIR VALUE" : `${under ? "▼" : "▲"} ${money(Math.abs(a - fair))} ${under ? "BELOW" : "ABOVE"} FAIR VALUE`;
@@ -555,6 +579,11 @@ function fitVerdict() {  // shrink the headline when it is wider than its column
 const leaseEnd = f => Math.floor(age() + f.lease_now);
 function renderLife() {
   if (!F) return;
+  if (age() == null) {  // no age given: say what is left, and ask
+    $("lifeWord").textContent = Math.round(F.lease_now) + " years left"; $("lifeWord").style.color = "";
+    $("lifeLine").replaceChildren("Enter your age to see how old you will be when the lease ends.");
+    $("lifeBar").style.width = "0"; $("lifeTicks").replaceChildren(); $("lifeRows").replaceChildren(); return;
+  }
   const a = age(), lease = F.lease_now, end = leaseEnd(F), ok = end >= 95, col = ok ? C.bright : end >= 85 ? C.orange : C.red, x = v => Math.max(0, Math.min(100, (v - a) / (95 - a) * 100));
   $("lifeWord").textContent = ok ? "Lasts past 95" : "Ends when you are " + end;
   $("lifeWord").style.color = root.theme === "dark" ? col[0] : col[1];
@@ -565,7 +594,8 @@ function renderLife() {
     ...(ok ? [] : [h("div", { className: "mark", style: `left:${x(a + lease)}%` }, h("span", {}, "LEASE ENDS AT " + end))]));
   $("lifeRows").replaceChildren(...[55, 65, 75, 85].filter(m => m > a).map(m => kv("When you are " + m, a + lease - m > 0 ? Math.round(a + lease - m) + " years of lease left" : "The lease has ended")));
 }
-const syncAge = from => { const v = $(from).value; $("age").value = v; $("age0").value = v; store.set("age", v); renderLife(); };
+const syncAge = from => { const v = Math.round(+$(from).value), other = from === "age" ? "age0" : "age"; $(other).value = $(from).value;
+  if (v >= 21 && v <= 90) profile.age = v; else delete profile.age; store.set("profile", profile); renderLife(); };
 $("age").addEventListener("input", () => syncAge("age")); $("age0").addEventListener("input", () => syncAge("age0"));
 
 // ---- drawings
@@ -604,11 +634,12 @@ function drawTrend(g, text, t, flatType, town) {
 // corrects the flat on screen, or is a question about it. The server checks every figure the model writes and falls back to rule-based text.
 // Nothing is dumped on screen at once: status lines change as work happens, the card builds up, and answers are typed out.
 let askHistory = [], talk = [], busy = false;
-const REASONS = { no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
+const REASONS = { daily_budget: "today's AI budget is used up", no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = ms => new Promise(r => setTimeout(r, calm ? 0 : ms));
 const hasPrice = () => !!F && F.price != null;
+const asked = () => hasPrice() ? F.price : +$("ask").value;  // the price being checked: theirs if they gave one, else our fair value
 function follow() {  // keep the newest line in view, unless the reader has scrolled up
   const t = $("thread"), d = document.documentElement;
   if (t.scrollHeight - t.scrollTop - t.clientHeight < 180) t.scrollTop = t.scrollHeight;
@@ -646,12 +677,12 @@ async function say(nodes, tail) {
 const chip = (text, sends = text) => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(sends)); return c; };
 let ctx = {};  // what earlier short messages said (town, street, flat type, price...) until an exact flat is found
 // Advice arrives as plain text. A line that starts with a short label ("Verdict: ...") gets the label set apart, and "- " lines become bullets.
-function formatted(text) {
-  const out = [];
+function formatted(text, paint = tinted) {
+  const out = [], cap = t => t.charAt(0).toUpperCase() + t.slice(1);
   String(text).split("\n").forEach((line, i) => {
     if (i) out.push("\n");
     const m = line.match(/^([A-Z][A-Za-z' ]{1,22}):\s+(.+)$/);
-    if (m) out.push(h("b", { className: "lbl" }, m[1]), "\n", ...tinted(m[2])); else out.push(...tinted(line.replace(/^- /, "\u2022 ")));
+    if (m) out.push(h("b", { className: "lbl" }, m[1]), "\n", ...paint(cap(m[2]))); else out.push(...paint(line.replace(/^- /, "\u2022 ")));
   });
   return out;
 }
@@ -757,7 +788,7 @@ async function sayCommute() {
 }
 
 function flatCard(u = {}) {
-  const mine = F, priced = hasPrice(), a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
+  const mine = F, priced = hasPrice(), a = asked(), v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
   const fig = (text, color) => h("span", { className: "hm", style: color ? `color:${color}` : "" }, text);
   const tile = (label, val) => h("div", { className: "tile" }, h("div", { className: "cap dim" }, label), typeof val === "string" ? h("b", {}, val) : val);
   const btn = (label, fn) => { const b = h("button", { className: "pill", type: "button" }, label); b.addEventListener("click", fn); return b; };
@@ -771,6 +802,7 @@ function flatCard(u = {}) {
     priced ? h("div", { className: "mini", style: `background:linear-gradient(90deg, ${stops.join(", ")})` }, dot) : null,
     h("div", { className: "tiles" }, tile("Fair value", fairB), tile("Likely range", `${k(q(25))} - ${k(q(75))}`),
       buyer ? tile("Don't pay more than", h("b", { style: `color:${priceColor(q(75))}` }, k(q(75)))) : tile("Think twice below", k(q(25)))),
+    F.track ? h("div", { className: "fine" }, ...rich(`How close we have been on homes like this: half within ${F.track.half_were_within_pct}%, ${F.track.off_by_more_than_10pct_in_words} off by more than 10%. From ${F.track.sales_we_estimated_beforehand} sales over ${F.track.months} months that we estimated before they sold (${F.track.homes_like_this}).`)) : null,
     aroundBlock(mine),
     F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this ${isCondo(F) ? "project" : "block"} (${F.recent.length})`),
       ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` ${isCondo(F) ? "floors" : "storey"} ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm` + (r.sale_type && r.sale_type !== "resale" ? `, ${r.sale_type}` : "")), h("b", {}, money(r.price))))) : null,
@@ -810,9 +842,9 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
   w.set(question ? "Thinking it through" : "Reading the numbers");
   const beats = [setTimeout(() => w.set(question ? "Checking the figures" : "Weighing your options"), 2600), setTimeout(() => w.set("Writing it up"), 5600)];
   try {
-    const common = { price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(), question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null };
+    const common = { price: hasPrice() ? F.price : null, role: root.role, age: age(), profile: you(), question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null };
     const f = F.flat, r = isCondo(F) ? await api("/api/condo/ask", { ...F.condo, ...common }) : await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
-      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role, age: age(),
+      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? F.price : null, role: root.role, age: age(), profile: you(),
       question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null });
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
     beats.forEach(clearTimeout); w.remove();
@@ -821,11 +853,78 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
     if (first) { await sleep(350); row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
       ? [`What if I offer ${k(qOf(F, 25))}?`, isCondo(F) ? "What should I check at the viewing?" : "Is the lease a problem for me?", "How should I negotiate?"]
       : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map((t, i) => { const c = chip(t); c.style.animationDelay = i * 0.12 + "s"; return c; }))); }
+    if (first && !profile.asked) { await sleep(500); aboutYou(); }
     refreshMe();
   } catch (e) {
-    beats.forEach(clearTimeout); w.remove(); await say(e.message.startsWith("You've used") ? e.message : "I couldn't get an answer: " + e.message);
-    if (e.message.startsWith("You've used")) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); refreshMe(); }
+    beats.forEach(clearTimeout); w.remove(); await say(e.status === 429 ? e.message : "I couldn't get an answer: " + e.message);
+    if (e.status === 429) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); refreshMe(); }
   }
+}
+// Asked once, after the first advice: the few things about the person that change the advice. Every part is optional.
+function aboutYou() {
+  const buyer = root.role === "buyer", pickd = {}, ageIn = h("input", { type: "number", min: 21, max: 90, placeholder: "age", ariaLabel: "Age of the youngest buyer" });
+  const group = (key, opts) => { const bs = opts.map(([label, val]) => { const b = h("button", { className: "opt", type: "button" }, label);
+    b.addEventListener("click", () => { pickd[key] = val; bs.forEach(x => x.classList.toggle("on", x === b)); }); return b; }); return bs; };
+  const q = (label, ...kids) => h("div", { className: "q" }, h("span", {}, label), ...kids);
+  const save = h("button", { className: "pill", type: "button" }, "Save"), skip = h("button", { className: "linkbtn", type: "button" }, "Not now");
+  const box = h("div", { className: "txt you" }, h("div", {}, h("b", {}, "So my advice fits you"), h("span", { className: "dim" }, "  Optional. I never guess these.")),
+    buyer ? q("Youngest buyer's age", ageIn) : null, q(buyer ? "Buying" : "Selling", ...group("who", [["On my own", "alone"], ["As a couple", "couple"]])),
+    buyer ? q("First home?", ...group("first_home", [["Yes", true], ["No", false]])) : null, q("How soon?", ...group("timeline", [["No rush", "relaxed"], ["In a hurry", "soon"]])),
+    h("div", { className: "q" }, save, skip));
+  const r = row("bot", box), f = F;
+  skip.addEventListener("click", () => { setProfile({ asked: true }); r.remove(); });
+  save.addEventListener("click", () => {
+    setProfile({ ...pickd, age: ageIn.value ? +ageIn.value : undefined, asked: true });
+    let note = "Thanks, I'll keep that in mind for every home you check.";
+    if (buyer && age() != null && f && !f.freehold) {
+      const end = Math.floor(age() + f.lease_now);
+      note = end >= 95 ? `Thanks. At ${age()}, this lease outlasts age 95, so it is not a worry on that count.`
+        : `Thanks. At ${age()}, this lease runs until you are ${end}, short of 95. HDB loan and CPF rules can depend on the lease covering the youngest buyer to 95, so check that with HDB before you commit.`;
+    }
+    box.replaceChildren(...rich(note));
+  });
+}
+const specOf = f => ({ town: f.flat.town, street_name: f.flat.street_name, block: f.flat.block, flat_type: f.flat.flat_type, flat_model: f.flat.flat_model, floor_area_sqm: f.flat.floor_area_sqm,
+  storey_range: f.flat.storey_range, lease_commence_date: f.flat.lease_commence_date });
+// Two homes side by side: the one on screen stays on screen, the other is looked up for the comparison.
+function compareCard(A, pa, B, pb) {
+  const X = [[A, pa], [B, pb]], V = X.map(([f, p]) => p ? verdictFor(f, p) : null), mrt = f => f.nearby && f.nearby.mrt[0] ? `${f.nearby.mrt[0].name}, ${f.nearby.mrt[0].metres} m` : "-";
+  const rows = [["Verdict", (f, p, i) => V[i] ? h("b", { style: `color:${V[i].color}` }, V[i].word) : "No price yet"], [ROLES[root.role].priceLabel, (f, p) => p ? money(p) : "-"], ["Our fair value", f => money(f.fair)],
+    ["Price versus fair value", (f, p) => p ? h("span", { className: "hm" }, pc(p / f.fair - 1)) : "-"], ["Likely range", f => `${k(qOf(f, 25))} - ${k(qOf(f, 75))}`], ["Size", f => Math.round(f.flat.floor_area_sqm) + " sqm"],
+    ["Per sqm", (f, p) => money((p || f.fair) / f.flat.floor_area_sqm) + (p ? "" : " (fair value)")], ["Floor", f => f.flat.storey], ["Lease left", f => f.freehold ? "Freehold" : Math.round(f.lease_now) + " years"],
+    ["Nearest MRT", mrt], ["Reliability", f => f.reliability]];
+  return row("bot", h("div", { className: "fcardc" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...X.map(([f]) => h("th", {}, flatName(f), h("div", { className: "fine dim", style: "font-weight:400" }, isCondo(f) ? f.property_type : title(f.flat.flat_type) + ", " + title(f.flat.town))))),
+    ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...X.map(([f, p], i) => h("td", {}, fn(f, p, i))))))));
+}
+async function compareWith(u, text, w) {
+  const A = F, pa = hasPrice() ? F.price : null, pb = u.price || null;
+  w.set("Looking up the other home");
+  let B;
+  try { B = u.kind === "condo" ? await api("/api/condo/assess", { ...u.condo, price: pb }) : await api("/api/assess", { ...u.flat, price: pb }); }
+  catch (e) { w.remove(); await say("I couldn't check that home: " + e.message); return; }
+  w.remove(); compareCard(A, pa, B, pb);
+  const w2 = waiting("Putting them side by side"), ref = (f, price) => isCondo(f) ? { kind: "condo", condo: f.condo, price } : { kind: "hdb", flat: specOf(f), price };
+  try {
+    const r = await api("/api/compare", { a: ref(A, pa), b: ref(B, pb), role: root.role, question: text });
+    w2.remove(); await say(formatted(r.text, rich), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based comparison"));
+    const b = h("button", { className: "pill", type: "button" }, "Switch to " + flatName(B));
+    b.addEventListener("click", () => { if (!busy) working(() => { row("you", h("div", { className: "bub" }, "Switch to " + flatName(B))); return isCondo(B) ? loadCondo(B.condo, pb) : loadFlat(specOf(B), pb); }); });
+    row("bot", h("div", { className: "pills" }, b, h("span", { className: "fine" }, `I'm still on ${flatName(A)} for your questions.`)));
+    refreshMe();
+  } catch (e) {
+    w2.remove(); await say(e.status === 429 ? e.message : "I couldn't compare them: " + e.message);
+    if (e.status === 429) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); refreshMe(); }
+  }
+}
+// The answer to "is now a good time?": what prices and sales have done, like for like. Never a forecast.
+function marketCard(m) {
+  const where = m.town ? title(m.town) : "all of Singapore", col = v => `color:var(${v >= 0 ? "--pos" : "--neg"})`;
+  return row("bot", h("div", { className: "fcardc" }, h("div", { className: "ctop" }, h("div", {}, h("b", {}, "HDB resale prices, " + where), h("div", { className: "dim fine" }, "Price per sqm, against the same months a year before, like for like")), h("span", { className: "tag" }, m.months)),
+    h("div", { className: "vbig", style: col(m.all) }, pc(m.all)),
+    h("div", {}, ...rich(`${m.sales.toLocaleString("en-US")} sales, against ${m.sales_year_ago.toLocaleString("en-US")} a year before.`)),
+    ...m.by_type.map(t => h("div", { className: "kv" }, h("span", {}, title(t.flat_type)), h("span", {}, h("b", { style: col(t.change_year) }, pc(t.change_year)), h("span", { className: "dim" }, `  ${t.sales.toLocaleString("en-US")} sales (${t.sales_year_ago.toLocaleString("en-US")} a year before)`)))),
+    m.newer != null && m.older != null ? h("div", {}, "Flats up to 20 years old ", h("b", { style: col(m.newer) }, pc(m.newer)), ", older flats ", h("b", { style: col(m.older) }, pc(m.older)), ".") : null,
+    h("div", { className: "fine" }, "What has happened, not a forecast. Each change compares the same town, flat type and age group.")));
 }
 function send(text) {
   text = text.trim(); if (!text || busy) return;
@@ -839,18 +938,20 @@ function send(text) {
     talk.push({ role: "user", content: text.slice(0, 800) });
     if (u.ctx) ctx = u.ctx;
     if (u.role && u.role !== root.role) pick("r", u.role);
-    if (u.age) { $("age").value = u.age; syncAge("age"); }
+    if (u.profile && Object.keys(u.profile).length) setProfile(u.profile);
     if (u.work && !u.found) { w.remove(); store.set("work", u.work); if (F) await sayCommute(); else await say(`Noted. I'll show the commute to ${u.work} for each flat you check.`); }
     else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
-    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
-    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? +$("ask").value : null), u, w);
+    else if (u.found && u.compare && F) await compareWith(u, text, w);
+    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), u, w);
+    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), u, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
       w.remove(); talk.push({ role: "assistant", content: t });
       if (u.area) { areaCard(u.area); await sleep(900); }
-      await say(u.area ? rich(t) : t);
+      if (u.market) { marketCard(u.market); await sleep(900); }
+      await say(u.area || u.market ? rich(t) : t);
       if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
-      if (!u.reply) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
+      if (!u.reply || u.market) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
     } else await askOikos(text, null, w);
   });
 }
@@ -859,7 +960,7 @@ $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
 $("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
-$("starters").replaceChildren(...["Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k", "bishan 4 room 800k", "Parc Esta 2-bed, high floor, asking $1.7m"].map(t => chip(t)));
+$("starters").replaceChildren(...["Blk 85 Whampoa Dr, 3-room, $420k", "bishan 4 room 800k", "Parc Esta 2-bed, $1.7m", "Selling my 4-room, 272C Punggol Walk"].map(t => chip(t)));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";
@@ -914,7 +1015,7 @@ $("acctBtn").addEventListener("click", async () => {
 async function shareFlat() {
   try {
     const f = F.flat, r = await api("/api/share", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
-      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? +$("ask").value : null, role: root.role });
+      floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? F.price : null, role: root.role });
     const link = location.origin + "/s/" + r.id;
     let copied = false; try { await navigator.clipboard.writeText(link); copied = true; } catch (e) {}
     row("bot", h("div", { className: "txt" }, copied ? "Link copied. Anyone who opens it sees this verdict and my advice, no account needed:" : "Here's the link. Anyone who opens it sees this verdict and my advice, no account needed:",
@@ -986,7 +1087,7 @@ const persist = () => { store.set("flats", flats); $("nFlats").textContent = fla
   if (ME) { clearTimeout(saveTimer); saveTimer = setTimeout(() => api("/api/flats", { flats }).catch(() => toast("Could not save to your account")), 600); } };
 $("saveBtn").addEventListener("click", () => saveFlat());
 function saveFlat() {
-  const id = flatId(F), price = +$("ask").value, old = flats.find(x => x.id === id);
+  const id = flatId(F), price = asked(), old = flats.find(x => x.id === id);
   if (old) Object.assign(old, { price, F }); else flats.unshift({ id, saved: new Date().toISOString().slice(0, 10), price, status: "Watching", notes: "", compare: false, F });
   persist(); $("saveBtn").textContent = "Update saved flat"; toast(old ? "Saved flat updated" : "Saved to My flats");
 }
@@ -1017,7 +1118,7 @@ function renderCompare() {
   const rows = [["Verdict", (x, i) => h("span", { className: "vword", style: `color:${V[i].color};font-size:20px` }, V[i].word)], [V[0].R.priceLabel, x => money(x.price)], ["Our fair value", x => money(x.F.fair)],
     ["Price versus fair value", x => h("span", { className: "hm" }, pc(x.price / x.F.fair - 1))], ["Likely range", x => `${k(qOf(x.F, 25))} - ${k(qOf(x.F, 75))}`], ["Reliability", x => x.F.reliability],
     ["Size", x => Math.round(x.F.flat.floor_area_sqm) + " sqm"], ["Price per sqm", x => money(x.price / x.F.flat.floor_area_sqm)], ["Storey", x => x.F.flat.storey], ["Lease left", x => x.F.freehold ? "Freehold" : hl(Math.round(x.F.lease_now) + " years")],
-    ...(buyer ? [[`Lease runs until you are (age ${age()})`, x => { const e = leaseEnd(x.F); return e >= 95 ? "past 95" : String(e); }]] : []),
+    ...(buyer && age() != null ? [[`Lease runs until you are (age ${age()})`, x => { const e = leaseEnd(x.F); return e >= 95 ? "past 95" : String(e); }]] : []),
     ["Biggest price driver", x => { const d = [...x.F.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]; return d ? `${d[0]} ${pc(d[1])}` : "-"; }], ["Status", x => x.status], ["Your notes", x => x.notes || "-"]];
   box.replaceChildren(h("div", { className: "panel" }, h("div", { className: "bd" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...sel.map(x => h("th", {}, flatName(x.F), h("div", { className: "fine", style: "font-weight:400" }, title(x.F.flat.flat_type) + ", " + title(x.F.flat.town))))),
     ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...sel.map((x, i) => h("td", {}, fn(x, i)))))))));
@@ -1030,7 +1131,7 @@ $("dealTown").addEventListener("change", loadDeals); $("mTown").addEventListener
 
 // ---- the brief: a one-page summary that prints
 function buildBrief() {
-  const a = +$("ask").value, v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer", sec = t => h("h3", {}, t);
+  const a = asked(), v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer", sec = t => h("h3", {}, t);
   $("brief").replaceChildren(h("div", { className: "cap" }, "Oikos " + (buyer ? "offer" : "pricing") + " brief / " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })),
     h("h2", {}, v.word), h("div", {}, h("b", {}, flatName(F)), " / " + flatDesc(F)), h("p", {}, v.R.line(v.p) + " " + v.R.lead + money(a) + " is " + pc(a / F.fair - 1) + " versus our fair value of " + money(F.fair) + "."),
     sec("The numbers"), kv(v.R.priceLabel, money(a)), kv("Our fair value", money(F.fair)), kv("Likely range (half of comparable sales)", `${money(q(25))} - ${money(q(75))}`), kv("Wide range (8 in 10)", `${money(q(10))} - ${money(q(90))}`),
@@ -1054,7 +1155,7 @@ function pick(attr, val, save = true) {
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
 if (!["light", "dark"].includes(store.get("theme", "light"))) store.set("theme", "light");
 for (const a in KEYS) pick(a, store.get(KEYS[a], root[KEYS[a]]), false);
-$("age").value = $("age0").value = store.get("age", "35");
+$("age").value = $("age0").value = age() || "";
 $("ask").addEventListener("input", () => { if (F) F.price = +$("ask").value; render(); });
 addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
