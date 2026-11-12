@@ -137,7 +137,7 @@ def check(text, on, want):
     if want.get("nothing"):
         need(not u["found"] and not u.get("area") and not u.get("market") and not u.get("find"), f"no home and no card, got found={u['found']}")
     if "find" in want:
-        got = (u.get("find") or {}).get("spec") or {}
+        got = (u.get("ctx") or {}).get("find") or (u.get("find") or {}).get("spec") or {}  # the search as asked (a card holds one kind)
         need(bool(u.get("find")) and bool(u["find"]["items"]) and all(got.get(k) == v for k, v in want["find"].items()), f"a search for {want['find']}, got { {k: got.get(k) for k in want['find']} or None}")
         need(bool((u.get("find") or {}).get("over")) == bool(want.get("over")), f"over budget={bool(want.get('over'))}")
         need(bool(u.get("find2")) == bool(want.get("both")), "a second card for condos" if want.get("both") else "one card")
