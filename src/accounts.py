@@ -3,10 +3,12 @@
 Passwords are stored only as salted scrypt hashes. A session is a random token kept in an HttpOnly cookie; the
 database holds only its SHA-256. Visitors without an account get a random anonymous id so their usage can be counted.
 
-Plans set how many AI answers a person gets per day (Singapore time): see PLANS. OIKOS_LIMIT_ANON and
-OIKOS_LIMIT_USER override the visitor and free numbers. Only answers that helped count: one that just turns a question away
-does not. Visitors are also counted per network address (kept only as a hash that changes daily), so clearing cookies
-does not reset the allowance; OIKOS_LIMIT_ANON_IP sets that cap (default 5 times the visitor number), and
+Plans set how much AI use a person gets per day (Singapore time), not a number of answers: every AI call is charged
+what it really cost (a long answer more than a short one, a comment under a card a little), and the page shows the
+share of the day's allowance used. See PLANS: `usage` is in US cents of AI cost a day. OIKOS_USAGE_ANON and
+OIKOS_USAGE_USER override the visitor and free amounts. An answer that just turns a question away is not charged.
+Visitors are also counted per network address (kept only as a hash that changes daily), so clearing cookies does not
+reset the allowance; OIKOS_USAGE_ANON_IP sets that cap (default 5 times the visitor amount), and
 OIKOS_DAILY_BUDGET_CENTS (default 300) is the most the AI may cost in a day before answers fall back to rule-based text.
 Set OIKOS_TRUST_PROXY=1 when the app runs behind a reverse proxy, so the visitor's address is read from X-Forwarded-For.
 There is no payment yet: "I want this plan" is recorded in
@@ -27,11 +29,14 @@ from geocode_blocks import ROOT
 DB = ROOT / "data/oikos.db"
 SESSION_DAYS = 30
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s.]{2,}$")
-# name, price in S$ a month, AI answers a day. "visitor" is anyone not signed in.
-PLANS = {"visitor": dict(name="Visitor", price=0, answers=3, alerts=0, blurb="Try it without an account"),
-         "free": dict(name="Free", price=0, answers=10, alerts=2, blurb="For checking a flat or two"),
-         "plus": dict(name="Plus", price=9, answers=100, alerts=10, blurb="For an active search or sale"),
-         "pro": dict(name="Pro", price=39, answers=500, alerts=50, blurb="For property agents")}
+# name, price in S$ a month, AI use a day in US cents of real AI cost, alerts. "visitor" is anyone not signed in.
+# At November 2026 prices a full answer about a home costs about 0.2 to 0.35 cents, a comment under a card about 0.03.
+PLANS = {"visitor": dict(name="Visitor", price=0, usage=1.0, alerts=0, blurb="Try it without an account"),
+         "free": dict(name="Free", price=0, usage=3.0, alerts=2, blurb="For checking a flat or two"),
+         "plus": dict(name="Plus", price=9, usage=15.0, alerts=10, blurb="For an active search or sale"),
+         "pro": dict(name="Pro", price=39, usage=60.0, alerts=50, blurb="For property agents")}
+TYPICAL_ANSWER = 0.3  # cents: only for the rough "about N answers" shown beside each plan
+FLOOR = {"ask": 0.2, "area": 0.03, "route": 0.02}  # charged when the AI answered but its cost was not reported
 _fails = {}  # email -> times of recent failed sign-ins (in memory; resets when the server restarts)
 
 
@@ -57,8 +62,12 @@ def init():
         """)
         if "plan" not in [r["name"] for r in c.execute("pragma table_info(users)")]:
             c.execute("alter table users add column plan text not null default 'free'")
-        if "ip" not in [r["name"] for r in c.execute("pragma table_info(usage)")]:
+        cols = [r["name"] for r in c.execute("pragma table_info(usage)")]
+        if "ip" not in cols:
             c.execute("alter table usage add column ip text")
+        if "charged" not in cols:  # what counts against the person's allowance (cost_cents is what it cost us)
+            c.execute("alter table usage add column charged real")
+            c.execute("update usage set charged = case when answered = 1 or kind != 'ask' then cost_cents else 0 end")
         c.execute("create table if not exists settings (key text primary key, value text not null)")
         c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
@@ -155,7 +164,10 @@ def end_session(token):
 # ---- usage and limits
 def _limit(name):
     v = os.environ.get(name, "").strip()
-    return int(v) if v.isdigit() else None
+    try:
+        return float(v) if v and float(v) >= 0 else None
+    except ValueError:
+        return None
 
 
 def plan_of(who):
@@ -166,9 +178,10 @@ def plan_of(who):
 
 
 def limit_for(who):
+    """Today's AI allowance for this person, in US cents of AI cost."""
     plan = plan_of(who)
-    override = _limit("OIKOS_LIMIT_ANON") if plan == "visitor" else _limit("OIKOS_LIMIT_USER") if plan == "free" else None
-    return override if override is not None else PLANS[plan]["answers"]
+    override = _limit("OIKOS_USAGE_ANON") if plan == "visitor" else _limit("OIKOS_USAGE_USER") if plan == "free" else None
+    return override if override is not None else PLANS[plan]["usage"]
 
 
 def _sg_midnight():
@@ -186,15 +199,25 @@ def ip_key(ip):
     return hashlib.sha256(f"{salt}|{int(_sg_midnight())}|{ip}".encode()).hexdigest()[:20]
 
 
-def record(who, kind, cost_cents, answered, ip=None):
+def record(who, kind, cost_cents, answered, ip=None, charge=True):
+    """One AI call (or a share or sign-up). Charged at its real cost, with a floor when the AI answered but reported no cost.
+    charge=False for an answer that only turned the question away."""
+    cost = float(cost_cents or 0)
+    charged = max(cost, FLOOR[kind]) if charge and answered and kind in FLOOR else 0.0  # a call that fell back to rule-based text is on us
     with db() as c:
-        c.execute("insert into usage (who, kind, at, cost_cents, answered, ip) values (?, ?, ?, ?, ?, ?)", (who, kind, time.time(), float(cost_cents or 0), int(bool(answered)), ip))
+        c.execute("insert into usage (who, kind, at, cost_cents, answered, ip, charged) values (?, ?, ?, ?, ?, ?, ?)", (who, kind, time.time(), cost, int(bool(answered)), ip, charged))
 
 
 def used_today(who):
-    """AI answers this person has had since midnight, Singapore time."""
+    """AI use charged to this person since midnight, Singapore time, in US cents."""
     with db() as c:
-        return c.execute("select count(*) from usage where who = ? and at >= ? and answered = 1 and kind = 'ask'", (who, _sg_midnight())).fetchone()[0]
+        return float(c.execute("select coalesce(sum(charged), 0) from usage where who = ? and at >= ?", (who, _sg_midnight())).fetchone()[0])
+
+
+def used_share(who):
+    """Share of today's allowance used, 0 to 100."""
+    cap = limit_for(who)
+    return 100.0 if not cap else min(100.0, used_today(who) / cap * 100)
 
 
 def _count(where, args):
@@ -206,17 +229,17 @@ def network_full(who, ip):
     """True when visitors without an account on this network address have used up the day's shared allowance."""
     if not ip or not who.startswith("a:"):
         return False
-    cap = _limit("OIKOS_LIMIT_ANON_IP")
+    cap = _limit("OIKOS_USAGE_ANON_IP")
     cap = cap if cap is not None else 5 * limit_for(who)
-    return _count("ip = ? and who like 'a:%' and answered = 1 and kind = 'ask'", (ip,)) >= cap
+    with db() as c:
+        used = c.execute("select coalesce(sum(charged), 0) from usage where at >= ? and ip = ? and who like 'a:%'", (_sg_midnight(), ip)).fetchone()[0]
+    return used >= cap
 
 
 def over_limit(who, ip=None):
-    """Out of answers for today: their own allowance, far too many AI calls of any kind, or (for visitors) the network's shared allowance."""
+    """Out of AI use for today: their own allowance, or (for visitors) the network's shared allowance."""
     cap = limit_for(who)
-    if cap is None:
-        return False
-    return used_today(who) >= cap or _count("who = ? and kind in ('ask', 'route', 'area')", (who,)) >= 4 * cap + 10 or network_full(who, ip)
+    return cap is not None and (used_today(who) >= cap or network_full(who, ip))
 
 
 def budget_spent():

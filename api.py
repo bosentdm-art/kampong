@@ -223,12 +223,11 @@ def gate(request, response):
     who, user = visitor(request, response)
     ip = client_ip(request)
     if acc.over_limit(who, ip):
-        cap = acc.limit_for(who)
-        if acc.used_today(who) < cap and acc.network_full(who, ip):
-            raise HTTPException(429, "Visitors on this network have used today's free AI answers. A free account gives you your own.")
-        more = ("A free account gives you more, or come back tomorrow." if not user else
-                "You're on the top plan; they reset at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or they reset at midnight.")
-        raise HTTPException(429, f"You've used today's {cap} AI answers. {more}")
+        if acc.used_today(who) < acc.limit_for(who) and acc.network_full(who, ip):
+            raise HTTPException(429, "Visitors on this network have used today's free AI allowance. A free account gives you your own.")
+        more = ("A free account gives you more, or it resets at midnight." if not user else
+                "You're on the top plan; it resets at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or it resets at midnight.")
+        raise HTTPException(429, f"You've used today's AI allowance. {more} The price card and the numbers still work without it.")
     return who, ip
 
 
@@ -239,14 +238,16 @@ def answer(who, ip, facts, a, price, question):
     else:
         out = llm.explain(facts, a.role, a.age, price, question, a.history, profile=a.profile, assumed=a.assumed)
     out["counted"] = out.get("source") == "model" and not out.get("declined")
-    acc.record(who, "ask", out.get("cost_cents"), out["counted"], ip)
+    acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model", ip, charge=out["counted"])
     return out
 
 
 def me_view(who, user):
     plan = acc.plan_of(who)
-    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], used_today=acc.used_today(who),
-                limit=acc.limit_for(who), plans=[dict(id=k, **v) for k, v in acc.PLANS.items() if k != "visitor"])
+    free = acc.PLANS["free"]["usage"]
+    plans = [dict(id=k, name=v["name"], price=v["price"], alerts=v["alerts"], blurb=v["blurb"], times_free=round(v["usage"] / free, 1), about_answers=int(v["usage"] / acc.TYPICAL_ANSWER))
+             for k, v in acc.PLANS.items() if k != "visitor"]
+    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], used_pct=round(acc.used_share(who)), plans=plans)
 
 
 class Want(BaseModel):

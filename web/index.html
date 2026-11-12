@@ -170,6 +170,7 @@
   .fcardc table.cmp { width:100%; border-collapse:collapse; font-size:14.5px; } .fcardc table.cmp td, .fcardc table.cmp th { padding:7px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }
   .fcardc table.cmp tr:first-child th { border-top:0; } .fcardc table.cmp td:first-child { color:var(--dim); }
   .fi { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); } .fi .pill { flex:none; }
+  .use { height:6px; border-radius:999px; background:var(--soft); overflow:hidden; margin:6px 0 4px; } .use i { display:block; height:100%; border-radius:999px; transition:width .4s; }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -354,7 +355,7 @@
 <dialog id="plans" aria-label="Plans" style="width:min(760px, 94vw)">
   <div class="sheethd"><b>Plans</b><button class="x" id="plansX" type="button" aria-label="Close">&times;</button></div>
   <div class="plangrid" id="planCards"></div>
-  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
+  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use each day: a full answer about a home uses more than a short reply, and it resets at midnight. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
 </dialog>
 <dialog id="settings" aria-label="Settings" style="width:min(360px, 92vw)">
   <div class="sheethd"><b>Settings</b><button class="x" id="setX" type="button" aria-label="Close">&times;</button></div>
@@ -1003,14 +1004,17 @@ function openPlans() {
       try { await api("/api/interest", { plan: p.id }); b.replaceWith(h("span", { className: "tag" }, "Noted. We'll be in touch.")); } catch (e) { toast(e.message); }
     });
     return h("div", { className: "plan" + (cur ? " cur" : "") }, h("b", {}, p.name), h("div", { className: "big" }, p.price ? "S$" + p.price : "Free"), h("div", { className: "fine" }, p.price ? "a month" : "no card needed"),
-      h("div", {}, h("b", {}, p.answers), " AI answers a day"), h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
+      h("div", {}, ...(p.id === "free" ? [h("b", {}, "Daily AI use")] : [h("b", {}, p.times_free + "\u00d7"), " the Free plan's daily AI use"])), h("div", { className: "fine dim" }, `About ${p.about_answers} full answers a day; short replies use less`),
+      h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
   }));
   $("plans").showModal();
 }
 $("plansBtn").addEventListener("click", openPlans); $("plansX").addEventListener("click", () => $("plans").close());
 function showMe(m) {
   ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
-  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more answers.", h("br"), `${m.plan_name} plan: ${Math.min(m.used_today, m.limit)} of ${m.limit} AI answers used today.`);
+  const pct = m.used_pct, bar = h("i", { style: `width:${pct}%;background:${pct >= 90 ? "var(--neg)" : "var(--accent)"}` });
+  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "use" }, bar),
+    `${m.plan_name} plan: ${pct}% of today's AI use` + (pct >= 100 ? ". Resets at midnight." : ""));
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
 async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
