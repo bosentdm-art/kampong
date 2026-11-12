@@ -218,9 +218,7 @@
   </nav>
   <div class="navfoot">
     <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="pill" id="acctBtn" type="button">Sign in</button><button class="pill" id="plansBtn" type="button">Plans</button></div></div>
-    <div class="cap dim">Detail</div><div class="seg"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
-    <div class="cap dim">Theme</div><div class="seg"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
-    <button class="linkbtn fine" id="srcBtn" type="button" style="text-align:left;font-weight:400;color:var(--dim)">Data sources</button>
+    <div class="pills"><button class="pill" id="setBtn" type="button">Settings</button><button class="linkbtn fine" id="srcBtn" type="button" style="font-weight:400;color:var(--dim)">Data sources</button></div>
   </div>
 </aside>
 
@@ -246,7 +244,6 @@
         </div>
       </div>
       <div class="chips" id="starters"></div>
-      <div class="fine center">Price advice from an AI, built on public HDB sales. A guide, not a valuation. It does not cover loans, CPF or what you can afford, and it cannot see renovation or view.</div>
     </div>
   </div>
 
@@ -358,6 +355,14 @@
   <div class="sheethd"><b>Plans</b><button class="x" id="plansX" type="button" aria-label="Close">&times;</button></div>
   <div class="plangrid" id="planCards"></div>
   <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
+</dialog>
+<dialog id="settings" aria-label="Settings" style="width:min(360px, 92vw)">
+  <div class="sheethd"><b>Settings</b><button class="x" id="setX" type="button" aria-label="Close">&times;</button></div>
+  <div style="display:grid;gap:8px">
+    <div class="cap dim">Detail</div><div class="seg" style="width:fit-content"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
+    <div class="fine dim">Pro shows every number behind the answer.</div>
+    <div class="cap dim" style="margin-top:8px">Theme</div><div class="seg" style="width:fit-content"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
+  </div>
 </dialog>
 <dialog id="src" aria-label="Data sources">
   <div class="sheethd"><b>Data sources</b><button class="x" id="srcX" type="button" aria-label="Close">&times;</button></div>
@@ -1184,6 +1189,7 @@ $("age").value = $("age0").value = age() || "";
 $("ask").addEventListener("input", () => { if (F) F.price = +$("ask").value; render(); });
 addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
+$("setBtn").addEventListener("click", () => $("settings").showModal()); $("setX").addEventListener("click", () => $("settings").close());
 $("srcBtn").addEventListener("click", () => $("src").showModal()); $("srcX").addEventListener("click", () => $("src").close());
 persist(); go("chat");
 api("/api/me").then(m => { showMe(m); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
