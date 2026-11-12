@@ -3,12 +3,17 @@
 Passwords are stored only as salted scrypt hashes. A session is a random token kept in an HttpOnly cookie; the
 database holds only its SHA-256. Visitors without an account get a random anonymous id so their usage can be counted.
 
-Plans set how much AI use a person gets per day (Singapore time), not a number of answers: every AI call is charged
-what it really cost (a long answer more than a short one, a comment under a card a little), and the page shows the
-share of the day's allowance used. See PLANS: `usage` is in US cents of AI cost a day. OIKOS_USAGE_ANON and
-OIKOS_USAGE_USER override the visitor and free amounts. An answer that just turns a question away is not charged.
-Visitors are also counted per network address (kept only as a hash that changes daily), so clearing cookies does not
-reset the allowance; OIKOS_USAGE_ANON_IP sets that cap (default 5 times the visitor amount), and
+Plans set how much AI use a person gets, not a number of answers: every AI call is charged what it really cost (a
+detailed answer more than a short one, a comment under a card a little). There are two allowances, as Claude and
+ChatGPT do it:
+  session  a 5-hour window that starts with the first charged answer and ends 5 hours later; the next answer after
+           that starts a new one
+  week     a 7-day window that works the same way
+Both must have room for an answer. See PLANS: `session` and `week` are in US cents of AI cost. OIKOS_SESSION_ANON,
+OIKOS_WEEK_ANON, OIKOS_SESSION_USER and OIKOS_WEEK_USER override the visitor and free amounts. An answer that just
+turns a question away is not charged. Visitors are also counted per network address (kept only as a hash that changes
+daily), so clearing cookies does not reset the allowance; OIKOS_USAGE_ANON_IP caps a day on one address (default 5
+times the visitor session), and
 OIKOS_DAILY_BUDGET_CENTS (default 300) is the most the AI may cost in a day before answers fall back to rule-based text.
 Set OIKOS_TRUST_PROXY=1 when the app runs behind a reverse proxy, so the visitor's address is read from X-Forwarded-For.
 There is no payment yet: "I want this plan" is recorded in
@@ -29,12 +34,14 @@ from geocode_blocks import ROOT
 DB = ROOT / "data/oikos.db"
 SESSION_DAYS = 30
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s.]{2,}$")
-# name, price in S$ a month, AI use a day in US cents of real AI cost, alerts. "visitor" is anyone not signed in.
-# At November 2026 prices a full answer about a home costs about 0.2 to 0.35 cents, a comment under a card about 0.03.
-PLANS = {"visitor": dict(name="Visitor", price=0, usage=1.0, alerts=0, blurb="Try it without an account"),
-         "free": dict(name="Free", price=0, usage=3.0, alerts=2, blurb="For checking a flat or two"),
-         "plus": dict(name="Plus", price=9, usage=15.0, alerts=10, blurb="For an active search or sale"),
-         "pro": dict(name="Pro", price=39, usage=60.0, alerts=50, blurb="For property agents")}
+# name, price in S$ a month, AI use per 5-hour session and per week in US cents of real AI cost, alerts. "visitor" is anyone
+# not signed in. At November 2026 prices a full answer about a home costs about 0.2 to 0.35 cents, a detailed one about
+# 1 cent, a comment under a card about 0.03. A Plus user who used every week in full would cost about US$3 a month.
+PLANS = {"visitor": dict(name="Visitor", price=0, session=0.8, week=2.5, alerts=0, blurb="Try it without an account"),
+         "free": dict(name="Free", price=0, session=2.0, week=8.0, alerts=2, blurb="For checking a flat or two"),
+         "plus": dict(name="Plus", price=9, session=8.0, week=70.0, alerts=10, blurb="For an active search or sale"),
+         "pro": dict(name="Pro", price=39, session=30.0, week=280.0, alerts=50, blurb="For property agents")}
+WINDOWS = {"session": 5 * 3600, "week": 7 * 86400}
 TYPICAL_ANSWER = 0.3  # cents: only for the rough "about N answers" shown beside each plan
 FLOOR = {"ask": 0.2, "area": 0.03, "route": 0.02}  # charged when the AI answered but its cost was not reported
 _fails = {}  # email -> times of recent failed sign-ins (in memory; resets when the server restarts)
@@ -177,11 +184,12 @@ def plan_of(who):
     return u["plan"] if u and u["plan"] in PLANS else "free"
 
 
-def limit_for(who):
-    """Today's AI allowance for this person, in US cents of AI cost."""
+def limit_for(who, window="session"):
+    """This person's AI allowance for a 5-hour session or a week, in US cents of AI cost."""
     plan = plan_of(who)
-    override = _limit("OIKOS_USAGE_ANON") if plan == "visitor" else _limit("OIKOS_USAGE_USER") if plan == "free" else None
-    return override if override is not None else PLANS[plan]["usage"]
+    who_env = "ANON" if plan == "visitor" else "USER" if plan == "free" else None
+    override = _limit(f"OIKOS_{window.upper()}_{who_env}") if who_env else None
+    return override if override is not None else PLANS[plan][window]
 
 
 def _sg_midnight():
@@ -208,16 +216,30 @@ def record(who, kind, cost_cents, answered, ip=None, charge=True):
         c.execute("insert into usage (who, kind, at, cost_cents, answered, ip, charged) values (?, ?, ?, ?, ?, ?, ?)", (who, kind, time.time(), cost, int(bool(answered)), ip, charged))
 
 
+def windows(who, now=None):
+    """{"session": {...}, "week": {...}}, each with used (cents), limit, pct and resets_at (epoch seconds, None when no window is open).
+    A window opens with the first charged call after the last one closed, and closes a fixed time later."""
+    now = now or time.time()
+    with db() as c:
+        rows = c.execute("select at, charged from usage where who = ? and charged > 0 and at >= ? order by at", (who, now - 35 * 86400)).fetchall()
+    out = {}
+    for name, length in WINDOWS.items():
+        start, used = None, 0.0
+        for r in rows:
+            if start is None or r["at"] >= start + length:
+                start, used = r["at"], 0.0
+            used += r["charged"]
+        open_ = start is not None and now < start + length
+        cap = limit_for(who, name)
+        used = used if open_ else 0.0
+        out[name] = dict(used=used, limit=cap, pct=100.0 if not cap else min(100.0, used / cap * 100), resets_at=start + length if open_ else None)
+    return out
+
+
 def used_today(who):
-    """AI use charged to this person since midnight, Singapore time, in US cents."""
+    """AI use charged to this person since midnight, Singapore time, in US cents (for the network cap and reports)."""
     with db() as c:
         return float(c.execute("select coalesce(sum(charged), 0) from usage where who = ? and at >= ?", (who, _sg_midnight())).fetchone()[0])
-
-
-def used_share(who):
-    """Share of today's allowance used, 0 to 100."""
-    cap = limit_for(who)
-    return 100.0 if not cap else min(100.0, used_today(who) / cap * 100)
 
 
 def _count(where, args):
@@ -230,16 +252,23 @@ def network_full(who, ip):
     if not ip or not who.startswith("a:"):
         return False
     cap = _limit("OIKOS_USAGE_ANON_IP")
-    cap = cap if cap is not None else 5 * limit_for(who)
+    cap = cap if cap is not None else 5 * limit_for(who, "session")
     with db() as c:
         used = c.execute("select coalesce(sum(charged), 0) from usage where at >= ? and ip = ? and who like 'a:%'", (_sg_midnight(), ip)).fetchone()[0]
     return used >= cap
 
 
+def which_limit(who, ip=None):
+    """None, or the allowance that has run out: "session", "week" or "network"."""
+    w = windows(who)
+    for name in ("week", "session"):
+        if w[name]["limit"] is not None and w[name]["used"] >= w[name]["limit"]:
+            return name
+    return "network" if network_full(who, ip) else None
+
+
 def over_limit(who, ip=None):
-    """Out of AI use for today: their own allowance, or (for visitors) the network's shared allowance."""
-    cap = limit_for(who)
-    return cap is not None and (used_today(who) >= cap or network_full(who, ip))
+    return which_limit(who, ip) is not None
 
 
 def budget_spent():

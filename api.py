@@ -184,6 +184,7 @@ class Message(BaseModel):
     current: dict | None = None  # the flat already on screen, if any
     history: list[dict] | None = None  # the last few chat turns, for the AI's reply
     context: dict | None = None  # what earlier short messages already told us: town, street, flat type, price, floor, size
+    detail: str = "short"  # "long" when the Research option is on
 
 
 class Login(BaseModel):
@@ -222,13 +223,26 @@ def gate(request, response):
     """(who, network address) for an AI answer, or a 429 that says which allowance ran out."""
     who, user = visitor(request, response)
     ip = client_ip(request)
-    if acc.over_limit(who, ip):
-        if acc.used_today(who) < acc.limit_for(who) and acc.network_full(who, ip):
-            raise HTTPException(429, "Visitors on this network have used today's free AI allowance. A free account gives you your own.")
-        more = ("A free account gives you more, or it resets at midnight." if not user else
-                "You're on the top plan; it resets at midnight." if acc.plan_of(who) == "pro" else "A bigger plan gives you more, or it resets at midnight.")
-        raise HTTPException(429, f"You've used today's AI allowance. {more} The price card and the numbers still work without it.")
+    hit = acc.which_limit(who, ip)
+    if hit == "network":
+        raise HTTPException(429, "Visitors on this network have used today's free AI allowance. A free account gives you your own.")
+    if hit:
+        when = acc.windows(who)[hit]["resets_at"]
+        at = sg_time(when, hit == "week")
+        more = ("A free account gives you more." if not user else "" if acc.plan_of(who) == "pro" else "A bigger plan gives you more.")
+        what = "this 5-hour session's AI allowance" if hit == "session" else "this week's AI allowance"
+        raise HTTPException(429, f"You've used {what}. It resets {at}. {more} The price card and the numbers still work without it.".replace("  ", " "))
     return who, ip
+
+
+def sg_time(epoch, with_day=False):
+    """"at 3:20 pm" or "on Tue 18 Nov at 3:20 pm", Singapore time."""
+    import time as _t
+    if not epoch:
+        return "soon"
+    t = _t.gmtime(epoch + 8 * 3600)
+    clock = _t.strftime("%I:%M %p", t).lstrip("0").lower()
+    return f"on {_t.strftime('%a %d %b', t)} at {clock}" if with_day else f"at {clock}"
 
 
 def answer(who, ip, facts, a, price, question):
@@ -236,7 +250,7 @@ def answer(who, ip, facts, a, price, question):
     if acc.budget_spent():
         out = dict(text=llm.fallback_text(facts, a.role, a.age, price), source="rules", reason="daily_budget", cost_cents=0.0)
     else:
-        out = llm.explain(facts, a.role, a.age, price, question, a.history, profile=a.profile, assumed=a.assumed)
+        out = llm.explain(facts, a.role, a.age, price, question, a.history, profile=a.profile, assumed=a.assumed, detail=a.detail)
     out["counted"] = out.get("source") == "model" and not out.get("declined")
     acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model", ip, charge=out["counted"])
     return out
@@ -244,10 +258,12 @@ def answer(who, ip, facts, a, price, question):
 
 def me_view(who, user):
     plan = acc.plan_of(who)
-    free = acc.PLANS["free"]["usage"]
-    plans = [dict(id=k, name=v["name"], price=v["price"], alerts=v["alerts"], blurb=v["blurb"], times_free=round(v["usage"] / free, 1), about_answers=int(v["usage"] / acc.TYPICAL_ANSWER))
-             for k, v in acc.PLANS.items() if k != "visitor"]
-    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], used_pct=round(acc.used_share(who)), plans=plans)
+    free = acc.PLANS["free"]
+    plans = [dict(id=k, name=v["name"], price=v["price"], alerts=v["alerts"], blurb=v["blurb"], times_free=round(v["week"] / free["week"], 1),
+                  session_answers=int(v["session"] / acc.TYPICAL_ANSWER), week_answers=int(v["week"] / acc.TYPICAL_ANSWER)) for k, v in acc.PLANS.items() if k != "visitor"]
+    w = acc.windows(who)
+    use = {k: dict(pct=round(v["pct"]), resets=sg_time(v["resets_at"], k == "week") if v["resets_at"] else None) for k, v in w.items()}
+    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans)
 
 
 class Want(BaseModel):
@@ -535,7 +551,7 @@ def find_view(r, ask):
                 ask_next=ask)
 
 
-def find_both(spec, text, who, ip=None, comment=True):
+def find_both(spec, text, who, ip=None, comment=True, detail="short"):
     """"HDBs and condos under 2m": one card for each, and one comment that covers both."""
     rh, rc = fd.search(fd.narrow(spec, "hdb")), fd.search(fd.narrow(spec, "condo"))
     ask = "What is the most you would pay?" if not spec["budget"] else "Tap a block or project and I'll check a home there, or tell me what to change."
@@ -547,15 +563,15 @@ def find_both(spec, text, who, ip=None, comment=True):
     if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
         reply, made = rule, False
     else:
-        reply, cost, made = llm.find_reply(view, text, rule)
+        reply, cost, made = llm.find_reply(view, text, rule, detail=detail)
         if who:
-            acc.record(who, "area", cost, made, ip)
+            acc.record(who, "ask" if detail == "long" else "area", cost, made, ip)
     return dict(find=rh, find2=rc, reply=reply, ai=made, ctx=dict(find=spec))
 
 
-def find_answer(spec, text, who, ip=None, comment=True):
+def find_answer(spec, text, who, ip=None, comment=True, detail="short"):
     if spec["kind"] == "both":
-        return find_both(spec, text, who, ip, comment)
+        return find_both(spec, text, who, ip, comment, detail)
     r = fd.search(spec)
     place = "project" if r["kind"] == "condo" else "block"
     ask = ("What is the most you would pay?" if not spec["budget"] else "Which part of Singapore do you have in mind?" if r["kind"] == "hdb" and not (spec["towns"] or spec["region"] or spec["station"] or spec["school"]) and r.get("blocks", 0) > 40
@@ -574,9 +590,9 @@ def find_answer(spec, text, who, ip=None, comment=True):
     if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
         reply, made = rule, False
     else:
-        reply, cost, made = llm.find_reply(view, text, rule)
+        reply, cost, made = llm.find_reply(view, text, rule, detail=detail)
         if who:
-            acc.record(who, "area", cost, made, ip)
+            acc.record(who, "ask" if detail == "long" else "area", cost, made, ip)
     return dict(find=r, reply=reply, ai=made, ctx=dict(find=spec))
 
 
@@ -695,7 +711,7 @@ def understand(m: Message, request: Request = None, response: Response = None):
         spec, said = fd.parse(m.text[:2000], p["asking"], last)
         beyond = any(spec[k] for k in FIND_BEYOND) or len(spec["towns"]) >= 2
         if said and ((last and not on_screen) or want == "strong" or (want and beyond and (not on_screen or re.search(r"\b(looking for|budget)\b", m.text, re.I)))):
-            return clean({**base, **find_answer(spec, m.text, who, ip)})
+            return clean({**base, **find_answer(spec, m.text, who, ip, detail=m.detail)})
 
     # Short messages build up: "bishan", then "4 room", then "blk 123". What earlier ones said arrives in m.context.
     ctx = {k: v for k, v in (m.context or {}).items() if k in ("town", "street_name", "block", "flat_type", "price", "floor", "sqm") and v} if not cur else {}
@@ -775,7 +791,7 @@ def understand(m: Message, request: Request = None, response: Response = None):
         if r and isinstance(r.get("search"), dict) and not on_screen and p["role"] != "seller":  # the AI read a request to find homes that the rules missed
             spec = fd.from_ai(r["search"], fd.parse(m.text[:2000], p["asking"], last)[0])
             if any(spec[k] for k in FIND_BEYOND) or spec["towns"] or spec["flat_types"]:
-                return clean({**base, **find_answer(spec, m.text, who, ip)})
+                return clean({**base, **find_answer(spec, m.text, who, ip, detail=m.detail)})
             return {**base, "reply": "Happy to look. Tell me your budget, the flat type or number of bedrooms, and the area you have in mind, and say if it must be near an MRT."}
         if r and r.get("condo") and condo_ready() and cc.find_project(str(r["condo"])[:80]):  # the AI read a condo name the rules missed (a typo, a nickname)
             q = dict(p, floor=p["floor"] or num(r.get("floor"), 1, 80, int), floor_area_sqm=p["floor_area_sqm"] or num(r.get("sqm"), 20, 1000),
@@ -859,6 +875,7 @@ def flat_key(f):
 
 class Ask(Flat):
     role: str = "buyer"
+    detail: str = "short"  # "long": the Research option, a longer and more detailed answer
     age: float | None = None  # the youngest buyer's age, only if they told us
     profile: dict | None = None  # what else they told us: who (alone or couple), first_home, timeline
     question: str | None = None
@@ -907,6 +924,7 @@ class CondoSpec(BaseModel):
 
 class CondoAsk(CondoSpec):
     role: str = "buyer"
+    detail: str = "short"
     age: float | None = None
     profile: dict | None = None
     question: str | None = None
@@ -1006,6 +1024,7 @@ class Pair(BaseModel):
     a: Home
     b: Home
     role: str = "buyer"
+    detail: str = "short"
     question: str | None = None
 
 
@@ -1030,7 +1049,7 @@ def compare(c: Pair, request: Request, response: Response):
     if acc.budget_spent():
         text, cost, made = llm.compare_fallback(fa, fb, c.a.price, c.b.price, na, nb_), 0.0, False
     else:
-        text, cost, made = llm.compare(fa, fb, c.role, c.a.price, c.b.price, na, nb_, (c.question or "Which is the better deal?")[:600])
+        text, cost, made = llm.compare(fa, fb, c.role, c.a.price, c.b.price, na, nb_, (c.question or "Which is the better deal?")[:600], detail=c.detail)
     acc.record(who, "ask", cost, made, ip)
     return dict(text=text, source="model" if made else "rules", names=[na, nb_])
 

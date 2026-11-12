@@ -170,7 +170,9 @@
   .fcardc table.cmp { width:100%; border-collapse:collapse; font-size:14.5px; } .fcardc table.cmp td, .fcardc table.cmp th { padding:7px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }
   .fcardc table.cmp tr:first-child th { border-top:0; } .fcardc table.cmp td:first-child { color:var(--dim); }
   .fi { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); } .fi .pill { flex:none; }
+  .usel { display:flex; justify-content:space-between; font-size:12.5px; margin-top:6px; } .usel span:last-child { color:var(--dim); }
   .use { height:6px; border-radius:999px; background:var(--soft); overflow:hidden; margin:6px 0 4px; } .use i { display:block; height:100%; border-radius:999px; transition:width .4s; }
+  #researchBtn[aria-pressed="true"] { background:var(--accent); color:#fff; }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -240,7 +242,7 @@
       <div class="composer">
         <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Oikos" aria-label="Message Oikos"></textarea>
         <div class="crow">
-          <div class="pills"><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div></div>
+          <div class="pills"><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div><button class="pill" id="researchBtn" type="button" aria-pressed="false" title="Longer, more detailed answers. Each uses more of your AI allowance.">Research</button></div>
           <button class="send" id="sendBtn" type="button" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg></button>
         </div>
       </div>
@@ -355,7 +357,7 @@
 <dialog id="plans" aria-label="Plans" style="width:min(760px, 94vw)">
   <div class="sheethd"><b>Plans</b><button class="x" id="plansX" type="button" aria-label="Close">&times;</button></div>
   <div class="plangrid" id="planCards"></div>
-  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use each day: a full answer about a home uses more than a short reply, and it resets at midnight. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
+  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use in a 5-hour session and in a week: a session starts with your first answer and resets 5 hours later, the week 7 days after it starts. A detailed Research answer uses more than a normal one, and a short reply less. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
 </dialog>
 <dialog id="settings" aria-label="Settings" style="width:min(360px, 92vw)">
   <div class="sheethd"><b>Settings</b><button class="x" id="setX" type="button" aria-label="Close">&times;</button></div>
@@ -649,6 +651,9 @@ const REASONS = { daily_budget: "today's AI budget is used up", no_api_key: "the
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sleep = ms => new Promise(r => setTimeout(r, calm ? 0 : ms));
 const hasPrice = () => !!F && F.price != null;
+let research = store.get("research", false);  // Research: longer, more detailed answers from the AI, which use more of the allowance
+const detail = () => research ? "long" : "short";
+function setResearch(on) { research = on; store.set("research", on); $("researchBtn").setAttribute("aria-pressed", String(on)); $("researchBtn").textContent = on ? "Research on" : "Research"; }
 const asked = () => hasPrice() ? F.price : +$("ask").value;  // the price being checked: theirs if they gave one, else our fair value
 function follow() {  // keep the newest line in view, unless the reader has scrolled up
   const t = $("thread"), d = document.documentElement;
@@ -849,13 +854,14 @@ async function loadCondo(spec, price, u = {}, w = waiting("Looking up the projec
 }
 async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
   const first = !askHistory.length;
-  w.set(question ? "Thinking it through" : "Reading the numbers");
-  const beats = [setTimeout(() => w.set(question ? "Checking the figures" : "Weighing your options"), 2600), setTimeout(() => w.set("Writing it up"), 5600)];
+  w.set(research ? "Researching this home" : question ? "Thinking it through" : "Reading the numbers");
+  const beats = research ? [setTimeout(() => w.set("Going through the recent sales"), 4000), setTimeout(() => w.set("Checking every figure"), 12000), setTimeout(() => w.set("Writing up the detail"), 22000)]
+    : [setTimeout(() => w.set(question ? "Checking the figures" : "Weighing your options"), 2600), setTimeout(() => w.set("Writing it up"), 5600)];
   try {
-    const common = { price: hasPrice() ? F.price : null, role: root.role, age: age(), profile: you(), question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null };
+    const common = { price: hasPrice() ? F.price : null, role: root.role, age: age(), profile: you(), question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null, detail: detail() };
     const f = F.flat, r = isCondo(F) ? await api("/api/condo/ask", { ...F.condo, ...common }) : await api("/api/ask", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
       floor_area_sqm: f.floor_area_sqm, storey_range: f.storey_range, lease_commence_date: f.lease_commence_date, price: hasPrice() ? F.price : null, role: root.role, age: age(), profile: you(),
-      question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null });
+      question: question || null, history: askHistory.slice(-6), assumed: assumed?.length ? assumed : null, detail: detail() });
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
     beats.forEach(clearTimeout); w.remove();
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
@@ -915,7 +921,7 @@ async function compareWith(u, text, w) {
   w.remove(); compareCard(A, pa, B, pb);
   const w2 = waiting("Putting them side by side"), ref = (f, price) => isCondo(f) ? { kind: "condo", condo: f.condo, price } : { kind: "hdb", flat: specOf(f), price };
   try {
-    const r = await api("/api/compare", { a: ref(A, pa), b: ref(B, pb), role: root.role, question: text });
+    const r = await api("/api/compare", { a: ref(A, pa), b: ref(B, pb), role: root.role, question: text, detail: detail() });
     w2.remove(); await say(formatted(r.text, rich), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based comparison"));
     const b = h("button", { className: "pill", type: "button" }, "Switch to " + flatName(B));
     b.addEventListener("click", () => { if (!busy) working(() => { row("you", h("div", { className: "bub" }, "Switch to " + flatName(B))); return isCondo(B) ? loadCondo(B.condo, pb) : loadFlat(specOf(B), pb); }); });
@@ -964,7 +970,7 @@ function send(text) {
     await sleep(350);
     const w = waiting("Reading your message");
     let u;
-    try { u = await api("/api/understand", { text, current: F ? (isCondo(F) ? { kind: "condo", ...F.condo } : F.flat) : null, history: talk.slice(-6), context: ctx }); } catch (e) { w.remove(); throw e; }
+    try { u = await api("/api/understand", { text, current: F ? (isCondo(F) ? { kind: "condo", ...F.condo } : F.flat) : null, history: talk.slice(-6), context: ctx, detail: detail() }); } catch (e) { w.remove(); throw e; }
     talk.push({ role: "user", content: text.slice(0, 800) });
     if (u.ctx) ctx = u.ctx;
     if (u.role && u.role !== root.role) pick("r", u.role);
@@ -992,6 +998,8 @@ $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
 $("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
+$("researchBtn").addEventListener("click", () => { setResearch(!research); toast(research ? "Research on: longer, detailed answers that use more of your allowance" : "Research off"); });
+setResearch(research);
 $("starters").replaceChildren(...["Find a 4-room under $600k near an MRT", "Blk 85 Whampoa Dr, 3-room, $420k", "Parc Esta 2-bed, $1.7m", "Selling my 4-room, 272C Punggol Walk"].map(t => chip(t)));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
@@ -1005,7 +1013,8 @@ function openPlans() {
       try { await api("/api/interest", { plan: p.id }); b.replaceWith(h("span", { className: "tag" }, "Noted. We'll be in touch.")); } catch (e) { toast(e.message); }
     });
     return h("div", { className: "plan" + (cur ? " cur" : "") }, h("b", {}, p.name), h("div", { className: "big" }, p.price ? "S$" + p.price : "Free"), h("div", { className: "fine" }, p.price ? "a month" : "no card needed"),
-      h("div", {}, ...(p.id === "free" ? [h("b", {}, "Daily AI use")] : [h("b", {}, p.times_free + "\u00d7"), " the Free plan's daily AI use"])), h("div", { className: "fine dim" }, `About ${p.about_answers} full answers a day; short replies use less`),
+      h("div", {}, ...(p.id === "free" ? [h("b", {}, "AI use")] : [h("b", {}, p.times_free + "\u00d7"), " the Free plan's AI use"])),
+      h("div", { className: "fine dim" }, `About ${p.session_answers} full answers per 5 hours and ${p.week_answers} a week. Research answers use more.`),
       h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
   }));
   $("plans").showModal();
@@ -1013,9 +1022,11 @@ function openPlans() {
 $("plansBtn").addEventListener("click", openPlans); $("plansX").addEventListener("click", () => $("plans").close());
 function showMe(m) {
   ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
-  const pct = m.used_pct, bar = h("i", { style: `width:${pct}%;background:${pct >= 90 ? "var(--neg)" : "var(--accent)"}` });
-  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "use" }, bar),
-    `${m.plan_name} plan: ${pct}% of today's AI use` + (pct >= 100 ? ". Resets at midnight." : ""));
+  const meter = (label, u) => [h("div", { className: "usel" }, h("span", {}, label), h("span", {}, `${u.pct}%`)),
+    h("div", { className: "use" }, h("i", { style: `width:${u.pct}%;background:${u.pct >= 90 ? "var(--neg)" : "var(--accent)"}` })),
+    u.resets && u.pct > 0 ? h("div", { className: "fine dim" }, "Resets " + u.resets) : null];
+  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "fine dim", style: "margin-top:4px" }, m.plan_name + " plan"),
+    ...meter("5-hour session", m.usage.session), ...meter("This week", m.usage.week));
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
 async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
