@@ -168,6 +168,7 @@
   .opt.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .fcardc table.cmp { width:100%; border-collapse:collapse; font-size:14.5px; } .fcardc table.cmp td, .fcardc table.cmp th { padding:7px 8px; border-top:1px solid var(--line); text-align:left; vertical-align:top; }
   .fcardc table.cmp tr:first-child th { border-top:0; } .fcardc table.cmp td:first-child { color:var(--dim); }
+  .fi { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); } .fi .pill { flex:none; }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -235,7 +236,7 @@
     <div class="hero">
       <div class="logo" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></div>
       <h2>Which home are you looking at?</h2>
-      <p class="dim">Paste a listing, or just type a few words like "bishan 4 room 800k". I check HDB flats and condos against about a million real sales and tell you what I'd do.</p>
+      <p class="dim">Paste a listing, type a few words like "bishan 4 room 800k", or tell me what you want and I'll find where it sells. I check HDB flats and condos against about a million real sales and tell you what I'd do.</p>
     </div>
     <div class="dock">
       <div class="composer">
@@ -916,6 +917,26 @@ async function compareWith(u, text, w) {
     if (e.status === 429) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); refreshMe(); }
   }
 }
+// The answer to "find me a 4 room under 600k near an MRT": the blocks or condo projects where such homes sold in the last 12 months.
+// Sold records, not live listings. Each row is one tap from a full check, and the buttons under the list change the order.
+function findCard(r) {
+  const condo = r.kind === "condo", unit = condo ? "project" : "block", budget = r.spec.budget, cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const line = x => [condo ? `District ${x.district}, ${x.tenure}` : `${title(x.flat_type)}, ${title(x.town)}`,
+    r.over ? `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, from ${k(x.low)}` : budget ? `${x.n_in} of ${x.n_all} sales within budget, around ${k(x.median)}` : `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, around ${k(x.median)}`,
+    `${Math.round(x.sqm)} sqm`, condo ? null : `${x.lease_left} years of lease left`, x.mrt ? `${x.mrt} ${x.mrt_m} m (${x.walk_min} min walk)` : null, "last sold " + month(x.latest)].filter(Boolean).join("  \u00b7  ");
+  const rows = r.items.map(x => { const b = h("button", { className: "pill", type: "button" }, "Check"); b.addEventListener("click", () => send(x.send));
+    return h("div", { className: "fi" }, h("div", {}, h("b", {}, x.name), h("div", { className: "fine" }, ...rich(line(x)))), b); });
+  const sorts = !r.over && r.items.length > 1 ? h("div", { className: "pills" }, h("span", { className: "fine" }, "Order:"), ...[["evidence", "Most reliable"], ["mrt", "Closest to MRT"], ["price", "Cheapest"], ["size", "Biggest"], ...(condo ? [] : [["lease", "Longest lease"]])].map(([key, label]) => {
+    const b = h("button", { className: "opt" + (r.order === key ? " on" : ""), type: "button" }, label);
+    b.addEventListener("click", async () => { if (busy || r.order === key) return; try { const res = await api("/api/find", { spec: { ...r.spec, sort: key } }); ctx = res.ctx; findCard(res.find); } catch (e) { toast(e.message); } });
+    return b; })) : null;
+  return row("bot", h("div", { className: "fcardc" },
+    h("div", { className: "ctop" }, h("div", {}, h("b", {}, !r.items.length ? "No sales like that" : r.over ? "Nothing within budget. The closest:" : `Where this has sold`), h("div", { className: "dim fine" }, cap(r.what))),
+      h("span", { className: "tag" }, r.over || !r.items.length ? `${r.all_sales.toLocaleString("en-US")} sales at any price` : `${r.sales.toLocaleString("en-US")} sales in 12 months`)),
+    r.by_place.length > 1 && !r.over ? h("div", {}, ...rich("Most matches: " + r.by_place.slice(0, 4).map(x => `${x.place} (${x.sales} sales, around ${k(x.median)})`).join(", ") + ".")) : null,
+    r.items.length ? h("div", {}, ...rows) : null, sorts,
+    r.items.length ? h("div", { className: "fine" }, `${cap(unit)}s where homes like this sold, from ${condo ? "URA" : "HDB"} records${r.order_words ? ", " + r.order_words : ""}. These are past sales, not homes on sale today: look for a unit on sale in one of these ${unit}s, then send it to me to check its price.` + (condo && r.spec.beds ? " Bedrooms are my estimate from the unit's size." : "")) : null));
+}
 // The answer to "is now a good time?": what prices and sales have done, like for like. Never a forecast.
 function marketCard(m) {
   const where = m.town ? title(m.town) : "all of Singapore", col = v => `color:var(${v >= 0 ? "--pos" : "--neg"})`;
@@ -949,7 +970,8 @@ function send(text) {
       w.remove(); talk.push({ role: "assistant", content: t });
       if (u.area) { areaCard(u.area); await sleep(900); }
       if (u.market) { marketCard(u.market); await sleep(900); }
-      await say(u.area || u.market ? rich(t) : t);
+      if (u.find) { findCard(u.find); await sleep(900); }
+      await say(u.area || u.market || u.find ? rich(t) : t);
       if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
       if (!u.reply || u.market) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
     } else await askOikos(text, null, w);
@@ -960,7 +982,7 @@ $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
 $("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
-$("starters").replaceChildren(...["Blk 85 Whampoa Dr, 3-room, $420k", "bishan 4 room 800k", "Parc Esta 2-bed, $1.7m", "Selling my 4-room, 272C Punggol Walk"].map(t => chip(t)));
+$("starters").replaceChildren(...["Find a 4-room under $600k near an MRT", "Blk 85 Whampoa Dr, 3-room, $420k", "Parc Esta 2-bed, $1.7m", "Selling my 4-room, 272C Punggol Walk"].map(t => chip(t)));
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";

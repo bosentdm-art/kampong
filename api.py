@@ -12,6 +12,7 @@ Needs the data and models built first (python src/update.py).
   POST /api/signup, /api/login, /api/logout, GET /api/me, GET/POST /api/flats   accounts (see src/accounts.py)
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
   POST /api/compare   two homes side by side: the AI's comparison, every figure checked
+  POST /api/find      blocks or condo projects where homes meeting a set of requirements sold in the last 12 months
   GET  /api/deals     below-estimate sales in a town       GET /api/trend   yearly price per sqm for a town and flat type
 
 The page works out verdicts for any price from the returned price quantiles, so dragging the price needs no
@@ -43,6 +44,7 @@ import accounts as acc  # noqa: E402
 import nearby as nb  # noqa: E402
 import condo as cc  # noqa: E402
 import condo_features as cf  # noqa: E402
+import finder as fd  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -64,7 +66,7 @@ def refresh_if_new(force_check=False):
     if mtime == _fresh["mtime"]:
         return False
     _fresh["mtime"] = mtime
-    for mod in (sys.modules[__name__], adv, ex, fc, lp, nb, cc):
+    for mod in (sys.modules[__name__], adv, ex, fc, lp, nb, cc, fd):
         for obj in vars(mod).values():
             if callable(getattr(obj, "cache_clear", None)):
                 obj.cache_clear()
@@ -520,6 +522,55 @@ def market_answer(town, text, who, ip=None):
     return dict(market=m, reply=reply, ai=made)
 
 
+# ---- "find me a 4 room under 600k near an MRT": where such homes have sold (finder.py). Sold records, not live listings.
+FIND_BEYOND = ("budget", "mrt_m", "school", "min_lease", "max_age", "min_sqm", "region", "districts", "segment", "high_floor", "beds", "freehold")
+
+
+def find_answer(spec, text, who, ip=None, comment=True):
+    r = fd.search(spec)
+    place = "project" if r["kind"] == "condo" else "block"
+    ask = ("What is the most you would pay?" if not spec["budget"] else "Which part of Singapore do you have in mind?" if r["kind"] == "hdb" and not (spec["towns"] or spec["region"] or spec["station"] or spec["school"]) and r.get("blocks", 0) > 40
+           else f"Tap a {place} and I'll check a home there, or tell me what to change.")
+    if not r["items"]:
+        rule = f"I found no sales of {r['what']} in the last 12 months. Try a wider area, a bigger budget or fewer conditions."
+        return dict(find=r, reply=rule, ai=False, ctx=dict(find=spec))
+    top = r["by_place"][:3]
+    if r["over"]:
+        rule = (f"Nothing like that sold within your budget in the last 12 months: of {r['all_sales']:,} sales of this kind, the cheapest went for {fd.kfmt(min(x['low'] for x in r['items']))}. "
+                f"The card shows the ones that came closest. " + ask)
+    else:
+        rule = (f"{r['sales']:,} sale{'s' if r['sales'] != 1 else ''} in {r['blocks']:,} {place}{'s' if r['blocks'] != 1 else ''} fit that in the last 12 months" + (", most of them in " + ", ".join(f"{x['place']} (around {fd.kfmt(x['median'])})" for x in top) if top else "")
+                + f". These are past sales, not homes on sale today: look for a unit on sale in one of these {place}s, then send it to me to check the price. " + ask)
+    view = dict(requirements=r["what"], months=12, nothing_within_budget=r["over"], sales_that_fit=r["sales"], sales_of_this_kind_at_any_price=r["all_sales"], blocks_or_projects_that_fit=r.get("blocks"),
+                where_the_matches_are=[dict(place=x["place"], sales=x["sales"], typical_price=round(x["median"], -3)) for x in r["by_place"]], listed_in=r.get("order_words"),
+                matches_on_the_card=[{k: (round(v, -3) if k in ("median", "low", "high") else round(v) if k == "sqm" else v) for k, v in x.items()
+                                      if k in ("name", "town", "district", "flat_type", "tenure", "n_in", "n_all", "median", "low", "high", "sqm", "lease_left", "mrt", "mrt_m", "walk_min")} for x in r["items"][:6]],
+                ask_next=ask)
+    if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
+        reply, made = rule, False
+    else:
+        reply, cost, made = llm.find_reply(view, text, rule)
+        if who:
+            acc.record(who, "area", cost, made, ip)
+    return dict(find=r, reply=reply, ai=made, ctx=dict(find=spec))
+
+
+class Find(BaseModel):
+    spec: dict
+
+
+@app.post("/api/find")
+def find(body: Find):
+    """The same search again with the requirements changed (the sort buttons on the card). No AI call."""
+    spec = {**fd.EMPTY, **{k: v for k, v in body.spec.items() if k in fd.EMPTY}}
+    if spec["kind"] not in ("hdb", "condo") or spec["sort"] not in (None, *fd.ORDERS) or not isinstance(spec["towns"], list) or not isinstance(spec["flat_types"], list):
+        raise HTTPException(422, "Those requirements are not in a form I can search.")
+    try:
+        return clean(find_answer(spec, "", None, comment=False))
+    except (TypeError, ValueError, KeyError):
+        raise HTTPException(422, "Those requirements are not in a form I can search.")
+
+
 # ---- how close our estimates have been for homes like this one, on sales we estimated before they happened
 @functools.lru_cache(maxsize=1)
 def oos_track():
@@ -610,6 +661,16 @@ def understand(m: Message, request: Request = None, response: Response = None):
             return clean(base)  # a question about the condo on screen
     if not on_screen and not p["block"] and TIMING.search(m.text[:600]):  # "is now a good time?": what the market has done, never a forecast
         return clean({**base, **market_answer(p["town_hint"], m.text, who, ip)})
+    # "find me a 4 room under 600k near an MRT", or a change to the last search ("only tampines", "make it 650k")
+    last = (m.context or {}).get("find") if isinstance((m.context or {}).get("find"), dict) else None
+    if not p["block"] and not named and p["role"] != "seller":
+        want = fd.intent(m.text)
+        if want == "strong":  # "find me...", "recommend...": a new search, not a change to the last one
+            last = None
+        spec, said = fd.parse(m.text[:2000], p["asking"], last)
+        beyond = any(spec[k] for k in FIND_BEYOND) or len(spec["towns"]) >= 2
+        if said and ((last and not on_screen) or want == "strong" or (want and beyond and (not on_screen or re.search(r"\b(looking for|budget)\b", m.text, re.I)))):
+            return clean({**base, **find_answer(spec, m.text, who, ip)})
 
     # Short messages build up: "bishan", then "4 room", then "blk 123". What earlier ones said arrives in m.context.
     ctx = {k: v for k, v in (m.context or {}).items() if k in ("town", "street_name", "block", "flat_type", "price", "floor", "sqm") and v} if not cur else {}
@@ -686,6 +747,11 @@ def understand(m: Message, request: Request = None, response: Response = None):
         base = {**base, "compare": compare}
         if who:
             acc.record(who, "route", cost, bool(r), ip)
+        if r and isinstance(r.get("search"), dict) and not on_screen and p["role"] != "seller":  # the AI read a request to find homes that the rules missed
+            spec = fd.from_ai(r["search"], fd.parse(m.text[:2000], p["asking"], last)[0])
+            if any(spec[k] for k in FIND_BEYOND) or spec["towns"] or spec["flat_types"]:
+                return clean({**base, **find_answer(spec, m.text, who, ip)})
+            return {**base, "reply": "Happy to look. Tell me your budget, the flat type or number of bedrooms, and the area you have in mind, and say if it must be near an MRT."}
         if r and r.get("condo") and condo_ready() and cc.find_project(str(r["condo"])[:80]):  # the AI read a condo name the rules missed (a typo, a nickname)
             q = dict(p, floor=p["floor"] or num(r.get("floor"), 1, 80, int), floor_area_sqm=p["floor_area_sqm"] or num(r.get("sqm"), 20, 1000),
                      asking=p["asking"] or num(r.get("price"), 100_000, 30_000_000, int))
