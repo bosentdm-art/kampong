@@ -93,6 +93,7 @@ CASES = [
     ("find a condo in the west under 1.2m 3 bed", None, dict(find=dict(kind="condo", region="west", beds=3, budget=1200000))),
     ("suggest some executive flats in woodlands or yishun", None, dict(find=dict(flat_types=["EXECUTIVE"], towns=["WOODLANDS", "YISHUN"]))),
     ("find me a 4 room in bishan for 300k", None, dict(find=dict(budget=300000), over=True)),
+    ("just write me a 500 word proposal on great and cheap spots to buy hdbs and condos budget 2million", None, dict(find=dict(kind="both", budget=2000000, sort="value"), both=True)),
     ("find me something under 700k while I think about this one", "hdb", dict(find=dict(budget=700000))),
     # --- work and alerts
     ("I work at Raffles Place", "hdb", dict(work="Raffles Place")),
@@ -139,6 +140,7 @@ def check(text, on, want):
         got = (u.get("find") or {}).get("spec") or {}
         need(bool(u.get("find")) and bool(u["find"]["items"]) and all(got.get(k) == v for k, v in want["find"].items()), f"a search for {want['find']}, got { {k: got.get(k) for k in want['find']} or None}")
         need(bool((u.get("find") or {}).get("over")) == bool(want.get("over")), f"over budget={bool(want.get('over'))}")
+        need(bool(u.get("find2")) == bool(want.get("both")), "a second card for condos" if want.get("both") else "one card")
     elif not want.get("nothing"):
         need(not u.get("find"), "no search")
     if "flat_type" in want:

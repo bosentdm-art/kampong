@@ -72,8 +72,9 @@ def parse(text, asking=None, prev=None):
     t = " " + " ".join(text.lower().replace("–", "-").split()) + " "
     new = {}
     condo = bool(re.search(r"\b(condos?|condominiums?|private (?:property|home|homes|apartment)|apartments?|executive condo\w*|ec)\b", t))
+    hdb = bool(re.search(r"\b(hdbs?|hdb flats?|resale flats?|flats?|bto)\b", t))
     if condo:
-        new["kind"] = "condo"
+        new["kind"] = "both" if hdb else "condo"  # "hdbs and condos": search both and show them side by side
 
     m = re.search(r"\$?\s?(\d[\d,]*(?:\.\d+)?)\s*" + _UNIT + r"?\s*(?:-|to)\s*\$?\s?(\d[\d,]*(?:\.\d+)?)\s*" + _UNIT + r"\b", t)
     if m:
@@ -96,7 +97,9 @@ def parse(text, asking=None, prev=None):
         types.add(f"{min(5, int(beds.group(1)) + 1)} ROOM")  # an HDB "4-room" flat has 3 bedrooms
     if types and not condo:
         new["flat_types"], new["kind"] = sorted(types), "hdb"
-    elif re.search(r"\b(hdb|resale flats?|flats?)\b", t) and not condo:
+    elif types:
+        new["flat_types"] = sorted(types)
+    elif hdb and not condo:
         new["kind"] = "hdb"
 
     # distance to the MRT, and a named station ("near bishan mrt")
@@ -136,7 +139,8 @@ def parse(text, asking=None, prev=None):
 
     d = re.findall(r"\b(?:d|district)\s?(\d{1,2})\b", t)
     if d and all(1 <= int(x) <= 28 for x in d):
-        new["districts"], new["kind"] = sorted({int(x) for x in d}), "condo"
+        new["districts"] = sorted({int(x) for x in d})
+        new.setdefault("kind", "condo")
     seg = re.search(r"\b(ccr|rcr|ocr|core central|city fringe|suburb\w*|outside central)\b", t)
     if seg:
         new["segment"] = {"core central": "CCR", "city fringe": "RCR", "outside central": "OCR"}.get(seg.group(1), "OCR" if seg.group(1).startswith("suburb") else seg.group(1).upper())
@@ -154,17 +158,26 @@ def parse(text, asking=None, prev=None):
     if re.search(r"\bhigh(?:er)?\s*(?:floor|storey|level)", t):
         new["high_floor"] = True
     if re.search(r"\bfreehold\b", t):
-        new["freehold"], new["kind"] = True, "condo"
+        new["freehold"] = True
+        new.setdefault("kind", "condo")
+    if re.search(r"\b(cheap|affordable|value|good deals?|great deals?|bargains?|undervalued|best bang)\b", t):
+        new["sort"] = "value"
     for word, key in (("cheapest", "price"), ("lowest price", "price"), ("closest to", "mrt"), ("nearest to", "mrt"), ("longest lease", "lease"), ("newest", "lease"), ("biggest", "size"), ("largest", "size")):
         if word in t:
             new["sort"] = key
 
     spec = {**EMPTY, **{k: v for k, v in (prev or {}).items() if k in EMPTY}, **new}
-    if spec["kind"] == "condo":
-        spec["flat_types"] = []
-    else:
-        spec.update(beds=None, districts=[], segment=None, freehold=False)
-    return spec, sorted(new)
+    return narrow(spec), sorted(new)
+
+
+def narrow(spec, kind=None):
+    """`spec` for one kind of home: an HDB search drops the condo-only requirements, a condo search drops flat types."""
+    s = dict(spec, kind=kind or spec["kind"])
+    if s["kind"] == "condo":
+        s["flat_types"] = []
+    elif s["kind"] == "hdb":
+        s.update(beds=None, districts=[], segment=None, freehold=False)
+    return s
 
 
 def from_ai(a, spec):
@@ -275,7 +288,8 @@ def _near(d, spec):
 
 def _rank(g, spec, cap_key, over=False):
     """Order the blocks or projects, then keep a spread: no more than two from one street and four from one town or district."""
-    order = "price" if over else spec["sort"] or ("mrt" if spec["mrt_m"] else "lease" if spec["min_lease"] or spec["max_age"] else "size" if spec["min_sqm"] else "evidence")
+    loose = spec["budget"] and g["n_in"].sum() >= 0.9 * g["n_all"].sum()  # nearly everything is within budget, so "within budget" says little: show value
+    order = "price" if over else spec["sort"] or ("mrt" if spec["mrt_m"] else "lease" if spec["min_lease"] or spec["max_age"] else "size" if spec["min_sqm"] else "value" if loose or not spec["budget"] else "evidence")
     if order == "mrt":
         g = g.sort_values(["dist_mrt", "n_in"], ascending=[True, False])
     elif order == "lease":
@@ -284,6 +298,8 @@ def _rank(g, spec, cap_key, over=False):
         g = g.sort_values(["sqm", "n_in"], ascending=[False, False])
     elif order == "price":
         g = g.sort_values(["median", "n_in"], ascending=[True, False])
+    elif order == "value":  # the lowest price per sqm, among places with at least two sales so one odd sale does not lead
+        g = g.assign(solid=g["n_in"] >= 2).sort_values(["solid", "psm"], ascending=[False, True])
     else:  # where the budget most reliably buys: several sales within it, and most sales there within it
         g = g.assign(solid=g["n_in"] >= 2, share=g["n_in"] / g["n_all"]).sort_values(["solid", "share", "n_in", "latest"], ascending=False)
     seen, kept = {}, []
@@ -298,12 +314,12 @@ def _rank(g, spec, cap_key, over=False):
     return kept, order
 
 
-ORDERS = {"evidence": "where the budget most reliably buys", "mrt": "closest to the MRT first", "lease": "longest lease first", "size": "biggest first", "price": "cheapest first"}
+ORDERS = {"value": "lowest price per square metre first", "evidence": "where the budget most reliably buys", "mrt": "closest to the MRT first", "lease": "longest lease first", "size": "biggest first", "price": "cheapest first"}
 
 
 def search(spec):
-    """The blocks (or condo projects) where homes meeting `spec` sold in the last 12 months."""
-    return _condos(spec) if spec["kind"] == "condo" else _hdb(spec)
+    """The blocks (or condo projects) where homes meeting `spec` sold in the last 12 months. For kind "both", use each kind in turn."""
+    return _condos(narrow(spec, "condo")) if spec["kind"] == "condo" else _hdb(narrow(spec, "hdb"))
 
 
 def _within(m, spec):
@@ -334,7 +350,8 @@ def _hdb(spec):
     if w.empty:  # nothing within the budget: show what came closest, and say so
         out["over"], w = True, m.nsmallest(40, "price")
     n_all = m.groupby(key).size().rename("n_all")
-    g = w.groupby(key).agg(n_in=("price", "size"), median=("price", "median"), low=("price", "min"), high=("price", "max"), sqm=("floor_area_sqm", "median"), lease_left=("lease_left", "median"),
+    w = w.assign(psm=w["price"] / w["floor_area_sqm"])
+    g = w.groupby(key).agg(n_in=("price", "size"), median=("price", "median"), psm=("psm", "median"), low=("price", "min"), high=("price", "max"), sqm=("floor_area_sqm", "median"), lease_left=("lease_left", "median"),
                            dist_mrt=("dist_mrt", "first"), latest=("sale_date", "max")).join(n_all).reset_index().rename(columns={"street_name": "street"})
     out["blocks"] = int(len(g))
     kept, order = _rank(g, spec, "town", out["over"])
@@ -342,7 +359,7 @@ def _hdb(spec):
         near = nb.around_block(r.block, r.street)
         mrt = near["mrt"][0] if near and near.get("mrt") else None
         out["items"].append(dict(name=f"Blk {r.block} {r.street.title()}", block=r.block, street_name=r.street, town=r.town, flat_type=r.flat_type, n_in=int(r.n_in), n_all=int(r.n_all),
-                                 median=float(r.median), low=float(r.low), high=float(r.high), sqm=float(r.sqm), lease_left=int(round(r.lease_left)), latest=r.latest.strftime("%Y-%m"),
+                                 median=float(r.median), low=float(r.low), high=float(r.high), sqm=float(r.sqm), psm=float(r.psm), lease_left=int(round(r.lease_left)), latest=r.latest.strftime("%Y-%m"),
                                  mrt=f"{mrt['name']} {mrt['rail']}" if mrt else None, mrt_m=int(mrt["metres"]) if mrt else None, walk_min=int(mrt["walk_min"]) if mrt else None,
                                  send=f"Blk {r.block} {r.street.title()}, {r.flat_type.lower()}"))
     t = w.groupby("town").agg(sales=("price", "size"), median=("price", "median")).sort_values("sales", ascending=False).head(6)
@@ -376,7 +393,8 @@ def _condos(spec):
     if w.empty:
         out["over"], w = True, m.nsmallest(40, "price")
     n_all = m.groupby("project").size().rename("n_all")
-    g = w.groupby("project").agg(n_in=("price", "size"), median=("price", "median"), low=("price", "min"), high=("price", "max"), sqm=("area", "median"), dist_mrt=("dist_mrt", "first"),
+    w = w.assign(psm=w["price"] / w["area"])
+    g = w.groupby("project").agg(n_in=("price", "size"), median=("price", "median"), psm=("psm", "median"), low=("price", "min"), high=("price", "max"), sqm=("area", "median"), dist_mrt=("dist_mrt", "first"),
                                  latest=("sale_date", "max"), street=("street", "first"), district=("district", "first"), tenure=("tenure", "first"), freehold=("freehold", "first"),
                                  lat=("lat", "first"), lon=("lon", "first")).join(n_all).reset_index()
     g["lease_left"] = np.where(g["freehold"], 999, 60)  # only for ordering: freehold first when sorting by lease
@@ -386,7 +404,7 @@ def _condos(spec):
         near = nb.around(float(r.lat), float(r.lon)) if r.lat == r.lat else None
         mrt = near["mrt"][0] if near and near.get("mrt") else None
         out["items"].append(dict(name=r.project.title(), project=r.project, street=str(r.street).title(), district=int(r.district), tenure=str(r.tenure), n_in=int(r.n_in), n_all=int(r.n_all),
-                                 median=float(r.median), low=float(r.low), high=float(r.high), sqm=float(r.sqm), latest=r.latest.strftime("%Y-%m"),
+                                 median=float(r.median), low=float(r.low), high=float(r.high), sqm=float(r.sqm), psm=float(r.psm), latest=r.latest.strftime("%Y-%m"),
                                  mrt=f"{mrt['name']} {mrt['rail']}" if mrt else None, mrt_m=int(mrt["metres"]) if mrt else None, walk_min=int(mrt["walk_min"]) if mrt else None,
                                  send=f"{r.project.title()} {round(r.sqm)} sqm"))
     t = w.groupby("district").agg(sales=("price", "size"), median=("price", "median")).sort_values("sales", ascending=False).head(6)

@@ -931,16 +931,16 @@ async function compareWith(u, text, w) {
 function findCard(r) {
   const condo = r.kind === "condo", unit = condo ? "project" : "block", budget = r.spec.budget, cap = t => t.charAt(0).toUpperCase() + t.slice(1);
   const line = x => [condo ? `District ${x.district}, ${x.tenure}` : `${title(x.flat_type)}, ${title(x.town)}`,
-    r.over ? `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, from ${k(x.low)}` : budget ? `${x.n_in} of ${x.n_all} sales within budget, around ${k(x.median)}` : `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, around ${k(x.median)}`,
+    r.order === "value" && !r.over ? `around ${k(x.median)}, ${money(x.psm)} per sqm` : r.over ? `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, from ${k(x.low)}` : budget ? `${x.n_in} of ${x.n_all} sales within budget, around ${k(x.median)}` : `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, around ${k(x.median)}`,
     `${Math.round(x.sqm)} sqm`, condo ? null : `${x.lease_left} years of lease left`, x.mrt ? `${x.mrt} ${x.mrt_m} m (${x.walk_min} min walk)` : null, "last sold " + month(x.latest)].filter(Boolean).join("  \u00b7  ");
   const rows = r.items.map(x => { const b = h("button", { className: "pill", type: "button" }, "Check"); b.addEventListener("click", () => send(x.send));
     return h("div", { className: "fi" }, h("div", {}, h("b", {}, x.name), h("div", { className: "fine" }, ...rich(line(x)))), b); });
-  const sorts = !r.over && r.items.length > 1 ? h("div", { className: "pills" }, h("span", { className: "fine" }, "Order:"), ...[["evidence", "Most reliable"], ["mrt", "Closest to MRT"], ["price", "Cheapest"], ["size", "Biggest"], ...(condo ? [] : [["lease", "Longest lease"]])].map(([key, label]) => {
+  const sorts = !r.over && r.items.length > 1 ? h("div", { className: "pills" }, h("span", { className: "fine" }, "Order:"), ...[["value", "Best value"], ["evidence", "Most reliable"], ["mrt", "Closest to MRT"], ["price", "Cheapest"], ["size", "Biggest"], ...(condo ? [] : [["lease", "Longest lease"]])].map(([key, label]) => {
     const b = h("button", { className: "opt" + (r.order === key ? " on" : ""), type: "button" }, label);
-    b.addEventListener("click", async () => { if (busy || r.order === key) return; try { const res = await api("/api/find", { spec: { ...r.spec, sort: key } }); ctx = res.ctx; findCard(res.find); } catch (e) { toast(e.message); } });
+    b.addEventListener("click", async () => { if (busy || r.order === key) return; try { const res = await api("/api/find", { spec: { ...r.spec, sort: key } }); findCard(res.find); } catch (e) { toast(e.message); } });
     return b; })) : null;
   return row("bot", h("div", { className: "fcardc" },
-    h("div", { className: "ctop" }, h("div", {}, h("b", {}, !r.items.length ? "No sales like that" : r.over ? "Nothing within budget. The closest:" : `Where this has sold`), h("div", { className: "dim fine" }, cap(r.what))),
+    h("div", { className: "ctop" }, h("div", {}, h("b", {}, !r.items.length ? "No sales like that" : r.over ? "Nothing within budget. The closest:" : condo ? "Condos: where this has sold" : "HDB flats: where this has sold"), h("div", { className: "dim fine" }, cap(r.what))),
       h("span", { className: "tag" }, r.over || !r.items.length ? `${r.all_sales.toLocaleString("en-US")} sales at any price` : `${r.sales.toLocaleString("en-US")} sales in 12 months`)),
     r.by_place.length > 1 && !r.over ? h("div", {}, ...rich("Most matches: " + r.by_place.slice(0, 4).map(x => `${x.place} (${x.sales} sales, around ${k(x.median)})`).join(", ") + ".")) : null,
     r.items.length ? h("div", {}, ...rows) : null, sorts,
@@ -980,6 +980,7 @@ function send(text) {
       if (u.area) { areaCard(u.area); await sleep(900); }
       if (u.market) { marketCard(u.market); await sleep(900); }
       if (u.find) { findCard(u.find); await sleep(900); }
+      if (u.find2) { findCard(u.find2); await sleep(900); }
       await say(u.area || u.market || u.find ? rich(t) : t);
       if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
       if (!u.reply || u.market) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }

@@ -409,8 +409,10 @@ def short_reply(system, view, text, fallback, limit=700, model=None):
 
 FIND = """You are Oikos, a friendly, plain-speaking adviser on Singapore home prices. The person asked you to find homes that fit their requirements. \
 A card above your reply already lists the matches in the FACTS: blocks (or condo projects) where such homes actually sold in the last 12 months, and what \
-they went for. These are sold prices from public records, not homes on sale today. Write three or four short sentences, plain text, under 85 words:
-- Say what their requirements buy and where most of the matches are. If "nothing_within_budget" is true, say so plainly and give the cheapest that did sell.
+they went for. These are sold prices from public records, not homes on sale today. Write three or four short sentences, plain text, under 85 words (up to 120 when the FACTS cover both HDB flats and condos). \
+If they ask for a long piece of writing (a proposal, an essay, a report), still keep to this length, and add that the cards hold the details:
+- Say what their requirements buy and where most of the matches are. If "nothing_within_budget" is true, say so plainly and give the cheapest that did sell. \
+If the FACTS hold both "hdb" and "condos", cover both in a sentence each: what the budget buys in each and where.
 - Point out the one trade-off that stands out in the matches (for example the ones nearest the MRT are older, or one town is much cheaper), only if the FACTS show it.
 - Say once that these are past sales, so the next step is to look for a unit on sale in one of these blocks, then send it to you to check its price.
 - End with the one question in "ask_next".
@@ -420,7 +422,7 @@ prices will rise or fall, and never tell them to hurry. Loans, CPF, grants and w
 
 def find_reply(view, text, fallback, model=None):
     """A short comment on the homes found for a set of requirements."""
-    return short_reply(FIND, view, text, fallback, limit=900, model=model)
+    return short_reply(FIND, view, text, fallback, limit=1200, model=model)
 
 
 def area_reply(view, text, fallback, model=None):

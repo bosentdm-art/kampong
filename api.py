@@ -527,7 +527,35 @@ def market_answer(town, text, who, ip=None):
 FIND_BEYOND = ("budget", "mrt_m", "school", "min_lease", "max_age", "min_sqm", "region", "districts", "segment", "high_floor", "beds", "freehold")
 
 
+def find_view(r, ask):
+    return dict(requirements=r["what"], months=12, nothing_within_budget=r["over"], sales_that_fit=r["sales"], sales_of_this_kind_at_any_price=r["all_sales"], blocks_or_projects_that_fit=r.get("blocks"),
+                where_the_matches_are=[dict(place=x["place"], sales=x["sales"], typical_price=round(x["median"], -3)) for x in r["by_place"]], listed_in=r.get("order_words"),
+                matches_on_the_card=[{k: (round(v, -3) if k in ("median", "low", "high") else round(v) if k in ("sqm", "psm") else v) for k, v in x.items()
+                                      if k in ("name", "town", "district", "flat_type", "tenure", "n_in", "n_all", "median", "low", "high", "sqm", "psm", "lease_left", "mrt", "mrt_m", "walk_min")} for x in r["items"][:6]],
+                ask_next=ask)
+
+
+def find_both(spec, text, who, ip=None, comment=True):
+    """"HDBs and condos under 2m": one card for each, and one comment that covers both."""
+    rh, rc = fd.search(fd.narrow(spec, "hdb")), fd.search(fd.narrow(spec, "condo"))
+    ask = "What is the most you would pay?" if not spec["budget"] else "Tap a block or project and I'll check a home there, or tell me what to change."
+    part = lambda r, place: (f"{r['sales']:,} HDB resales fit in {r.get('blocks', 0):,} {place}s" if place == "block" else f"{r['sales']:,} condo resales in {r.get('blocks', 0):,} {place}s") + (
+        ", most in " + ", ".join(f"{x['place']} (around {fd.kfmt(x['median'])})" for x in r["by_place"][:2]) if r["by_place"] and not r["over"] else "")
+    rule = (f"In the last 12 months, {part(rh, 'block')}; {part(rc, 'project')}. The cards list them, {rh.get('order_words') or 'in order'}. "
+            "These are past sales, not homes on sale today: look for a unit on sale in one of these places, then send it to me to check the price. " + ask)
+    view = dict(hdb=find_view(rh, ask), condos=find_view(rc, ask), ask_next=ask)
+    if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
+        reply, made = rule, False
+    else:
+        reply, cost, made = llm.find_reply(view, text, rule)
+        if who:
+            acc.record(who, "area", cost, made, ip)
+    return dict(find=rh, find2=rc, reply=reply, ai=made, ctx=dict(find=spec))
+
+
 def find_answer(spec, text, who, ip=None, comment=True):
+    if spec["kind"] == "both":
+        return find_both(spec, text, who, ip, comment)
     r = fd.search(spec)
     place = "project" if r["kind"] == "condo" else "block"
     ask = ("What is the most you would pay?" if not spec["budget"] else "Which part of Singapore do you have in mind?" if r["kind"] == "hdb" and not (spec["towns"] or spec["region"] or spec["station"] or spec["school"]) and r.get("blocks", 0) > 40
@@ -542,11 +570,7 @@ def find_answer(spec, text, who, ip=None, comment=True):
     else:
         rule = (f"{r['sales']:,} sale{'s' if r['sales'] != 1 else ''} in {r['blocks']:,} {place}{'s' if r['blocks'] != 1 else ''} fit that in the last 12 months" + (", most of them in " + ", ".join(f"{x['place']} (around {fd.kfmt(x['median'])})" for x in top) if top else "")
                 + f". These are past sales, not homes on sale today: look for a unit on sale in one of these {place}s, then send it to me to check the price. " + ask)
-    view = dict(requirements=r["what"], months=12, nothing_within_budget=r["over"], sales_that_fit=r["sales"], sales_of_this_kind_at_any_price=r["all_sales"], blocks_or_projects_that_fit=r.get("blocks"),
-                where_the_matches_are=[dict(place=x["place"], sales=x["sales"], typical_price=round(x["median"], -3)) for x in r["by_place"]], listed_in=r.get("order_words"),
-                matches_on_the_card=[{k: (round(v, -3) if k in ("median", "low", "high") else round(v) if k == "sqm" else v) for k, v in x.items()
-                                      if k in ("name", "town", "district", "flat_type", "tenure", "n_in", "n_all", "median", "low", "high", "sqm", "lease_left", "mrt", "mrt_m", "walk_min")} for x in r["items"][:6]],
-                ask_next=ask)
+    view = find_view(r, ask)
     if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
         reply, made = rule, False
     else:
@@ -564,7 +588,7 @@ class Find(BaseModel):
 def find(body: Find):
     """The same search again with the requirements changed (the sort buttons on the card). No AI call."""
     spec = {**fd.EMPTY, **{k: v for k, v in body.spec.items() if k in fd.EMPTY}}
-    if spec["kind"] not in ("hdb", "condo") or spec["sort"] not in (None, *fd.ORDERS) or not isinstance(spec["towns"], list) or not isinstance(spec["flat_types"], list):
+    if spec["kind"] not in ("hdb", "condo", "both") or spec["sort"] not in (None, *fd.ORDERS) or not isinstance(spec["towns"], list) or not isinstance(spec["flat_types"], list):
         raise HTTPException(422, "Those requirements are not in a form I can search.")
     try:
         return clean(find_answer(spec, "", None, comment=False))
