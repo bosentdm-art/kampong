@@ -40,7 +40,9 @@ EMPTY = dict(kind="hdb", budget=None, budget_min=None, flat_types=[], beds=None,
 
 STRONG = re.compile(r"\b(find|recommend|suggest|shortlist|show me|list of|search for|searching for)\b", re.I)
 WEAK = re.compile(r"\b(looking for|look for|budget|where can|where should|what can (?:i|we) (?:get|buy)|which (?:areas?|towns?|estates?|blocks?|flats?|condos?|projects?)|options|"
-                  r"want (?:a|an|to buy|something)|need (?:a|an)|any (?:flats?|units?|condos?)|house ?hunting|hunting for)\b", re.I)
+                  r"want (?:a|an|to buy|something)|need (?:a|an)|any (?:flats?|units?|condos?)|house ?hunting|hunting for|"
+                  r"cheap|cheapest|affordable|good value|best value|value for money|good deals?|bargains?|undervalued|"  # "good value condos under 2m"
+                  r"(?:under|below|less than|not more than|no more than|max(?:imum)?|up to)\s*(?:of\s*)?(?:s?\$\s*)?\d)", re.I)
 _UNIT = r"(k|m|mil|million)"
 
 
@@ -286,6 +288,15 @@ def _near(d, spec):
     return d
 
 
+SHORT_LEASE = 60  # years left: below this, loans and CPF use can be cut and resale is harder, so "Best value" lists these last
+
+
+def condo_lease_left(tenure, freehold, year):
+    """Years of lease left for each project: 999 for freehold, NaN when the tenure text can't be read."""
+    m = tenure.astype(str).str.extract(r"(\d+)\s*yrs?\s*lease commencing from\s*(\d{4})", flags=re.I).astype(float)
+    return np.where(freehold, 999, m[0] + m[1] - year)
+
+
 def _rank(g, spec, cap_key, over=False):
     """Order the blocks or projects, then keep a spread: no more than two from one street and four from one town or district."""
     loose = spec["budget"] and g["n_in"].sum() >= 0.9 * g["n_all"].sum()  # nearly everything is within budget, so "within budget" says little: show value
@@ -298,8 +309,8 @@ def _rank(g, spec, cap_key, over=False):
         g = g.sort_values(["sqm", "n_in"], ascending=[False, False])
     elif order == "price":
         g = g.sort_values(["median", "n_in"], ascending=[True, False])
-    elif order == "value":  # the lowest price per sqm, among places with at least two sales so one odd sale does not lead
-        g = g.assign(solid=g["n_in"] >= 2).sort_values(["solid", "psm"], ascending=[False, True])
+    elif order == "value":  # the lowest price per sqm, among places with at least two sales so one odd sale does not lead; short leases last
+        g = g.assign(solid=g["n_in"] >= 2, short=g["lease_left"] < SHORT_LEASE).sort_values(["short", "solid", "psm"], ascending=[True, False, True])
     else:  # where the budget most reliably buys: several sales within it, and most sales there within it
         g = g.assign(solid=g["n_in"] >= 2, share=g["n_in"] / g["n_all"]).sort_values(["solid", "share", "n_in", "latest"], ascending=False)
     seen, kept = {}, []
@@ -397,7 +408,8 @@ def _condos(spec):
     g = w.groupby("project").agg(n_in=("price", "size"), median=("price", "median"), psm=("psm", "median"), low=("price", "min"), high=("price", "max"), sqm=("area", "median"), dist_mrt=("dist_mrt", "first"),
                                  latest=("sale_date", "max"), street=("street", "first"), district=("district", "first"), tenure=("tenure", "first"), freehold=("freehold", "first"),
                                  lat=("lat", "first"), lon=("lon", "first")).join(n_all).reset_index()
-    g["lease_left"] = np.where(g["freehold"], 999, 60)  # only for ordering: freehold first when sorting by lease
+    g["lease_left"] = condo_lease_left(g["tenure"], g["freehold"], g["latest"].dt.year)
+    g["lease_left"] = g["lease_left"].fillna(SHORT_LEASE)  # tenure we can't read: neither first by lease nor flagged short
     out["blocks"] = int(len(g))
     kept, order = _rank(g, spec, "district", out["over"])
     for r in kept:
@@ -405,6 +417,7 @@ def _condos(spec):
         mrt = near["mrt"][0] if near and near.get("mrt") else None
         out["items"].append(dict(name=r.project.title(), project=r.project, street=str(r.street).title(), district=int(r.district), tenure=str(r.tenure), n_in=int(r.n_in), n_all=int(r.n_all),
                                  median=float(r.median), low=float(r.low), high=float(r.high), sqm=float(r.sqm), psm=float(r.psm), latest=r.latest.strftime("%Y-%m"),
+                                 lease_left=None if r.freehold or r.lease_left >= 999 else int(round(r.lease_left)),
                                  mrt=f"{mrt['name']} {mrt['rail']}" if mrt else None, mrt_m=int(mrt["metres"]) if mrt else None, walk_min=int(mrt["walk_min"]) if mrt else None,
                                  send=f"{r.project.title()} {round(r.sqm)} sqm"))
     t = w.groupby("district").agg(sales=("price", "size"), median=("price", "median")).sort_values("sales", ascending=False).head(6)

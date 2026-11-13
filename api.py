@@ -77,7 +77,10 @@ def refresh_if_new(force_check=False):
 async def fresh_data(request, call_next):
     if request.url.path.startswith("/api/"):
         refresh_if_new()
-    return await call_next(request)
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.endswith(".html") or request.url.path.startswith("/s/"):
+        response.headers["Cache-Control"] = "no-cache"  # the browser checks for a new page each visit, so an update shows at once
+    return response
 
 
 class Flat(BaseModel):
@@ -198,7 +201,14 @@ class Saved(BaseModel):
 
 # ---- accounts: a session cookie for people who sign in, an anonymous id for everyone else (so usage can be counted)
 def visitor(request, response):
-    """('u:<id>' or 'a:<anonymous id>', the signed-in user or None)."""
+    """('u:<id>' or 'a:<anonymous id>', the signed-in user or None). Worked out once per request."""
+    if getattr(request.state, "who", None):
+        return request.state.who
+    request.state.who = _visitor(request, response)
+    return request.state.who
+
+
+def _visitor(request, response):
     user = acc.user_for(request.cookies.get("oikos_session"))
     if user:
         return f"u:{user['id']}", user
@@ -253,7 +263,25 @@ def answer(who, ip, facts, a, price, question):
         out = llm.explain(facts, a.role, a.age, price, question, a.history, profile=a.profile, assumed=a.assumed, detail=a.detail)
     out["counted"] = out.get("source") == "model" and not out.get("declined")
     acc.record(who, "ask", out.get("cost_cents"), out.get("source") == "model", ip, charge=out["counted"])
+    if out.get("declined"):
+        acc.log_feedback(who, "declined", question or "(first advice)", out.get("text"))
     return out
+
+
+class Rate(BaseModel):
+    rating: str
+    message: str | None = None
+    reply: str | None = None
+    note: str | None = None
+
+
+@app.post("/api/feedback")
+def feedback(body: Rate, request: Request, response: Response):
+    """A thumbs up or down on an answer, with what went wrong if they say. Kept privately to improve Oikos."""
+    if body.rating not in ("up", "down"):
+        raise HTTPException(422, "A rating is up or down.")
+    acc.log_feedback(visitor(request, response)[0], body.rating, body.message, body.reply, body.note)
+    return {"ok": True}
 
 
 def me_view(who, user):
@@ -659,6 +687,50 @@ def condo_track(project, property_type, market_segment, area):
     return track_summary(d, "private condos and apartments")
 
 
+@functools.lru_cache(maxsize=1)
+def accuracy_data():
+    """Every sale we estimated beforehand: by a version of the model that had only seen earlier sales."""
+    hf = sorted((ROOT / "data/processed/oos").glob("chunk_*.parquet"))
+    h = pd.concat([pd.read_parquet(f, columns=["sale_date", "block", "street_name", "town", "flat_type", "resale_price", "pred"]) for f in hf], ignore_index=True)
+    h = pd.DataFrame(dict(month=h["sale_date"], home="Blk " + h["block"].astype(str) + " " + h["street_name"].astype(str).str.title(), group=h["flat_type"].astype(str).str.title(),
+                          place=h["town"].astype(str).str.title(), sold=h["resale_price"], est=h["pred"]))
+    cf_ = sorted((ROOT / "data/processed/condo_oos").glob("chunk_*.parquet"))
+    c = pd.concat([pd.read_parquet(f, columns=["sale_date", "project", "market_segment", "area", "price", "lp", "pred_lp"]) for f in cf_], ignore_index=True)
+    c = pd.DataFrame(dict(month=c["sale_date"], home=c["project"].astype(str).str.title(), group=c["market_segment"].astype(str),
+                          place=c["area"].round().astype(int).astype(str) + " sqm", sold=c["price"], est=c["price"] * np.exp(c["pred_lp"] - c["lp"])))
+    for d in (h, c):
+        d["err"] = d["sold"] / d["est"] - 1
+    return h, c
+
+
+def acc_summary(d):
+    e = d["err"]
+    a = e.abs()
+    return dict(sales=int(len(d)), half_within_pct=round(float(a.median() * 100), 1), within_5_pct=round(float((a <= 0.05).mean() * 100)),
+                within_10_pct=round(float((a <= 0.10).mean() * 100)), off_10_pct=round(float((a > 0.10).mean() * 100), 1), bias_pct=round(float(e.median() * 100), 1))
+
+
+SEGMENTS = {"CCR": "Core central (CCR)", "RCR": "City fringe (RCR)", "OCR": "Suburbs (OCR)"}
+
+
+@app.get("/api/accuracy")
+def accuracy():
+    """How close our estimates came to the price each home sold for, month by month over the last year, with the biggest misses."""
+    out = dict(trained_through=meta()["trained_through"])
+    for key, d in zip(("hdb", "condo"), accuracy_data()):
+        last = d["month"].max()
+        yr = d[d["month"] > last - pd.DateOffset(months=12)]
+        groups = [dict(group=SEGMENTS.get(g, g), **acc_summary(x)) for g, x in yr.groupby("group") if len(x) >= 50]
+        latest = d[d["month"] == last]
+        worst = latest.assign(a=latest["err"].abs()).nlargest(6, "a")
+        out[key] = dict(year=acc_summary(yr), latest_month=last.strftime("%Y-%m"), first_month=yr["month"].min().strftime("%Y-%m"),
+                        months=[dict(month=mo.strftime("%Y-%m"), **acc_summary(x)) for mo, x in yr.groupby("month")],
+                        groups=sorted(groups, key=lambda x: -x["sales"]),
+                        misses=[dict(home=r.home, place=r.place, group=SEGMENTS.get(r.group, r.group), estimate=round(float(r.est), -3), sold=round(float(r.sold)),
+                                     miss_pct=round(float(r.err) * 100, 1)) for r in worst.itertuples()])
+    return clean(out)
+
+
 def num(x, lo, hi, kind=float):
     try:
         v = kind(x)
@@ -669,6 +741,14 @@ def num(x, lo, hi, kind=float):
 
 @app.post("/api/understand")
 def understand(m: Message, request: Request = None, response: Response = None):
+    """Read a chat message (see _understand), and privately log the ones Oikos could not handle, so they can be fixed."""
+    out = _understand(m, request, response)
+    if request is not None and not m.current and not out.get("found") and not out.get("work") and not out.get("watch") and (out.get("note") or not out.get("reply")):
+        acc.log_feedback(visitor(request, response)[0], "miss", m.text, out.get("note"))
+    return out
+
+
+def _understand(m, request=None, response=None):
     """Read a chat message. Returns the flat it describes (with sensible defaults for anything not said), or
     changes to the flat on screen, or found=False: then either `reply` holds the AI's answer, or the message is a
     question about the flat on screen. Rules read the message first; what they miss goes to the AI."""
@@ -700,6 +780,9 @@ def understand(m: Message, request: Request = None, response: Response = None):
             return condo_answer(on_condo["project"], p, base, m.text, cur=on_condo)
         if not p["block"]:
             return clean(base)  # a question about the condo on screen
+    if not p["block"] and p.get("postal_miss") and not named and not on_screen:  # a postal code that is not an HDB block we have sales for
+        return clean({**base, "note": f"I can't find postal code {p['postal_miss']} among HDB blocks with resale records. If it's a condo, send me the project name. "
+                                      "For an HDB flat, the block and street work too."})
     if not on_screen and not p["block"] and TIMING.search(m.text[:600]):  # "is now a good time?": what the market has done, never a forecast
         return clean({**base, **market_answer(p["town_hint"], m.text, who, ip)})
     # "find me a 4 room under 600k near an MRT", or a change to the last search ("only tampines", "make it 650k")

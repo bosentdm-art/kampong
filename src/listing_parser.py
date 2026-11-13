@@ -45,6 +45,28 @@ def block_index():
     return out
 
 
+@functools.lru_cache(maxsize=1)
+def postal_index():
+    """postal code -> (block, HDB street name, town), for the blocks with resale records."""
+    towns = {(b, s): t for b, s, t in blocks()[["block", "street_name", "town"]].astype(str).drop_duplicates().itertuples(index=False)}
+    c = pd.read_csv(ROOT / "data/processed/block_coords.csv", dtype=str).dropna(subset=["postal"])
+    out = {}
+    for b, s, p in c[["block", "street_name", "postal"]].itertuples(index=False):
+        p = p.split(".")[0].strip().zfill(6)
+        if (b, s) in towns and len(p) == 6 and p.isdigit():
+            out[p] = (b, s, towns[(b, s)])
+    return out
+
+
+def _place(out, d, blk, name, town):
+    """Fill in a block that was found, with its lease start and, when the block has only one, its flat type."""
+    hit = d[(d["block"] == blk) & (d["street_name"] == name)]
+    out["block"], out["street_name"], out["town"] = blk, name, town
+    out["lease_commence_date"] = int(hit["lease_commence_date"].mode().iloc[0])
+    if out["flat_type"] is None and hit["flat_type"].nunique() == 1:
+        out["flat_type"] = hit["flat_type"].iloc[0]
+
+
 def match_block(blk, street):
     """(HDB street name, town) for a block and a street as a person or the AI wrote it, forgiving spelling. None if no match."""
     import difflib
@@ -158,7 +180,7 @@ def parse(text):
     t = " ".join(text.split())
     out = dict(block=None, street_name=None, town=None, flat_type=None, flat_model=None, floor_area_sqm=None,
                asking=find_price(t), lease_commence_date=None, top_year=None, storey_hint=None, floor=None, role=None, age=None,
-               town_hint=None, street_hint=None, block_hint=None)
+               town_hint=None, street_hint=None, block_hint=None, postal=None, postal_miss=None)
 
     m = re.search(r"([\d,]{3,5})\s*sq\s*ft", t, re.I)
     if m:
@@ -211,12 +233,19 @@ def parse(text):
         if not hits:
             continue
         _, name, town = min(hits, key=lambda h: len(h[0]))
-        hit = d[(d["block"] == blk) & (d["street_name"] == name)]
-        out["block"], out["street_name"], out["town"] = blk, name, town
-        out["lease_commence_date"] = int(hit["lease_commence_date"].mode().iloc[0])
-        if out["flat_type"] is None and hit["flat_type"].nunique() == 1:
-            out["flat_type"] = hit["flat_type"].iloc[0]
+        _place(out, d, blk, name, town)
         break
+    if out["block"] is None:  # a postal code names one block: "560177", "S(560177)", "Singapore 560177"
+        for m in re.finditer(r"(?<![\d$.,])(\d{6})(?!\d|[,.]\d|\s*(?:k\b|sq|psf|psm))", t, re.I):
+            code = m.group(1)
+            if code in postal_index():
+                _place(out, d, *postal_index()[code])
+                out["postal"], out["postal_miss"] = code, None
+                if out["asking"] == int(code):  # "at 560177" read as a price
+                    out["asking"] = None
+                break
+            if 1 <= int(code[:2]) <= 82 and out["asking"] != int(code):
+                out["postal_miss"] = code
     if out["block"] is None:  # no full address: keep whatever the message does say, so the chat can narrow it down
         m = re.search(r"\b(?:blk|block)\.?\s*(\d{1,4}[A-Za-z]?)\b", t, re.I)
         out["block_hint"] = m.group(1).upper() if m else None

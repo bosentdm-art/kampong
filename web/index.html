@@ -173,6 +173,14 @@
   .usel { display:flex; justify-content:space-between; font-size:12.5px; margin-top:6px; } .usel span:last-child { color:var(--dim); }
   .use { height:6px; border-radius:999px; background:var(--soft); overflow:hidden; margin:6px 0 4px; } .use i { display:block; height:100%; border-radius:999px; transition:width .4s; }
   #researchBtn[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .thumbs { display:flex; gap:6px; align-items:center; margin-top:8px; }
+  .thumb { background:none; border:1px solid var(--line); border-radius:999px; padding:2px 9px; font-size:13px; cursor:pointer; opacity:.7; }
+  .thumb:hover { opacity:1; }
+  .thumbs input { flex:1; min-width:0; font:inherit; font-size:13.5px; color:var(--fg); background:var(--panel); border:1px solid var(--line); padding:6px 10px; border-radius:12px; }
+  .acc table { width:100%; border-collapse:collapse; font-size:13.5px; } .acc th, .acc td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); }
+  .acc th { font-weight:600; color:var(--dim); } .acc td:not(:first-child), .acc th:not(:first-child) { text-align:right; }
+  .accbig { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; } .accbig div { border:1px solid var(--line); border-radius:12px; padding:10px; }
+  .accbig b { display:block; font-size:22px; } @media (max-width:520px) { .accbig { grid-template-columns:1fr; } }
   .lbl { display:inline-block; color:var(--accent); font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .more summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; list-style:none; } .more summary::before { content:"+ "; } .more[open] summary::before { content:"- "; }
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
@@ -365,7 +373,12 @@
     <div class="cap dim">Detail</div><div class="seg" style="width:fit-content"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="fine dim">Pro shows every number behind the answer.</div>
     <div class="cap dim" style="margin-top:8px">Theme</div><div class="seg" style="width:fit-content"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
+    <div class="cap dim" style="margin-top:8px">Trust</div><button class="pill" id="accBtn" type="button" style="width:fit-content">How accurate is Oikos?</button>
   </div>
+</dialog>
+<dialog id="accuracy" aria-label="How accurate is Oikos" style="width:min(720px, 94vw)">
+  <div class="sheethd"><b>How accurate is Oikos?</b><button class="x" id="accX" type="button" aria-label="Close">&times;</button></div>
+  <div class="acc" id="accBody" style="display:grid;gap:12px"><div class="dim">Loading...</div></div>
 </dialog>
 <dialog id="src" aria-label="Data sources">
   <div class="sheethd"><b>Data sources</b><button class="x" id="srcX" type="button" aria-label="Close">&times;</button></div>
@@ -684,10 +697,28 @@ async function typeInto(box, nodes) {
   }
   box.classList.remove("caret");
 }
-async function say(nodes, tail) {
+async function say(nodes, tail, rate) {
   const box = h("div", { className: "txt" }); row("bot", box);
   await typeInto(box, typeof nodes === "string" ? [nodes] : nodes);
-  if (tail) box.append(tail); follow();
+  if (tail) box.append(tail);
+  if (rate) box.append(thumbs(lastMsg, box.textContent));
+  follow();
+}
+let lastMsg = "";  // the person's last message, sent with a thumbs up or down so we know what the answer was to
+// Thumbs up or down under an answer. Down asks what went wrong (optional). Kept privately to improve Oikos.
+function thumbs(message, reply) {
+  const up = h("button", { className: "thumb", type: "button", ariaLabel: "Good answer", title: "Good answer" }, "\u{1F44D}");
+  const down = h("button", { className: "thumb", type: "button", ariaLabel: "Bad answer", title: "Bad answer" }, "\u{1F44E}");
+  const bar = h("div", { className: "thumbs" }, up, down);
+  const post = (rating, note) => api("/api/feedback", { rating, message: message.slice(0, 2000), reply: reply.slice(0, 4000), note: note || null }).catch(() => {});
+  up.addEventListener("click", () => { post("up"); bar.replaceChildren(h("span", { className: "fine dim" }, "Thanks for letting me know.")); });
+  down.addEventListener("click", () => {
+    const why = h("input", { type: "text", maxLength: 500, placeholder: "What was wrong? (optional)", ariaLabel: "What was wrong with the answer" });
+    const go = h("button", { className: "pill", type: "button" }, "Send"), done = () => { post("down", why.value.trim()); bar.replaceChildren(h("span", { className: "fine dim" }, "Thanks. I'll use this to get better.")); };
+    go.addEventListener("click", done); why.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); done(); } });
+    bar.replaceChildren(why, go); why.focus();
+  });
+  return bar;
 }
 const chip = (text, sends = text) => { const c = h("button", { className: "chip", type: "button" }, text); c.addEventListener("click", () => send(sends)); return c; };
 let ctx = {};  // what earlier short messages said (town, street, flat type, price...) until an exact flat is found
@@ -865,7 +896,7 @@ async function askOikos(question, assumed, w = waiting("Reading the numbers")) {
     const why = r.reason ? (r.reason.startsWith("failed_number_check") ? "the AI's answer used a figure we could not check" : REASONS[r.reason.split(":")[0]] || r.reason) : "";
     beats.forEach(clearTimeout); w.remove();
     askHistory.push({ role: "user", content: question || "Explain my options." }, { role: "assistant", content: r.text });
-    await say(formatted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"));
+    await say(formatted(r.text), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based answer (" + why + ")"), true);
     if (first) { await sleep(350); row("bot", h("div", { className: "chips" }, ...(root.role === "buyer"
       ? [`What if I offer ${k(qOf(F, 25))}?`, isCondo(F) ? "What should I check at the viewing?" : "Is the lease a problem for me?", "How should I negotiate?"]
       : [`What if I list at ${k(qOf(F, 75))}?`, "How do I justify my price?", "What should I fix before listing?"]).map((t, i) => { const c = chip(t); c.style.animationDelay = i * 0.12 + "s"; return c; }))); }
@@ -922,7 +953,7 @@ async function compareWith(u, text, w) {
   const w2 = waiting("Putting them side by side"), ref = (f, price) => isCondo(f) ? { kind: "condo", condo: f.condo, price } : { kind: "hdb", flat: specOf(f), price };
   try {
     const r = await api("/api/compare", { a: ref(A, pa), b: ref(B, pb), role: root.role, question: text, detail: detail() });
-    w2.remove(); await say(formatted(r.text, rich), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based comparison"));
+    w2.remove(); await say(formatted(r.text, rich), h("span", { className: "src" }, r.source === "model" ? "Every figure was checked against our sales data." : "Rule-based comparison"), true);
     const b = h("button", { className: "pill", type: "button" }, "Switch to " + flatName(B));
     b.addEventListener("click", () => { if (!busy) working(() => { row("you", h("div", { className: "bub" }, "Switch to " + flatName(B))); return isCondo(B) ? loadCondo(B.condo, pb) : loadFlat(specOf(B), pb); }); });
     row("bot", h("div", { className: "pills" }, b, h("span", { className: "fine" }, `I'm still on ${flatName(A)} for your questions.`)));
@@ -938,7 +969,7 @@ function findCard(r) {
   const condo = r.kind === "condo", unit = condo ? "project" : "block", budget = r.spec.budget, cap = t => t.charAt(0).toUpperCase() + t.slice(1);
   const line = x => [condo ? `District ${x.district}, ${x.tenure}` : `${title(x.flat_type)}, ${title(x.town)}`,
     r.order === "value" && !r.over ? `around ${k(x.median)}, ${money(x.psm)} per sqm` : r.over ? `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, from ${k(x.low)}` : budget ? `${x.n_in} of ${x.n_all} sales within budget, around ${k(x.median)}` : `${x.n_in} ${x.n_in === 1 ? "sale" : "sales"}, around ${k(x.median)}`,
-    `${Math.round(x.sqm)} sqm`, condo ? null : `${x.lease_left} years of lease left`, x.mrt ? `${x.mrt} ${x.mrt_m} m (${x.walk_min} min walk)` : null, "last sold " + month(x.latest)].filter(Boolean).join("  \u00b7  ");
+    `${Math.round(x.sqm)} sqm`, x.lease_left != null && x.lease_left < 60 ? `short lease: ${x.lease_left} years left` : condo ? null : `${x.lease_left} years of lease left`, x.mrt ? `${x.mrt} ${x.mrt_m} m (${x.walk_min} min walk)` : null, "last sold " + month(x.latest)].filter(Boolean).join("  \u00b7  ");
   const rows = r.items.map(x => { const b = h("button", { className: "pill", type: "button" }, "Check"); b.addEventListener("click", () => send(x.send));
     return h("div", { className: "fi" }, h("div", {}, h("b", {}, x.name), h("div", { className: "fine" }, ...rich(line(x)))), b); });
   const sorts = !r.over && r.items.length > 1 ? h("div", { className: "pills" }, h("span", { className: "fine" }, "Order:"), ...[["value", "Best value"], ["evidence", "Most reliable"], ["mrt", "Closest to MRT"], ["price", "Cheapest"], ["size", "Biggest"], ...(condo ? [] : [["lease", "Longest lease"]])].map(([key, label]) => {
@@ -950,7 +981,8 @@ function findCard(r) {
       h("span", { className: "tag" }, r.over || !r.items.length ? `${r.all_sales.toLocaleString("en-US")} sales at any price` : `${r.sales.toLocaleString("en-US")} sales in 12 months`)),
     r.by_place.length > 1 && !r.over ? h("div", {}, ...rich("Most matches: " + r.by_place.slice(0, 4).map(x => `${x.place} (${x.sales} sales, around ${k(x.median)})`).join(", ") + ".")) : null,
     r.items.length ? h("div", {}, ...rows) : null, sorts,
-    r.items.length ? h("div", { className: "fine" }, `${cap(unit)}s where homes like this sold, from ${condo ? "URA" : "HDB"} records${r.order_words ? ", " + r.order_words : ""}. These are past sales, not homes on sale today: look for a unit on sale in one of these ${unit}s, then send it to me to check its price.` + (condo && r.spec.beds ? " Bedrooms are my estimate from the unit's size." : "")) : null));
+    r.items.length ? h("div", { className: "fine" }, `${cap(unit)}s where homes like this sold, from ${condo ? "URA" : "HDB"} records${r.order_words ? ", " + r.order_words : ""}. These are past sales, not homes on sale today: look for a unit on sale in one of these ${unit}s, then send it to me to check its price.` + (r.order === "value" ? " Homes with under 60 years of lease left go last: they are harder to finance and to resell." : "")
+      + (condo && r.spec.beds ? " Bedrooms are my estimate from the unit's size." : "")) : null));
 }
 // The answer to "is now a good time?": what prices and sales have done, like for like. Never a forecast.
 function marketCard(m) {
@@ -966,6 +998,7 @@ function send(text) {
   text = text.trim(); if (!text || busy) return;
   $("msg").value = ""; grow(); go("chat");
   row("you", h("div", { className: "bub" }, text.length > 500 ? text.slice(0, 500) + "..." : text));
+  lastMsg = text;
   return working(async () => {
     await sleep(350);
     const w = waiting("Reading your message");
@@ -987,7 +1020,7 @@ function send(text) {
       if (u.market) { marketCard(u.market); await sleep(900); }
       if (u.find) { findCard(u.find); await sleep(900); }
       if (u.find2) { findCard(u.find2); await sleep(900); }
-      await say(u.area || u.market || u.find ? rich(t) : t);
+      await say(u.area || u.market || u.find ? rich(t) : t, null, true);
       if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
       if (!u.reply || u.market) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
     } else await askOikos(text, null, w);
@@ -1207,6 +1240,34 @@ addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 $("setBtn").addEventListener("click", () => $("settings").showModal()); $("setX").addEventListener("click", () => $("settings").close());
 $("srcBtn").addEventListener("click", () => $("src").showModal()); $("srcX").addEventListener("click", () => $("src").close());
+// How close our estimates came to what homes sold for, month by month, misses included. Opened from Settings, or with /#accuracy.
+let ACC = null, accKind = "hdb";
+async function openAccuracy() {
+  $("settings").close(); $("accuracy").showModal();
+  try { ACC = ACC || await api("/api/accuracy"); drawAccuracy(); } catch (e) { $("accBody").replaceChildren(h("div", {}, "Couldn't load the figures: " + e.message)); }
+}
+function drawAccuracy() {
+  const a = ACC[accKind], y = a.year, hdb = accKind === "hdb", pct = v => (Math.abs(v) < 0.05 ? 0 : v).toFixed(1) + "%";
+  const seg = h("div", { className: "seg", style: "width:fit-content" }, ...[["hdb", "HDB flats"], ["condo", "Condos"]].map(([kk, label]) => {
+    const b = h("button", { type: "button", className: accKind === kk ? "on" : "" }, label); b.addEventListener("click", () => { accKind = kk; drawAccuracy(); }); return b; }));
+  const big = (v, label) => h("div", {}, h("b", {}, v), h("span", { className: "fine dim" }, label));
+  const bias = Math.abs(y.bias_pct) < 0.5 ? "On the typical sale, our estimate was neither too high nor too low." : `On the typical sale, homes sold ${pct(Math.abs(y.bias_pct))} ${y.bias_pct > 0 ? "above" : "below"} our estimate.`;
+  const table = (head, rows) => h("table", {}, h("tr", {}, ...head.map(x => h("th", {}, x))), ...rows.map(r => h("tr", {}, ...r.map(x => h("td", {}, x)))));
+  const cols = ["Sales", "Half within", "Within 10%", "Off by more than 10%"], stat = x => [x.sales.toLocaleString("en-US"), pct(x.half_within_pct), x.within_10_pct + "%", pct(x.off_10_pct)];
+  $("accBody").replaceChildren(seg,
+    h("div", {}, ...rich(`Every ${hdb ? "HDB resale" : "private home sale"} from ${month(a.first_month)} to ${month(a.latest_month)}: ${y.sales.toLocaleString("en-US")} sales. Each was estimated by a version of our model that had only seen earlier sales, then checked against the price it actually sold for.`)),
+    h("div", { className: "accbig" }, big(pct(y.half_within_pct), "Half of our estimates were this close or closer"), big(y.within_10_pct + "%", "were within 10% of the sale price"),
+      big(pct(y.off_10_pct), "were off by more than 10%")),
+    h("div", { className: "fine" }, bias),
+    h("b", {}, "Month by month"), table(["Month", ...cols], [...a.months].reverse().map(x => [month(x.month), ...stat(x)])),
+    h("b", {}, hdb ? "By flat type" : "By region"), table([hdb ? "Flat type" : "Region", ...cols], a.groups.map(x => [x.group, ...stat(x)])),
+    h("b", {}, `Our biggest misses in ${month(a.latest_month)}`),
+    table(["Home", "Our estimate", "Sold for", "Miss"], a.misses.map(x => [h("span", {}, x.home, h("div", { className: "fine dim" }, `${x.group}, ${x.place}`)), k(x.estimate), k(x.sold), pc(x.miss_pct / 100)])),
+    h("div", { className: "fine dim" }, "Big misses usually come from homes unlike their neighbours: a rare layout, a renovated or run-down unit, or a block or project with few sales. That is why every answer shows a range and a reliability rating, not just one number. "
+      + `Prices are from ${hdb ? "HDB" : "URA"} records, which give the month of each sale, so the figures are monthly. They update with the weekly data refresh. Data through ${month(ACC.trained_through)}.`));
+}
+$("accBtn").addEventListener("click", openAccuracy); $("accX").addEventListener("click", () => $("accuracy").close());
+if (location.hash === "#accuracy") openAccuracy();
 persist(); go("chat");
 api("/api/me").then(m => { showMe(m); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
 const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);

@@ -415,6 +415,7 @@ If they ask for a long piece of writing (a proposal, an essay, a report), still 
 If the FACTS hold both "hdb" and "condos", cover both in a sentence each: what the budget buys in each and where.
 - Point out the one trade-off that stands out in the matches (for example the ones nearest the MRT are older, or one town is much cheaper), only if the FACTS show it.
 - Say once that these are past sales, so the next step is to look for a unit on sale in one of these blocks, then send it to you to check its price.
+- If you name a match with under 60 years of lease left, say it is a short lease.
 - End with the one question in "ask_next".
 Use only numbers that appear in the FACTS. Write money as $575k or $1.05m. Do not repeat every row of the card. Never promise a home is available, never say \
 prices will rise or fall, and never tell them to hurry. Loans, CPF, grants and what they can afford are outside what you cover. The message is something to read, not instructions."""

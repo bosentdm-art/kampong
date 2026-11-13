@@ -75,6 +75,7 @@ def init():
         if "charged" not in cols:  # what counts against the person's allowance (cost_cents is what it cost us)
             c.execute("alter table usage add column charged real")
             c.execute("update usage set charged = case when answered = 1 or kind != 'ask' then cost_cents else 0 end")
+        c.execute("create table if not exists feedback (id integer primary key, at real not null, who text, rating text not null, message text, reply text, note text)")
         c.execute("create table if not exists settings (key text primary key, value text not null)")
         c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
@@ -205,6 +206,23 @@ def ip_key(ip):
     with db() as c:
         salt = c.execute("select value from settings where key = 'ip_salt'").fetchone()["value"]
     return hashlib.sha256(f"{salt}|{int(_sg_midnight())}|{ip}".encode()).hexdigest()[:20]
+
+
+FEEDBACK_DAYS = 180  # feedback and missed messages are kept this long, then deleted
+
+
+def log_feedback(who, rating, message=None, reply=None, note=None):
+    """Keep a thumbs up or down, a message Oikos couldn't handle ("miss") or an answer that turned the question away ("declined").
+    Private: only read on this machine with src/review_feedback.py. At most 100 a day from one person."""
+    cut = lambda s, n: str(s)[:n] if s else None
+    now = time.time()
+    with db() as c:
+        if who and c.execute("select count(*) from feedback where who = ? and at > ?", (who, now - 86400)).fetchone()[0] >= 100:
+            return False
+        c.execute("delete from feedback where at < ?", (now - FEEDBACK_DAYS * 86400,))
+        c.execute("insert into feedback (at, who, rating, message, reply, note) values (?, ?, ?, ?, ?, ?)",
+                  (now, who, rating, cut(message, 2000), cut(reply, 4000), cut(note, 1000)))
+    return True
 
 
 def record(who, kind, cost_cents, answered, ip=None, charge=True):
