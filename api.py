@@ -731,6 +731,75 @@ def accuracy():
     return clean(out)
 
 
+@functools.lru_cache(maxsize=1)
+def condo_resales():
+    d = pd.read_parquet(ROOT / "data/processed/ura_transactions.parquet", columns=["sale_type", "market_segment", "sale_date", "price_per_sqm"])
+    return d[d["sale_type"] == "resale"]
+
+
+@functools.lru_cache(maxsize=1)
+def ticker_data():
+    """The ticker along the top: last complete month of sales against the same month a year before. Monthly, because HDB and URA give only the month of each sale."""
+    end = pd.Timestamp(meta()["trained_through"] + "-01")
+    ago = end - pd.DateOffset(years=1)
+    d = pd.read_parquet(ROOT / "data/processed/resale_features.parquet", columns=["town", "flat_type", "sale_date", "sale_year", "lease_commence_date", "price_per_sqm", "resale_price"])
+    d = d[d["sale_date"] == end]
+    now = d[d["sale_date"] == end]
+    # Prices are last month's medians. Changes are like for like over the last three months against the same three a year before (market_stats): one month is too thin.
+    chg = lambda m, t: next((r["change_year"] for r in m["by_type"] if r["flat_type"] == t), None)
+    isl, items = market_stats(None), []
+    for t in ("3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE"):
+        a = now[now["flat_type"] == t]
+        if len(a) >= 30:
+            items.append(dict(label=f"{t.title().replace(' Room', '-room')} HDB median", value=float(a["resale_price"].median()), change=chg(isl, t), flat_type=t))
+    items.append(dict(label="HDB resales", value=int(len(now)), unit="sales", change=(isl["sales"] / isl["sales_year_ago"] - 1) if isl["sales_year_ago"] else None))
+    four = now[now["flat_type"] == "4 ROOM"]
+    for town in four["town"].value_counts().head(6).index:
+        items.append(dict(label=f"{town.title()} 4-room", value=float(four[four["town"] == town]["resale_price"].median()), change=chg(market_stats(town), "4 ROOM"),
+                          town=town, flat_type="4 ROOM"))
+    c = condo_resales()
+    win = lambda a: c[(c["sale_date"] > a - pd.DateOffset(months=3)) & (c["sale_date"] <= a)]
+    cl, cn, ct = c[c["sale_date"] == end], win(end), win(ago)
+    for seg in ("CCR", "RCR", "OCR"):
+        a, b, last = cn[cn["market_segment"] == seg]["price_per_sqm"], ct[ct["market_segment"] == seg]["price_per_sqm"], cl[cl["market_segment"] == seg]["price_per_sqm"]
+        if len(last) >= 30:
+            items.append(dict(label=f"Condo resale {seg} psf", value=float(last.median() / 10.7639), unit="psf", change=float(a.median() / b.median() - 1) if len(b) >= 60 else None))
+    h = accuracy_data()[0]
+    yr = h[h["month"] > h["month"].max() - pd.DateOffset(months=12)]
+    items.append(dict(label="Oikos accuracy", text=f"half within {acc_summary(yr)['half_within_pct']}%", open="accuracy"))
+    for x in items:
+        if x.get("change") is not None:
+            x["change"] = round(float(x["change"]) * 100, 1)
+    return dict(month=end.strftime("%b %Y"), window=isl["months"], items=items)
+
+
+@app.get("/api/ticker")
+def ticker():
+    return clean(ticker_data())
+
+
+class Homes(BaseModel):
+    homes: list[dict]
+
+
+@app.post("/api/ticker/homes")
+def ticker_homes(body: Homes):
+    """Today's estimate for each saved home (up to 5), so the ticker can show how it moved since it was saved."""
+    out = []
+    for h in body.homes[:5]:
+        try:
+            if h.get("kind") == "condo":
+                c = h["condo"]
+                fair = condo_facts(str(c["project"]), float(c["area"]), int(c["floor"]) if c.get("floor") else None, None)["fair"]
+            else:
+                f = Flat(**{k: h["flat"][k] for k in Flat.model_fields if k != "price"})
+                fair = facts_for(*flat_key(f))["fair"]
+            out.append(dict(id=h.get("id"), fair=fair))
+        except (HTTPException, KeyError, TypeError, ValueError):
+            out.append(dict(id=h.get("id"), fair=None))
+    return clean(dict(homes=out))
+
+
 def num(x, lo, hi, kind=float):
     try:
         v = kind(x)

@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oikos - HDB and condo price advice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Petit+Formal+Script&family=Questrial&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   /* Oikos: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
      Soft sky background, white rounded cards, pill buttons. .hl marks dates and times, .hm marks figures. */
-  :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; --r:22px; }
+  /* Type: Petit Formal Script for the name and big headlines only (a script is hard to read small), Questrial for everything else, Plex Mono for figures in charts.
+     Questrial has one weight, so bold text is drawn by the browser. */
+  :root { --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace; --disp: "Questrial", "Segoe UI", Arial, sans-serif; --script: "Petit Formal Script", "Segoe Script", cursive; --r:22px; }
   [data-theme="light"] { --bg:#eef6ff; --sky:linear-gradient(180deg,#b7dbff 0%,#d8ebff 36%,#f4f9ff 100%); --fg:#16283c; --dim:#667b93; --line:#d6e6f7; --panel:#ffffff; --glass:rgba(255,255,255,.66);
     --accent:#1a8cff; --soft:#dfefff; --pos:#15803d; --neg:#b42318; --hl:#0b74de; --hlbg:#e3f1ff; --mk:#e3f1ff; --shadow:0 14px 44px rgba(40,110,190,.16); --shadow2:0 4px 16px rgba(40,110,190,.10); }
   [data-theme="dark"]  { --bg:#0c1724; --sky:linear-gradient(180deg,#11294a 0%,#0e1c2e 45%,#0c1724 100%); --fg:#e6eef7; --dim:#8fa3b8; --line:#243a52; --panel:#14243a; --glass:rgba(20,36,58,.72);
@@ -31,10 +33,34 @@
   .nav::-webkit-scrollbar { display:none; }  /* still scrolls on a short screen, without the bar */
   .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:20px; padding:0 8px; }
   .logo { display:grid; place-items:center; width:34px; height:34px; border-radius:12px; background:var(--accent); color:#fff; box-shadow:var(--shadow2); flex:none; }
-  #nav { display:grid; gap:4px; }
+  .brand .word { font-family:var(--script); font-weight:400; font-size:25px; line-height:1; padding-top:4px; }
+  .hero h2, .sheethd b { font-family:var(--script); font-weight:400 !important; letter-spacing:0 !important; }
+  .sheethd b { font-size:24px; line-height:1.3; }
+  /* the sections: each has its own icon and number. The others fade back; the one you are on comes forward, its icon slides in, and a light sweeps across it once. */
+  #nav { display:grid; gap:2px; }
   #nav button, .newchat { font:inherit; font-size:15px; text-align:left; padding:9px 12px; background:none; color:var(--fg); border:0; border-radius:14px; cursor:pointer; display:flex; justify-content:space-between; }
+  #nav button { display:grid; grid-template-columns:22px 1fr auto; align-items:center; gap:10px; color:var(--dim); border:1px solid transparent; transition:color .25s, background .25s; }
+  #nav .ni { display:grid; place-items:center; opacity:.5; transform:translateX(-3px); transition:transform .35s cubic-bezier(.2,.8,.2,1.2), opacity .25s, color .25s; }
+  #nav .nl sup { font-family:var(--mono); font-size:9.5px; margin-left:3px; letter-spacing:.04em; opacity:.7; }
   #nav button:hover, .newchat:hover { background:var(--soft); }
-  #nav button.on { background:var(--soft); color:var(--accent); font-weight:600; }
+  #nav button:hover { color:var(--fg); } #nav button:hover .ni { opacity:.85; transform:none; }
+  #nav button.on { background:var(--glass); border-color:var(--line); box-shadow:var(--shadow2); color:var(--fg); }
+  #nav button.on .ni { opacity:1; color:var(--accent); transform:none; animation:slidein .45s cubic-bezier(.2,.8,.2,1.2); }
+  #nav button.on .nl { background:linear-gradient(100deg, var(--fg) 42%, var(--accent) 50%, var(--fg) 58%) 100% 0 / 260% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:sweep 1.1s ease-out .1s both; }
+  @keyframes slidein { from { transform:translateX(-12px); opacity:0; } }
+  @keyframes sweep { from { background-position:100% 0; } to { background-position:0 0; } }
+  /* the ticker along the top: last month's sales, your saved homes first */
+  .ticker { position:relative; display:flex; align-items:center; height:38px; overflow:hidden; border-bottom:1px solid var(--line); background:var(--glass); backdrop-filter:blur(18px); font-size:13px; flex:none; }
+  .ticker .when { flex:none; align-self:stretch; display:flex; align-items:center; padding:0 12px; background:var(--panel); border-right:1px solid var(--line); color:var(--accent); font-size:12px; white-space:nowrap; }
+  .ticker .track { flex:1; min-width:0; overflow:hidden; }
+  .ticker .tape { display:flex; width:max-content; animation:tape var(--dur, 80s) linear infinite; } .ticker .copy { display:flex; gap:30px; padding:0 15px; }
+  .ticker:hover .tape, .ticker:focus-within .tape { animation-play-state:paused; }
+  .tk { font:inherit; background:none; border:0; padding:4px 0; color:var(--fg); white-space:nowrap; cursor:pointer; display:inline-flex; gap:6px; align-items:baseline; }
+  .tk:hover .tkl { color:var(--accent); } .tk.info { cursor:default; } .tk.info:hover .tkl { color:var(--dim); } .tkl { color:var(--dim); } .tkv { font-family:var(--mono); font-weight:500; } .tk.mine .tkl { color:var(--accent); }
+  .tk .up { color:var(--pos); } .tk .dn { color:var(--neg); } .tk .flat { color:var(--dim); }
+  @keyframes tape { to { transform:translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .ticker .track { overflow-x:auto; scrollbar-width:none; } .ticker .tape { animation:none; } .ticker .copy + .copy { display:none; }
+    #nav button.on .ni, #nav button.on .nl { animation:none; } #nav button.on .nl { background:none; color:var(--fg); } }
   .newchat { background:var(--panel); box-shadow:var(--shadow2); font-weight:600; color:var(--accent); justify-content:flex-start; gap:8px; }
   .navfoot { margin-top:auto; display:grid; gap:6px; padding:0 6px; }
   .seg { display:inline-flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; background:var(--soft); border-radius:999px; padding:3px; width:fit-content; }
@@ -220,12 +246,17 @@
 </head>
 <body>
 <aside class="nav">
-  <div class="brand"><span class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span>Oikos</div>
+  <div class="brand"><span class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span><span class="word">Oikos</span></div>
   <button class="newchat" id="newChat" type="button">+ New chat</button>
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
-    <button data-go="chat">Ask Oikos</button><button data-go="check">Full breakdown</button><button data-go="flats"><span>My flats</span><span id="nFlats"></span></button>
-    <button data-go="compare">Compare</button><button data-go="alerts"><span>Alerts</span><span class="badge" id="nAlerts" hidden></span></button><button data-go="deals">Deals</button><button data-go="market">Market</button>
+    <button data-go="chat"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5l1.9 5.1L18 10.5l-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M19 15v6M16 18h6"/></svg></span><span class="nl">Ask Oikos<sup>01</sup></span><span></span></button>
+    <button data-go="check"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a8.5 8.5 0 1 0 9 9h-9z"/><path d="M14.5 2.8A8.5 8.5 0 0 1 21.2 9.5h-6.7z"/></svg></span><span class="nl">Full breakdown<sup>02</sup></span><span></span></button>
+    <button data-go="flats"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18M8.5 7.5h0M11.5 7.5h0M8.5 11.5h0M11.5 11.5h0M8.5 15.5h0M11.5 15.5h0"/></svg></span><span class="nl">My flats<sup>03</sup></span><span id="nFlats"></span></button>
+    <button data-go="compare"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-3 6.5a3 3 0 0 0 6 0zM19 7l-3 6.5a3 3 0 0 0 6 0z"/></svg></span><span class="nl">Compare<sup>04</sup></span><span></span></button>
+    <button data-go="alerts"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="nl">Alerts<sup>05</sup></span><span class="badge" id="nAlerts" hidden></span></button>
+    <button data-go="deals"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><span class="nl">Deals<sup>06</sup></span><span></span></button>
+    <button data-go="market"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 15v6M17 3v3M17 13v8"/><path d="M5 7h4v8H5zM15 6h4v7h-4z"/></svg></span><span class="nl">Market<sup>07</sup></span><span></span></button>
   </nav>
   <div class="navfoot">
     <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="pill" id="acctBtn" type="button">Sign in</button><button class="pill" id="plansBtn" type="button">Plans</button></div></div>
@@ -234,6 +265,7 @@
 </aside>
 
 <div class="work">
+  <div class="ticker" id="ticker" role="region" aria-label="Resale prices last month" hidden><span class="when" id="tkWhen"></span><div class="track"><div class="tape" id="tape"></div></div></div>
   <div class="bar" id="bar" hidden>
     <div><div class="cap dim" id="crumb"></div><div class="bartitle" id="flatcap"></div></div>
     <div id="actions" hidden><button class="btn" id="saveBtn" type="button">Save flat</button><button class="btn ghost" id="briefBtn" type="button">Get the brief</button><button class="btn ghost" id="newBtn" type="button">Back to chat</button></div>
@@ -1057,7 +1089,7 @@ function showMe(m) {
   ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
   const meter = (label, u) => [h("div", { className: "usel" }, h("span", {}, label), h("span", {}, `${u.pct}%`)),
     h("div", { className: "use" }, h("i", { style: `width:${u.pct}%;background:${u.pct >= 90 ? "var(--neg)" : "var(--accent)"}` })),
-    u.resets && u.pct > 0 ? h("div", { className: "fine dim" }, "Resets " + u.resets) : null];
+    u.resets && u.pct > 0 ? h("div", { className: "fine dim" }, "Resets " + u.resets) : ""];
   $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "fine dim", style: "margin-top:4px" }, m.plan_name + " plan"),
     ...meter("5-hour session", m.usage.session), ...meter("This week", m.usage.week));
 }
@@ -1162,7 +1194,7 @@ document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click
 // ---- my flats
 const flatId = f => [f.flat.block, f.flat.street_name, f.flat.flat_type, f.flat.flat_model, f.flat.floor_area_sqm, f.flat.storey].join("|");
 let saveTimer = 0;
-const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || "";
+const persist = () => { store.set("flats", flats); $("nFlats").textContent = flats.length || ""; if (TK) tickerHomes();
   if (ME) { clearTimeout(saveTimer); saveTimer = setTimeout(() => api("/api/flats", { flats }).catch(() => toast("Could not save to your account")), 600); } };
 $("saveBtn").addEventListener("click", () => saveFlat());
 function saveFlat() {
@@ -1268,6 +1300,40 @@ function drawAccuracy() {
 }
 $("accBtn").addEventListener("click", openAccuracy); $("accX").addEventListener("click", () => $("accuracy").close());
 if (location.hash === "#accuracy") openAccuracy();
+
+// ---- the ticker. Market figures are last month's sales (HDB and URA record only the month), refreshed with the weekly data.
+// Saved homes go first, each with today's estimate against the one when it was saved. A home opens its card; a town or flat type opens Market.
+let TK = null, TKH = {}, tkKey = "";
+const tkChange = c => c == null ? null : h("span", { className: Math.abs(c) < 0.05 ? "flat" : c > 0 ? "up" : "dn" }, (Math.abs(c) < 0.05 ? "" : c > 0 ? "▲ " : "▼ ") + Math.abs(c).toFixed(1) + "%");
+function tkItem(label, value, change, onClick, cls, tip) {
+  const b = h("button", { className: "tk " + (cls || ""), type: "button", title: tip || "" }, h("span", { className: "tkl" }, label), value ? h("span", { className: "tkv" }, value) : "", change || "");
+  if (onClick) b.addEventListener("click", onClick); else b.tabIndex = -1; return b;
+}
+function drawTicker() {
+  if (!TK) return;
+  const tip = `Last month's median. The change compares ${TK.window} with the same months a year before, like for like.`;
+  const mine = flats.slice(0, 5).map(item => {
+    const now = TKH[item.id], was = item.F && item.F.fair;
+    const ch = now && was ? (now / was - 1) * 100 : null;
+    return [flatName(item.F), now ? k(now) : k(was || 0), ch == null ? null : tkChange(ch), () => { F = item.F; F.price = item.price; show(); render(); go("chat"); flatCard(); }, "mine",
+            `Your saved home. Our estimate today${ch == null ? "" : ", and the change since you saved it on " + new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.`];
+  }).filter(x => x[1] !== "$0k");
+  const market = TK.items.map(x => [x.label, x.text || (x.unit === "psf" ? money(x.value) + " psf" : x.unit === "sales" ? x.value.toLocaleString("en-US") : k(x.value)), x.change == null ? null : tkChange(x.change),
+    x.open === "accuracy" ? openAccuracy : x.flat_type ? () => { if (x.town) $("mTown").value = x.town; $("mType").value = x.flat_type; go("market"); loadMarket(); } : null, x.flat_type || x.open ? "" : "info", x.open ? "How close our estimates came to the price each home sold for over the last year." : x.unit === "sales" ? `HDB resales in ${TK.month}. The change compares ${TK.window} with a year before.` : tip]);
+  const all = [...mine, ...market], copy = () => h("div", { className: "copy" }, ...all.map(a => tkItem(...a)));
+  const second = copy(); second.setAttribute("aria-hidden", "true"); second.querySelectorAll("button").forEach(b => b.tabIndex = -1);
+  $("tape").replaceChildren(copy(), second); $("tape").style.setProperty("--dur", Math.max(40, all.length * 6) + "s");
+  $("tkWhen").textContent = TK.month; $("ticker").hidden = false;
+}
+async function tickerHomes() {
+  const key = flats.slice(0, 5).map(x => x.id).join("~");
+  if (key === tkKey) return drawTicker(); tkKey = key;
+  const homes = flats.slice(0, 5).filter(x => x.F).map(x => isCondo(x.F) ? { id: x.id, kind: "condo", condo: x.F.condo } : { id: x.id, flat: x.F.flat });
+  if (homes.length) { try { (await api("/api/ticker/homes", { homes })).homes.forEach(r => { if (r.fair) TKH[r.id] = r.fair; }); } catch (e) {} }
+  drawTicker();
+}
+api("/api/ticker").then(t => { TK = t; return tickerHomes(); }).catch(() => {});
+
 persist(); go("chat");
 api("/api/me").then(m => { showMe(m); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
 const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);
