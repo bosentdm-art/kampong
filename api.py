@@ -547,6 +547,26 @@ def market_for_flat(town, flat_type, lease_commence_date):
             ("flats over 20 years old" if older else "flats up to 20 years old") + " across Singapore, price_per_sqm_change_pct": pct1(isl["older" if older else "newer"])}
 
 
+POLICY_RULE = ("Rules on grants, loans, stamp duties and launches change, so I look them up on official and news sites for questions like this. {why} "
+               "The official answers are on hdb.gov.sg (flats, grants, loans and launches), iras.gov.sg (stamp duties and property tax) and cpf.gov.sg (using CPF).")
+
+
+def policy_answer(text, history, who, ip=None, detail="short"):
+    """A housing rule or policy question (grants, ABSD, loan limits, the next BTO launch), answered from a web search of official and news sites, with the sources.
+    The sales data cannot answer these. It uses the AI allowance like any answer, and costs about a cent more for the search."""
+    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
+        return dict(reply=POLICY_RULE.format(why="That needs your AI allowance, which has run out for now."), ai=False)
+    reply, sources, cost, made = llm.policy_reply(text, history, detail)
+    if who:
+        acc.record(who, "ask" if detail == "long" else "area", cost, made, ip)
+    if made:
+        return dict(reply=reply, ai=True, sources=sources)
+    if sources:
+        return dict(reply="I found pages on this but couldn't confirm every figure in my summary against them, so here they are to read directly. "
+                          "For anything that affects your own purchase, HDB, IRAS or CPF Board have the final word.", ai=False, sources=sources)
+    return dict(reply=POLICY_RULE.format(why="The search didn't work just now."), ai=False)
+
+
 def market_answer(town, text, who, ip=None):
     m = market_stats(town)
     if m["all"] is None:
@@ -837,6 +857,8 @@ def _understand(m, request=None, response=None):
     if base["watch"] and not p["block"]:  # "alert me when this block has a new sale": the page sets the alert up
         return base
     asks = bool(QUESTION.search(m.text[:600]))
+    if llm.is_policy(m.text[:600]) and not p["block"] and not p["asking"] and not (condo_ready() and cc.find_in_text(m.text[:2000])):
+        return clean({**base, **policy_answer(m.text, m.history, who, ip, m.detail)})
     same = cur and p["block"] == cur["block"] and p["street_name"] == cur["street_name"]
 
     # A condo is on screen: the message changes it, names another home, or is a question about it.

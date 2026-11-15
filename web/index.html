@@ -19,7 +19,8 @@
   * { box-sizing: border-box; }
   html, body { height:100%; }
   body { margin:0; display:grid; grid-template-columns:236px 1fr; background:var(--bg); background-image:var(--sky); background-attachment:fixed; color:var(--fg);
-         font-family:var(--disp); font-size:15px; line-height:1.5; font-variant-numeric:tabular-nums; }
+         font-family:var(--disp); font-size:15px; line-height:1.5; }
+  .hm, .hl, .tkv, .kv b, .tile b, table, .big, .vbig, .accbig b, .use + .fine { font-variant-numeric:tabular-nums; }  /* figures line up; words keep normal spacing */
   .cap { font-size:12.5px; font-weight:500; letter-spacing:.01em; }
   .dim { color:var(--dim); }
   .hl { color:var(--hl); background:var(--hlbg); font-weight:600; padding:1px 7px; border-radius:8px; white-space:nowrap; }
@@ -33,9 +34,9 @@
   .nav::-webkit-scrollbar { display:none; }  /* still scrolls on a short screen, without the bar */
   .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:20px; padding:0 8px; }
   .logo { display:grid; place-items:center; width:34px; height:34px; border-radius:12px; background:var(--accent); color:#fff; box-shadow:var(--shadow2); flex:none; }
-  .brand .word { font-family:var(--head); font-weight:400; font-size:19px; line-height:1; letter-spacing:.01em; }
+  .brand .word { font-family:var(--head); font-weight:400; font-size:18px; line-height:1; letter-spacing:.05em !important; }
   .hero h2, .sheethd b, .vword { font-family:var(--head); font-weight:400 !important; letter-spacing:0 !important; }
-  .hero h2 { font-size:clamp(24px, 2.8vw, 36px) !important; } .bartitle, .ot, .panel > .hd, #nav button.on, .tkv { font-weight:500; }
+  .hero h2 { font-size:clamp(21px, 2.3vw, 29px) !important; letter-spacing:.04em !important; word-spacing:.15em; line-height:1.3 !important; } .sheethd b { letter-spacing:.03em !important; } .bartitle, .ot, .panel > .hd, #nav button.on, .tkv { font-weight:500; }
   .sheethd b { font-size:19px; line-height:1.3; }
   /* the sections: each has its own icon and number. The others fade back; the one you are on comes forward, its icon slides in, and a light sweeps across it once. */
   #nav { display:grid; gap:2px; }
@@ -737,6 +738,11 @@ async function say(nodes, tail, rate) {
   if (rate) box.append(thumbs(lastMsg, box.textContent));
   follow();
 }
+// The web pages a policy answer came from, so people can read the rule at the source.
+function sourceList(list) {
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+  return h("div", { className: "src" }, "Sources: ", ...list.slice(0, 6).flatMap((s, i) => [i ? " · " : "", h("a", { href: s.url, target: "_blank", rel: "noopener noreferrer" }, host(s.url) || s.title)]));
+}
 let lastMsg = "";  // the person's last message, sent with a thumbs up or down so we know what the answer was to
 // Thumbs up or down under an answer. Down asks what went wrong (optional). Kept privately to improve Oikos.
 function thumbs(message, reply) {
@@ -1066,7 +1072,7 @@ function send(text) {
       if (u.market) { marketCard(u.market); await sleep(900); }
       if (u.find) { findCard(u.find); await sleep(900); }
       if (u.find2) { findCard(u.find2); await sleep(900); }
-      await say(u.area || u.market || u.find ? rich(t) : t, null, true);
+      await say(u.area || u.market || u.find ? rich(t) : t, u.sources?.length ? sourceList(u.sources) : null, true);
       if (u.choices?.length) { await sleep(250); row("bot", h("div", { className: "chips" }, ...u.choices.map((c, i) => { const b = chip(c.label, c.send); b.style.animationDelay = i * 0.08 + "s"; return b; }))); }
       if (!u.reply || u.market) { const b = h("button", { className: "pill", type: "button" }, "Pick a flat from a list"); b.addEventListener("click", openSheet); row("bot", b); }
     } else await askOikos(text, null, w);
