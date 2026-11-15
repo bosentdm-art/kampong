@@ -185,6 +185,9 @@ def condo_view(facts, role, age, price, profile=None, assumed=None):
         "reliability": facts["reliability"], "reliability_reasons": facts["notes"],
         "recent_sales_in_project": [{"month": r["month"], "floors": r["storey"], "sqm": round(r["floor_area_sqm"]), "price": round(r["price"]), "type": r["sale_type"]} for r in facts["recent"][:5]],
         "nearby_straight_line": nearby_for_model(facts.get("nearby")),
+        "rent_for_similar_units_last_12_months": facts.get("rent"),
+        "developer_still_selling": facts.get("new_launch"),
+        "private_homes_being_built_in_district": facts.get("supply"),
         "how_accurate_we_are": f"half of condo resales landed within {facts['meta']['holdout_median_error'] * 100:.1f}% of our estimate on months held out from training",
         "limits": "URA records give a 5-floor band and no unit number, so facing, view, layout and condition are unknown. There is no long-run outlook for private property.",
     }

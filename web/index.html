@@ -866,6 +866,18 @@ async function sayCommute() {
   if (F.fillCommute) F.fillCommute();
 }
 
+// Rent, the developer's unsold units and building work in the district, from URA (src/download_ura_more.py). Each part shows only when URA has it.
+function condoExtras(F) {
+  const R = F.rent, N = F.new_launch, S = F.supply, parts = [];
+  if (R) parts.push(h("div", { className: "kv" }, h("span", {}, "Typical rent, " + R.sizes + (R.where === "this project" ? " in this project" : " in " + R.where)), h("b", {}, money(R.monthly_rent) + "/month")),
+    h("div", { className: "fine dim" }, ...rich(`Half of ${R.contracts.toLocaleString("en-US")} rentals from ${R.months} were between ${money(R.likely_range[0])} and ${money(R.likely_range[1])}. That is a gross yield of ${R.gross_yield_pct}% on our fair value, before costs.`)));
+  if (N) parts.push(h("div", { className: "kv" }, h("span", {}, `Developer's unsold units (${N.as_of})`), h("b", {}, `${(N.unsold_launched + N.not_launched).toLocaleString("en-US")} of ${N.units.toLocaleString("en-US")}`)),
+    h("div", { className: "fine dim" }, ...rich(`${N.sold.toLocaleString("en-US")} sold so far, ${N.sold_last_3_months} in the last three months.` + (N.not_launched ? ` ${N.not_launched.toLocaleString("en-US")} not yet released for sale.` : "")
+      + (N.latest_median_psf ? ` Developer sales lately at a median of ${money(N.latest_median_psf)} psf.` : ""))));
+  if (S && S.units) parts.push(h("div", { className: "kv" }, h("span", {}, `Private homes being built in District ${F.district}`), h("b", {}, S.units.toLocaleString("en-US") + " units")),
+    h("div", { className: "fine dim" }, `${S.projects} project${S.projects === 1 ? "" : "s"}, including ${S.names.slice(0, 3).join(", ")}.` + (Object.keys(S.by_completion_year).length ? " Completing: " + Object.entries(S.by_completion_year).map(([y, n]) => `${n.toLocaleString("en-US")} in ${y}`).join(", ") + "." : "")));
+  return parts.length ? h("details", { className: "more" }, h("summary", {}, "Rent, developer stock and new supply"), ...parts, h("div", { className: "fine dim" }, "From URA's rental, developer sales and pipeline records.")) : null;
+}
 function flatCard(u = {}) {
   const mine = F, priced = hasPrice(), a = asked(), v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer";
   const fig = (text, color) => h("span", { className: "hm", style: color ? `color:${color}` : "" }, text);
@@ -885,6 +897,7 @@ function flatCard(u = {}) {
     aroundBlock(mine),
     F.recent.length ? h("details", { className: "more" }, h("summary", {}, `Recent sales in this ${isCondo(F) ? "project" : "block"} (${F.recent.length})`),
       ...F.recent.slice(0, 6).map(r => h("div", { className: "kv" }, h("span", {}, hl(month(r.month)), ` ${isCondo(F) ? "floors" : "storey"} ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm` + (r.sale_type && r.sale_type !== "resale" ? `, ${r.sale_type}` : "")), h("b", {}, money(r.price))))) : null,
+    isCondo(F) ? condoExtras(F) : null,
     F.notes.length ? h("details", { className: "more" }, h("summary", {}, `Why reliability is ${F.reliability.toLowerCase()}`), h("ul", {}, ...F.notes.map(n => h("li", {}, ...rich(n))))) : null,
     ...F.checks.map(c => h("div", { className: "note" }, h("b", {}, "Check this: "), ...rich(c))),
     u.assumed?.length ? h("div", { className: "fine" }, "Assumed: " + u.assumed.join("; ") + ".") : null,
@@ -1319,8 +1332,8 @@ function drawTicker() {
     return [flatName(item.F), now ? k(now) : k(was || 0), ch == null ? null : tkChange(ch), () => { F = item.F; F.price = item.price; show(); render(); go("chat"); flatCard(); }, "mine",
             `Your saved home. Our estimate today${ch == null ? "" : ", and the change since you saved it on " + new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.`];
   }).filter(x => x[1] !== "$0k");
-  const market = TK.items.map(x => [x.label, x.text || (x.unit === "psf" ? money(x.value) + " psf" : x.unit === "sales" ? x.value.toLocaleString("en-US") : k(x.value)), x.change == null ? null : tkChange(x.change),
-    x.open === "accuracy" ? openAccuracy : x.flat_type ? () => { if (x.town) $("mTown").value = x.town; $("mType").value = x.flat_type; go("market"); loadMarket(); } : null, x.flat_type || x.open ? "" : "info", x.open ? "How close our estimates came to the price each home sold for over the last year." : x.unit === "sales" ? `HDB resales in ${TK.month}. The change compares ${TK.window} with a year before.` : tip]);
+  const market = TK.items.map(x => [x.label, x.text || (x.unit === "psf" ? money(x.value) + " psf" : x.unit === "sales" || x.unit === "units" ? x.value.toLocaleString("en-US") : k(x.value)), x.change == null ? null : tkChange(x.change),
+    x.open === "accuracy" ? openAccuracy : x.flat_type ? () => { if (x.town) $("mTown").value = x.town; $("mType").value = x.flat_type; go("market"); loadMarket(); } : null, x.flat_type || x.open ? "" : "info", x.open ? "How close our estimates came to the price each home sold for over the last year." : x.unit === "sales" ? `HDB resales in ${TK.month}. The change compares ${TK.window} with a year before.` : x.unit === "units" ? "Units developers have released for sale but not yet sold, from URA's monthly developer sales." : tip]);
   const all = [...mine, ...market], copy = () => h("div", { className: "copy" }, ...all.map(a => tkItem(...a)));
   const second = copy(); second.setAttribute("aria-hidden", "true"); second.querySelectorAll("button").forEach(b => b.tabIndex = -1);
   $("tape").replaceChildren(copy(), second); $("tape").style.setProperty("--dur", Math.max(40, all.length * 6) + "s");

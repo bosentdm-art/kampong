@@ -764,6 +764,10 @@ def ticker_data():
         a, b, last = cn[cn["market_segment"] == seg]["price_per_sqm"], ct[ct["market_segment"] == seg]["price_per_sqm"], cl[cl["market_segment"] == seg]["price_per_sqm"]
         if len(last) >= 30:
             items.append(dict(label=f"Condo resale {seg} psf", value=float(last.median() / 10.7639), unit="psf", change=float(a.median() / b.median() - 1) if len(b) >= 60 else None))
+    dev = ura_more()[1]
+    if dev is not None:
+        last = dev[dev["month"] == dev["month"].max()]
+        items.append(dict(label=f"New launches unsold ({last['month'].max():%b})", value=int((last["launched_to_date"] - last["sold_to_date"]).clip(lower=0).sum()), unit="units", change=None))
     h = accuracy_data()[0]
     yr = h[h["month"] > h["month"].max() - pd.DateOffset(months=12)]
     items.append(dict(label="Oikos accuracy", text=f"half within {acc_summary(yr)['half_within_pct']}%", open="accuracy"))
@@ -1096,6 +1100,70 @@ def condo_latlon(name):
     return float(lat), float(lon)
 
 
+def _pq(name):
+    f = ROOT / "data/processed" / name
+    return pd.read_parquet(f) if f.exists() else None
+
+
+@functools.lru_cache(maxsize=1)
+def ura_more():
+    """Rentals, developer sales and the pipeline from src/download_ura_more.py. Missing files leave those parts off the card."""
+    r = _pq("ura_rentals.parquet")
+    if r is not None:
+        r = r[r["property_type"].isin(["Non-landed Properties", "Executive Condominium"]) & r["area"].notna()]
+        r = r[r["month"] > r["month"].max() - pd.DateOffset(months=12)]
+        r = r.assign(district=r["district"].astype(str).str.zfill(2))
+    return r, _pq("ura_dev_sales.parquet"), _pq("ura_pipeline.parquet")
+
+
+def condo_rent(project, area, district, fair):
+    """Typical monthly rent for a unit like this over the last 12 months: in the project if it has enough contracts, else in the district. URA gives size in bands."""
+    r = ura_more()[0]
+    if r is None:
+        return None
+    near = (r["area"] / area - 1).abs() <= 0.2
+    for mask, where, need in ((r["project"] == project, "this project", 5), (r["district"] == str(district).zfill(2), f"District {district}", 15)):
+        x = r[mask & near]
+        if len(x) >= need:
+            rent = float(x["rent"].median())
+            return dict(monthly_rent=round(rent, -1), likely_range=[round(float(x["rent"].quantile(.25)), -1), round(float(x["rent"].quantile(.75)), -1)],
+                        contracts=int(len(x)), where=where, months=f"{x['month'].min():%b %Y} to {x['month'].max():%b %Y}",
+                        gross_yield_pct=round(rent * 12 / fair * 100, 1) if fair else None, sizes=f"{round(area * 0.8)} to {round(area * 1.2)} sqm")
+    return None
+
+
+def condo_new_launch(project):
+    """Units the developer still holds in a project, from URA's monthly developer sales. None for projects not sold by a developer in the last three years."""
+    d = ura_more()[1]
+    if d is None:
+        return None
+    x = d[d["project"] == project].sort_values("month")
+    if x.empty:
+        return None
+    last = x.iloc[-1]
+    if last["month"] < d["month"].max() - pd.DateOffset(months=6):
+        return None
+    units, launched, sold = int(last["units"]), int(last["launched_to_date"]), int(last["sold_to_date"])
+    pace = x[x["month"] > last["month"] - pd.DateOffset(months=3)]["sold_in_month"].sum()
+    psf = x[x["median_psf"] > 0]["median_psf"]
+    return dict(units=units, launched=launched, sold=sold, unsold_launched=max(launched - sold, 0), not_launched=max(units - launched, 0),
+                sold_last_3_months=int(pace), as_of=f"{last['month']:%b %Y}", developer=last["developer"],
+                latest_median_psf=int(psf.iloc[-1]) if len(psf) else None)
+
+
+def district_supply(district):
+    """Private homes under construction in the same postal district, from URA's latest pipeline."""
+    p = ura_more()[2]
+    if p is None:
+        return None
+    x = p[p["district"].astype(str).str.zfill(2) == str(district).zfill(2)]
+    if x.empty:
+        return dict(projects=0, units=0)
+    yrs = x[x["top_year"].astype(str).str.isdigit()].groupby("top_year")["units"].sum()
+    return dict(projects=int(len(x)), units=int(x["units"].sum()), by_completion_year={str(k): int(v) for k, v in yrs.items()},
+                year_not_given=int(x[~x["top_year"].astype(str).str.isdigit()]["units"].sum()), names=[str(n).title() for n in x.nlargest(4, "units")["project"]])
+
+
 @functools.lru_cache(maxsize=64)
 def condo_facts(project, area, floor, price):
     try:
@@ -1114,7 +1182,8 @@ def condo_facts(project, area, floor, price):
         recent=[dict(month=r["month"], storey=r["floor"], floor_area_sqm=r["area"], price=r["price"], sale_type=r["sale_type"]) for r in a["recent"]],
         meta=dict(trained_through=m["trained_through"], holdout_median_error=m["holdout_median_error"], total_sales=m["rows"]),
         nearby=dict(nb.around(*pos), lat=pos[0], lon=pos[1]) if pos else None,
-        track=condo_track(a["project"], a["property_type"], a["market_segment"], a["area"])))
+        track=condo_track(a["project"], a["property_type"], a["market_segment"], a["area"]),
+        rent=condo_rent(a["project"], a["area"], a["district"], a["fair"]), new_launch=condo_new_launch(a["project"]), supply=district_supply(a["district"])))
 
 
 def condo_answer(name, p, base, text, cur=None):

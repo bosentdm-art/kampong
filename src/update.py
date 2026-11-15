@@ -4,6 +4,7 @@
   2. clean and combine                       5. retrain the production model + holdout check
   6. walk-forward out-of-sample errors (new chunks only), then the flat-specific range models
   7. download URA private home sales and retrain the condo model (needs URA_ACCESS_KEY; skipped with a warning if it fails)
+  8. download URA rentals, developer sales and the pipeline of homes being built (same key; skipped with a warning if it fails)
   3. geocode any new blocks (needs ONEMAP_TOKEN in .env; skipped with a warning if it fails)
 
 A step that fails stops the run, except geocoding: without it, sales in brand-new blocks are
@@ -25,6 +26,7 @@ STEPS = [
     ("flat-specific range models", ["range_model.py"], True),
     ("download private home sales (URA)", ["download_ura.py"], False),
     ("retrain the condo model", ["train_condo.py"], False),
+    ("download URA rentals, developer sales and pipeline", ["download_ura_more.py"], False),
 ]
 
 
