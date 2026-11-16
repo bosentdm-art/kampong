@@ -5,13 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oikos - HDB and condo price advice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Atkinson Hyperlegible for figures only: this file holds just the digits and $ % , . so every other character falls through to Lexend. All fonts here are SIL Open Font License 1.1. -->
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
 <style>
   /* Oikos: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
      The design (approved mockup: design/mockup-violet.html): white page, flat cards with thin lines, electric violet as the only brand colour.
      Green and red appear only on money (good price / overpriced), always with a word or an arrow. .hl marks dates and times, .hm marks figures.
-     Type: Newsreader (serif) for the name, the big question, window titles and verdicts; Inter for everything else, with tabular figures. */
-  :root { --mono: "Inter", "Segoe UI", Arial, sans-serif; --disp: "Inter", "Segoe UI", Arial, sans-serif; --head: "Newsreader", Georgia, serif; --r:18px; }
+     Type: Newsreader (serif) for the name, the big question, window titles and verdicts; Lexend for words; Atkinson Hyperlegible for figures
+     (its slashed zero and distinct digits are hard to misread). */
+  :root { --mono: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --disp: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --head: "Newsreader", Georgia, serif; --r:18px; }
   [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#16132b; --dim:#615b78; --line:#e7e4ef; --panel:#ffffff; --glass:#ffffff;
     --accent:#5b3df5; --on-accent:#ffffff; --soft:#f1eeff; --pos:#15803d; --neg:#b42318; --hl:#3b22c9; --hlbg:#f1eeff; --mk:#f1eeff;
     --shadow:0 10px 30px rgba(40,20,120,.08); --shadow2:0 2px 8px rgba(40,20,120,.06); }

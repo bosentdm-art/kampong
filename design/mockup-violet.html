@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Oikos mockup: violet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Atkinson Hyperlegible for figures only: this file holds just the digits and $ % , . so every other character falls through to Lexend -->
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
 <style>
   /* Direction A: electric violet for the brand, ink for text, warm-cool paper for the page.
      Green and red appear only on money: good price / overpriced, up / down. Every coloured figure also has a word or an arrow. */
-  :root { --serif:"Newsreader", Georgia, serif; --sans:"Inter", "Segoe UI", Arial, sans-serif; }
+  :root { --serif:"Newsreader", Georgia, serif; --sans:"Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; }
   [data-theme="light"] { --bg:#ffffff; --panel:#ffffff; --soft:#f1eeff; --line:#e7e4ef; --ink:#16132b; --dim:#615b78; --faint:#8d87a3;
     --violet:#5b3df5; --violet-ink:#3b22c9; --on-violet:#ffffff;
     --good:#15803d; --good-bg:#e7f5ec; --bad:#b42318; --bad-bg:#fcebea; --mid:#8a6a00; --mid-bg:#fbf3d9; }
