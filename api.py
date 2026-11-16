@@ -361,6 +361,48 @@ def flats_get(request: Request, response: Response):
     return dict(flats=acc.get_flats(user["id"]))
 
 
+class ChatIn(BaseModel):
+    id: str
+    title: str = "Chat"
+    data: dict
+    created: float | None = None
+
+
+def signed_in(request, response):
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Sign in to keep your chats in your account.")
+    return user
+
+
+@app.get("/api/chats")
+def chats_list(request: Request, response: Response):
+    return dict(chats=acc.list_chats(signed_in(request, response)["id"]))
+
+
+@app.get("/api/chats/{cid}")
+def chat_get(cid: str, request: Request, response: Response):
+    c = acc.get_chat(signed_in(request, response)["id"], cid)
+    if not c:
+        raise HTTPException(404, "That chat is not in your account.")
+    return c
+
+
+@app.post("/api/chats")
+def chat_put(body: ChatIn, request: Request, response: Response):
+    try:
+        acc.put_chat(signed_in(request, response)["id"], body.id, body.title, body.data, body.created)
+    except ValueError as e:
+        raise HTTPException(413, str(e))
+    return dict(ok=True)
+
+
+@app.post("/api/chats/{cid}/delete")
+def chat_delete(cid: str, request: Request, response: Response):
+    acc.delete_chat(signed_in(request, response)["id"], cid)
+    return dict(ok=True)
+
+
 @app.post("/api/flats")
 def flats_put(body: Saved, request: Request, response: Response):
     user = visitor(request, response)[1]

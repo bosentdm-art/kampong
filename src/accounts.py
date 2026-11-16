@@ -77,6 +77,7 @@ def init():
             c.execute("update usage set charged = case when answered = 1 or kind != 'ask' then cost_cents else 0 end")
         c.execute("create table if not exists feedback (id integer primary key, at real not null, who text, rating text not null, message text, reply text, note text)")
         c.execute("create table if not exists settings (key text primary key, value text not null)")
+        c.execute("create table if not exists chats (id text not null, user_id integer not null, title text not null, created real not null, updated real not null, body text not null, primary key (user_id, id))")
         c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
 
@@ -380,6 +381,43 @@ def put_flats(user_id, flats):
         raise ValueError("Too many saved flats.")
     with db() as c:
         c.execute("insert into flats values (?, ?, ?) on conflict(user_id) do update set body = excluded.body, updated = excluded.updated", (user_id, body, time.time()))
+
+
+# ---- saved chats: kept in the person's account until they delete them (no automatic expiry)
+CHAT_MAX_BYTES, CHATS_MAX = 1_500_000, 500
+CHAT_ID = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
+
+
+def list_chats(user_id):
+    with db() as c:
+        rows = c.execute("select id, title, created, updated from chats where user_id = ? order by updated desc limit ?", (user_id, CHATS_MAX)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_chat(user_id, cid):
+    with db() as c:
+        r = c.execute("select id, title, created, updated, body from chats where user_id = ? and id = ?", (user_id, cid)).fetchone()
+    return dict(id=r["id"], title=r["title"], created=r["created"], updated=r["updated"], data=json.loads(r["body"])) if r else None
+
+
+def put_chat(user_id, cid, title, data, created=None):
+    if not CHAT_ID.match(str(cid)):
+        raise ValueError("That chat id is not valid.")
+    body = json.dumps(data)
+    if len(body) > CHAT_MAX_BYTES:
+        raise ValueError("This chat is too long to save.")
+    now, title = time.time(), (str(title or "Chat").strip() or "Chat")[:120]
+    with db() as c:
+        exists = c.execute("select 1 from chats where user_id = ? and id = ?", (user_id, cid)).fetchone()
+        if not exists and c.execute("select count(*) from chats where user_id = ?", (user_id,)).fetchone()[0] >= CHATS_MAX:
+            raise ValueError(f"You have {CHATS_MAX} saved chats. Delete some to save new ones.")
+        c.execute("insert into chats values (?, ?, ?, ?, ?, ?) on conflict(user_id, id) do update set title = excluded.title, updated = excluded.updated, body = excluded.body",
+                  (cid, user_id, title, float(created or now), now, body))
+
+
+def delete_chat(user_id, cid):
+    with db() as c:
+        c.execute("delete from chats where user_id = ? and id = ?", (user_id, cid))
 
 
 init()

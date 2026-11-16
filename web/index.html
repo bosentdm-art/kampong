@@ -70,6 +70,14 @@
   @keyframes tape { to { transform:translateX(-50%); } }
   @media (prefers-reduced-motion: reduce) { .ticker .track { overflow-x:auto; scrollbar-width:none; } .ticker .tape { animation:none; } .ticker .copy + .copy { display:none; }
     #nav button.on .ni, #nav button.on .nl { animation:none; } #nav button.on .nl { background:none; color:var(--fg); } }
+  /* saved chats in the sidebar */
+  .chats { display:grid; grid-template-columns:minmax(0, 1fr); gap:2px; min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; padding-top:6px; border-top:1px solid var(--line); } .chats .cap { padding:4px 12px; }
+  .chat-i { display:flex; align-items:center; min-width:0; border-radius:10px; } .chat-i:hover, .chat-i.on { background:var(--soft); }
+  .chat-i button { font:inherit; background:none; border:0; color:var(--fg); cursor:pointer; text-align:left; }
+  .chat-i .t { flex:1; min-width:0; padding:7px 12px; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chat-i.on .t { font-weight:600; } .chat-i .d { padding:4px 10px; color:var(--dim); font-size:16px; line-height:1; visibility:hidden; } .chat-i:hover .d, .chat-i:focus-within .d { visibility:visible; } .chat-i .d:hover { color:var(--neg); }
+  .row.past button, .row.past input, .row.past select { pointer-events:none; opacity:.55; }  /* cards from an earlier session show what they said then; their buttons are off */
+  .pastnote { justify-content:center; } .pastnote .fine { text-align:center; }
   .newchat { background:var(--panel); box-shadow:var(--shadow2); font-weight:600; color:var(--accent); justify-content:flex-start; gap:8px; }
   .navfoot { margin-top:auto; display:grid; gap:6px; padding:0 6px; }
   .seg { display:inline-flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; background:var(--soft); border-radius:999px; padding:3px; width:fit-content; }
@@ -237,7 +245,7 @@
     .nav { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; padding:8px 12px; height:auto; position:sticky; top:0; z-index:5; border-right:0; border-bottom:1px solid var(--line); overflow:visible; }
     .brand { font-size:18px; padding:0; } .brand .logo { width:30px; height:30px; border-radius:10px; } .newchat { padding:7px 12px; font-size:14px; }
     .menu { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; border:0; background:var(--soft); color:var(--accent); cursor:pointer; }
-    #nav, .navfoot { display:none; grid-column:1 / -1; margin:0; } .nav.open #nav { display:grid; grid-template-columns:1fr 1fr; } .nav.open .navfoot { display:grid; padding:4px 6px 8px; }
+    #nav, .navfoot, .chats { display:none !important; grid-column:1 / -1; margin:0; } .nav.open #nav { display:grid !important; grid-template-columns:1fr 1fr; } .nav.open .navfoot { display:grid !important; padding:4px 6px 8px; } .nav.open .chats:not([hidden]) { display:grid !important; max-height:40vh; }
     .work { height:auto; min-height:calc(100dvh - 56px); } .view.chat { overflow:visible; min-height:calc(100dvh - 56px); } .thread { overflow:visible; padding:18px 12px 8px; }
     .dock { position:sticky; bottom:0; padding:8px 12px 12px; background:linear-gradient(180deg, transparent, var(--bg) 26px); } .view.chat:not(.empty) .dock .fine { display:none; }
     .composer { padding:12px 12px 10px 18px; border-radius:26px; } .composer textarea { font-size:17px; } .hero p { font-size:16px; } .hero h2 { font-size:27px; }
@@ -269,6 +277,7 @@
     <button data-go="market"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 15v6M17 3v3M17 13v8"/><path d="M5 7h4v8H5zM15 6h4v7h-4z"/></svg></span><span class="nl">Market<sup>07</sup></span><span></span></button>
     <button id="setNav" type="button"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nl">Settings<sup>08</sup></span><span></span></button>
   </nav>
+  <div class="chats" id="chatsBox" hidden><div class="cap dim">Recent chats</div><div id="chatList"></div></div>
   <div class="navfoot">
     <div class="acct"><button class="proof" id="proof" type="button" hidden></button><div class="pills"><button class="btn" id="acctBtn" type="button">Sign in</button><button class="btn line" id="plansBtn" type="button">Plans</button></div></div>
     <button class="linkbtn fine" id="srcBtn" type="button" style="font-weight:400;color:var(--dim);width:fit-content">Data sources</button>
@@ -1094,7 +1103,89 @@ const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height
 $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
-$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); });
+$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; chatId = null; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); drawChats(); });
+
+// ---- saved chats. Signed in: kept in the account (data/oikos.db) until deleted. Visitor: kept in this browser, and moved into the account on sign-in.
+// A chat is saved as it was shown (the thread's HTML) plus what the AI needs to carry on: the conversation, what earlier messages said, and the home on screen.
+let chatId = null, chatCreated = 0, restoring = false, chatTimer = 0, CHATS = [];
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^\w-]/g, "");
+const localChats = () => store.get("chats", []);
+const flatSpec = f => !f ? null : isCondo(f) ? { kind: "condo", condo: f.condo, price: f.price ?? null } : { kind: "hdb", flat: f.flat, price: f.price ?? null };
+function cleanHTML(html) {  // a saved chat is shown again as HTML: keep only what Oikos itself draws
+  const d = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+  d.querySelectorAll("script,iframe,object,embed,link,style,meta,base,form").forEach(n => n.remove());
+  d.querySelectorAll("*").forEach(n => [...n.attributes].forEach(a => { if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name); }));
+  return d.body.firstChild.innerHTML;
+}
+function snapshot() {
+  const t = $("thread").cloneNode(true);
+  t.querySelectorAll(".pastnote, .wait").forEach(n => n.closest(".row")?.remove());
+  let rows = [...t.children];
+  while (rows.length > 1 && t.innerHTML.length > 1_200_000) { rows.shift().remove(); rows = [...t.children]; }  // a very long chat keeps its newest part
+  const first = t.querySelector(".row.you .bub");
+  return { title: (first ? first.textContent : "Chat").trim().slice(0, 80), data: { html: t.innerHTML, talk: talk.slice(-40), askHistory: askHistory.slice(-40), ctx, flat: flatSpec(F), role: root.role } };
+}
+async function saveChat() {
+  if (restoring || !$("thread").querySelector(".row.you")) return;
+  if (!chatId) { chatId = newId(); chatCreated = Date.now() / 1000; }
+  const { title, data } = snapshot();
+  if (ME) {
+    try { await api("/api/chats", { id: chatId, title, data, created: chatCreated }); } catch (e) { if (e.status !== 401) toast("Could not save this chat: " + e.message); return; }
+  } else {
+    let list = localChats().filter(c => c.id !== chatId);
+    list.unshift({ id: chatId, title, created: chatCreated, updated: Date.now() / 1000, data });
+    for (list = list.slice(0, 30); list.length; list.pop()) { try { localStorage.setItem("oikos-chats", JSON.stringify(list)); break; } catch (e) {} }  // full browser storage drops the oldest
+  }
+  loadChats();
+}
+new MutationObserver(() => { if (restoring) return; clearTimeout(chatTimer); chatTimer = setTimeout(saveChat, 1500); }).observe($("thread"), { childList: true, subtree: true, characterData: true });
+async function loadChats() {
+  try { CHATS = ME ? (await api("/api/chats")).chats : localChats().map(({ id, title, created, updated }) => ({ id, title, created, updated })); } catch (e) { CHATS = []; }
+  drawChats();
+}
+function drawChats() {
+  $("chatsBox").hidden = !CHATS.length;
+  $("chatList").replaceChildren(...CHATS.map(c => {
+    const open = h("button", { className: "t", type: "button", title: c.title }, c.title), del = h("button", { className: "d", type: "button", "aria-label": "Delete chat" }, "\u00d7");
+    open.addEventListener("click", () => { document.querySelector(".nav").classList.remove("open"); openChat(c.id); });
+    del.addEventListener("click", () => deleteChat(c));
+    return h("div", { className: "chat-i" + (c.id === chatId ? " on" : "") }, open, del);
+  }));
+}
+async function openChat(id) {
+  if (busy) return;
+  let c;
+  try { c = ME ? await api("/api/chats/" + encodeURIComponent(id)) : localChats().find(x => x.id === id); } catch (e) { toast("Could not open that chat: " + e.message); return; }
+  if (!c) { toast("That chat is no longer saved"); loadChats(); return; }
+  const d = c.data || {};
+  restoring = true;
+  $("thread").innerHTML = cleanHTML(d.html || "");
+  [...$("thread").children].forEach(r => r.classList.add("past"));
+  const when = new Date(c.updated * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  row("bot pastnote", h("div", { className: "fine" }, `Saved chat, last used ${when}. Cards above show the figures from then, and their buttons are off. Ask anything to carry on.`));
+  talk = d.talk || []; askHistory = d.askHistory || []; ctx = d.ctx || {}; chatId = c.id; chatCreated = c.created;
+  if (d.role && d.role !== root.role) pick("r", d.role);
+  $("chat").classList.remove("empty"); go("chat"); drawChats();
+  F = null;
+  if (d.flat) {  // the home on screen comes back with today's figures, so follow-up questions and the full breakdown work
+    try { F = d.flat.kind === "condo" ? await api("/api/condo/assess", { ...d.flat.condo, price: d.flat.price }) : await api("/api/assess", { ...d.flat.flat, price: d.flat.price }); show(); render(); } catch (e) { F = null; }
+  }
+  setTimeout(() => { restoring = false; }, 0);
+}
+async function deleteChat(c) {
+  if (!confirm(`Delete "${c.title}"? This can't be undone.`)) return;
+  try { if (ME) await api("/api/chats/" + encodeURIComponent(c.id) + "/delete", {}); else localStorage.setItem("oikos-chats", JSON.stringify(localChats().filter(x => x.id !== c.id))); }
+  catch (e) { toast("Could not delete: " + e.message); return; }
+  if (c.id === chatId) $("newChat").click();
+  loadChats(); toast("Chat deleted");
+}
+async function syncChats() {  // chats from before signing in move into the account, then leave this browser
+  if (!ME) return loadChats();
+  const local = localChats();
+  for (const c of local) { try { await api("/api/chats", { id: c.id, title: c.title, data: c.data, created: c.created }); } catch (e) { return loadChats(); } }
+  if (local.length) { try { localStorage.removeItem("oikos-chats"); } catch (e) {} }
+  loadChats();
+}
 $("researchBtn").addEventListener("click", () => { setResearch(!research); toast(research ? "Research on: longer, detailed answers that use more of your allowance" : "Research off"); });
 setResearch(research);
 const ICON = { tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>', pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
@@ -1153,13 +1244,13 @@ $("acctForm").addEventListener("submit", async e => {
   e.preventDefault(); $("acctGo").disabled = true; $("acctMsg").textContent = "";
   try {
     showMe(await api("/api/" + acctMode, { email: $("acctEmail").value, password: $("acctPw").value }));
-    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats(); countAlerts(); if (document.body.dataset.current === "alerts") loadAlerts();
+    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats(); syncChats(); countAlerts(); if (document.body.dataset.current === "alerts") loadAlerts();
   } catch (err) { $("acctMsg").textContent = err.message; } finally { $("acctGo").disabled = false; }
 });
 $("acctBtn").addEventListener("click", async () => {
   if (!ME) { openAcct("login"); return; }
   try { await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
-  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); setBadge(0); if (document.body.dataset.current === "alerts") loadAlerts();  // saved flats stay on the server, not in this browser
+  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); $("newChat").click(); loadChats();  // your chats stay in your account, not on this screen setBadge(0); if (document.body.dataset.current === "alerts") loadAlerts();  // saved flats stay on the server, not in this browser
   const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
 });
 // ---- share: a short link anyone can open, showing this flat's verdict and the advice Oikos gave
@@ -1380,7 +1471,7 @@ async function tickerHomes() {
 api("/api/ticker").then(t => { TK = t; return tickerHomes(); }).catch(() => {});
 
 persist(); go("chat");
-api("/api/me").then(m => { showMe(m); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
+api("/api/me").then(m => { showMe(m); syncChats(); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
 const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);
 if (shared) working(() => openShared(shared[1]));
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
