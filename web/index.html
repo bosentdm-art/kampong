@@ -1105,8 +1105,9 @@ function marketCard(m) {
     m.newer != null && m.older != null ? h("div", {}, "Flats up to 20 years old ", h("b", { style: col(m.newer) }, pc(m.newer)), ", older flats ", h("b", { style: col(m.older) }, pc(m.older)), ".") : null,
     h("div", { className: "fine" }, "What has happened, not a forecast. Each change compares the same town, flat type and age group.")));
 }
-function send(text) {
+async function send(text) {
   text = text.trim(); if (!text || busy) return;
+  await humanReady;
   $("msg").value = ""; grow(); go("chat");
   row("you", h("div", { className: "bub" }, text.length > 500 ? text.slice(0, 500) + "..." : text));
   lastMsg = text;
@@ -1312,7 +1313,7 @@ document.addEventListener("click", e => { if (!$("meMenu").hidden && !e.target.c
 document.addEventListener("keydown", e => { if (e.key === "Escape") meMenu(false); });
 $("meSignup").addEventListener("click", () => openAcct("signup")); $("plansX").addEventListener("click", () => $("plans").close());
 function showMe(m) {
-  ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in"; $("meSignup").hidden = !!ME;
+  ME = m.user; PLAN = m; checkHuman(m); $("acctBtn").textContent = ME ? "Sign out" : "Sign in"; $("meSignup").hidden = !!ME;
   $("meAv").textContent = ME ? ME.email[0].toUpperCase() : "?"; $("meName").textContent = ME ? ME.email : "Sign in"; $("mePlan").textContent = m.plan_name + " plan";
   const meter = (label, note, u) => [h("div", { className: "row2" }, h("span", {}, h("b", {}, label), h("div", { className: "fine dim" }, u.resets && u.pct > 0 ? "Resets " + u.resets : note)),
       h("span", { className: "fine" }, `${u.pct}% used`)),
@@ -1323,6 +1324,22 @@ function showMe(m) {
     ...meter("Current session", "Starts with your first answer and lasts 5 hours", m.usage.session), ...meter("This week", "Starts with your first answer and lasts 7 days", m.usage.week), more);
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
+// Cloudflare Turnstile for visitors: a quiet check before AI answers. Most people never see it; when Cloudflare is unsure it shows a box to tick.
+let humanReady = Promise.resolve();
+function checkHuman(m) {
+  if (!m.turnstile || m.human || window.__tsStarted) return;
+  window.__tsStarted = true;
+  humanReady = new Promise(done => {
+    const box = h("div", { id: "tsBox", style: "position:fixed;right:16px;bottom:16px;z-index:20" }); document.body.append(box);
+    const s = document.createElement("script"); s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"; s.async = true;
+    s.onload = () => window.turnstile.render(box, { sitekey: m.turnstile, appearance: "interaction-only", theme: root.theme === "dark" ? "dark" : "light",
+      callback: token => api("/api/human", { token }).then(() => { box.remove(); done(); }).catch(e => { toast(e.message); done(); }),
+      "error-callback": () => { done(); }, "expired-callback": () => window.turnstile.reset(box) });
+    s.onerror = () => done();
+    document.head.append(s);
+    setTimeout(done, 15000);  // never hold the chat up for long: without the check the answer is rule-based
+  });
+}
 async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
   if (!ME) return;
   const r = await api("/api/flats"), ids = new Set(r.flats.map(x => x.id));

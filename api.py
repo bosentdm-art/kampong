@@ -26,10 +26,12 @@ import os
 import re
 import secrets
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import requests
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -231,9 +233,55 @@ def client_ip(request):
     return acc.ip_key(ip)
 
 
+# ---- Cloudflare Turnstile: before a visitor (not signed in) gets AI answers, a quiet check that they are a person, not a script.
+# Passing it marks their anonymous id as checked for a day. Signed-in people are never asked. Off until both keys are in .env.
+HUMAN_HOURS, HUMANS = 24, {}  # anonymous id -> checked until (epoch seconds); kept in memory, so a restart just asks again
+
+
+def turnstile_on():
+    return bool(os.environ.get("TURNSTILE_SITE_KEY", "").strip() and os.environ.get("TURNSTILE_SECRET_KEY", "").strip())
+
+
+def is_human(who):
+    return not turnstile_on() or not who or not who.startswith("a:") or HUMANS.get(who, 0) > time.time()
+
+
+def no_ai(who, ip):
+    """True when this person gets the rule-based answer instead of the AI: an allowance ran out, today's budget is spent, or a visitor is not checked yet."""
+    return acc.over_limit(who, ip) or acc.budget_spent() or not is_human(who)
+
+
+class Human(BaseModel):
+    token: str
+
+
+@app.post("/api/human")
+def human(body: Human, request: Request, response: Response):
+    """Check a Turnstile token with Cloudflare (each token works once, within five minutes) and remember the visitor for a day."""
+    who = visitor(request, response)[0]
+    if not turnstile_on() or not who.startswith("a:"):
+        return dict(ok=True)
+    try:
+        ip = request.client.host if request.client else None
+        r = requests.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", timeout=10,
+                          data={k: v for k, v in dict(secret=os.environ["TURNSTILE_SECRET_KEY"].strip(), response=body.token[:2048], remoteip=ip).items() if v})
+        ok = bool(r.json().get("success"))
+    except Exception:
+        raise HTTPException(503, "The check could not be completed. Try again in a moment.")
+    if not ok:
+        raise HTTPException(403, "That check didn't pass. Reload the page and try again.")
+    now = time.time()
+    for k in [k for k, t in HUMANS.items() if t < now]:
+        HUMANS.pop(k, None)
+    HUMANS[who] = now + HUMAN_HOURS * 3600
+    return dict(ok=True)
+
+
 def gate(request, response):
-    """(who, network address) for an AI answer, or a 429 that says which allowance ran out."""
+    """(who, network address) for an AI answer, or a 429 that says which allowance ran out (403 when a visitor is not checked yet)."""
     who, user = visitor(request, response)
+    if not is_human(who):
+        raise HTTPException(403, "Confirm you're a person first: reload the page if the check doesn't appear.")
     ip = client_ip(request)
     hit = acc.which_limit(who, ip)
     if hit == "network":
@@ -294,7 +342,8 @@ def me_view(who, user):
     w = acc.windows(who)
     use = {k: dict(pct=round(v["pct"]), resets=sg_time(v["resets_at"], k == "week") if v["resets_at"] else None) for k, v in w.items()}
     return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans,
-                auth="workos" if workos_on() else "password")
+                auth="workos" if workos_on() else "password",
+                turnstile=os.environ.get("TURNSTILE_SITE_KEY", "").strip() if turnstile_on() and not user else None, human=is_human(who))
 
 
 class Want(BaseModel):
@@ -619,7 +668,7 @@ def area_answer(a, text, who, ip=None):
         view = dict(area=where, months=a["months"], typical_price_by_flat_type={t["flat_type"].title(): round(t["median"], -3) for t in a["by_type"]}, ask_next=ask)
         rule = (f"I don't have enough recent {a['missing_type'].title()} sales {where}. " if a.get("missing_type") else "") + f"Here is what flats {where} sold for over the last 12 months. " + ask
         choices = [dict(label=t["flat_type"].title(), send=t["flat_type"].title()) for t in a["by_type"]]
-    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
+    if who and no_ai(who, ip):
         reply, made = rule, False
     else:
         reply, cost, made = llm.area_reply(view, text, rule)
@@ -683,7 +732,7 @@ POLICY_RULE = ("Rules on grants, loans, stamp duties and launches change, so I l
 def policy_answer(text, history, who, ip=None, detail="short"):
     """A housing rule or policy question (grants, ABSD, loan limits, the next BTO launch), answered from a web search of official and news sites, with the sources.
     The sales data cannot answer these. It uses the AI allowance like any answer, and costs about a cent more for the search."""
-    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
+    if who and no_ai(who, ip):
         return dict(reply=POLICY_RULE.format(why="That needs your AI allowance, which has run out for now."), ai=False)
     reply, sources, cost, made = llm.policy_reply(text, history, detail)
     if who:
@@ -707,7 +756,7 @@ def market_answer(town, text, who, ip=None):
                 flats_up_to_20_years_old_change_pct=pct1(m["newer"]), flats_over_20_years_old_change_pct=pct1(m["older"]), ask_next=ask)
     rule = (f"I can't tell you where prices go next, and nobody can reliably. What I can show is what they have done: over {m['months']}, resale prices {where} were {m['all'] * 100:+.1f}% on the same months a year before, "
             f"like for like, with {m['sales']:,} sales against {m['sales_year_ago']:,}. Give me a block and street and I'll tell you whether that flat is fairly priced today. " + ask)
-    if who and (acc.over_limit(who, ip) or acc.budget_spent()):
+    if who and no_ai(who, ip):
         reply, made = rule, False
     else:
         reply, cost, made = llm.market_reply(view, text, rule)
@@ -737,7 +786,7 @@ def find_both(spec, text, who, ip=None, comment=True, detail="short"):
     rule = (f"In the last 12 months, {part(rh, 'block')}; {part(rc, 'project')}. The cards list them, {rh.get('order_words') or 'in order'}. "
             "These are past sales, not homes on sale today: look for a unit on sale in one of these places, then send it to me to check the price. " + ask)
     view = dict(hdb=find_view(rh, ask), condos=find_view(rc, ask), ask_next=ask)
-    if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
+    if not comment or (who and no_ai(who, ip)):
         reply, made = rule, False
     else:
         reply, cost, made = llm.find_reply(view, text, rule, detail=detail)
@@ -764,7 +813,7 @@ def find_answer(spec, text, who, ip=None, comment=True, detail="short"):
         rule = (f"{r['sales']:,} sale{'s' if r['sales'] != 1 else ''} in {r['blocks']:,} {place}{'s' if r['blocks'] != 1 else ''} fit that in the last 12 months" + (", most of them in " + ", ".join(f"{x['place']} (around {fd.kfmt(x['median'])})" for x in top) if top else "")
                 + f". These are past sales, not homes on sale today: look for a unit on sale in one of these {place}s, then send it to me to check the price. " + ask)
     view = find_view(r, ask)
-    if not comment or (who and (acc.over_limit(who, ip) or acc.budget_spent())):
+    if not comment or (who and no_ai(who, ip)):
         reply, made = rule, False
     else:
         reply, cost, made = llm.find_reply(view, text, rule, detail=detail)
@@ -1151,7 +1200,7 @@ def _understand(m, request=None, response=None):
             return clean({**base, "found": True, "flat": flat, "price": p["asking"], "changed": changed})
 
     # The rules found no flat. With no flat on screen, or when the message seems to name another one, let the AI read it.
-    if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and (acc.over_limit(who, ip) or acc.budget_spent())):
+    if (not cur or (not same and OTHER_FLAT.search(m.text[:600]))) and not (who and no_ai(who, ip)):
         r, cost = llm.route_message(m.text, m.history)
         base = {**base, "compare": compare}
         if who:
