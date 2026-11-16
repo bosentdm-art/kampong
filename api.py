@@ -1036,6 +1036,54 @@ def guess():
                       lease_from=int(r["lease_commence_date"]), month=r["sale_date"].strftime("%b %Y"), sold=float(r["resale_price"]), estimate=round(float(r["pred"]), -3)))
 
 
+@functools.lru_cache(maxsize=1)
+def map_data():
+    """Dots for the price map: each HDB block and condo project with 3+ sales in the last 12 months, its median price per sqm,
+    and the change against the 12 months before (where both years have 3+ sales). Recorded sales, not listings."""
+    end = pd.Timestamp(meta()["trained_through"] + "-01")
+    y1, y2 = end - pd.DateOffset(months=12), end - pd.DateOffset(months=24)
+    d = pd.read_parquet(ROOT / "data/processed/resale_features.parquet", columns=["sale_date", "town", "block", "street_name", "price_per_sqm", "lat", "lon"])
+    d = d[(d["sale_date"] > y2) & (d["sale_date"] <= end)].dropna(subset=["lat", "lon"])
+    key = ["town", "block", "street_name"]
+    now = d[d["sale_date"] > y1].groupby(key).agg(psm=("price_per_sqm", "median"), n=("price_per_sqm", "size"), lat=("lat", "first"), lon=("lon", "first"))
+    before = d[d["sale_date"] <= y1].groupby(key).agg(psm0=("price_per_sqm", "median"), n0=("price_per_sqm", "size"))
+    j = now[now["n"] >= 3].join(before, how="left")
+    chg = np.where(j["n0"] >= 3, (j["psm"] / j["psm0"] - 1) * 100, np.nan)
+    hdb = [[round(r.lat, 5), round(r.lon, 5), int(round(r.psm, -1)), None if c != c else round(float(c), 1), int(r.n), b, s.title(), t.title()]
+           for (t, b, s), r, c in zip(j.index, j.itertuples(), chg)]
+    condo = []
+    try:
+        u = pd.read_parquet(ROOT / "data/processed/ura_transactions.parquet", columns=["project", "property_type", "sale_date", "price_per_sqm", "x", "y"])
+        u = u[(u["sale_date"] > y2) & (u["sale_date"] <= end) & u["property_type"].isin(["Condominium", "Apartment", "Executive Condominium"])].dropna(subset=["x", "y"])
+        un = u[u["sale_date"] > y1].groupby("project").agg(psm=("price_per_sqm", "median"), n=("price_per_sqm", "size"), x=("x", "first"), y=("y", "first"), kind=("property_type", "first"))
+        ub = u[u["sale_date"] <= y1].groupby("project").agg(psm0=("price_per_sqm", "median"), n0=("price_per_sqm", "size"))
+        uj = un[un["n"] >= 3].join(ub, how="left")
+        ll = cf.svy21_to_latlon(list(uj["x"]), list(uj["y"]))
+        for (p, r), (la, lo) in zip(uj.iterrows(), ll):
+            c = (r["psm"] / r["psm0"] - 1) * 100 if r["n0"] == r["n0"] and r["n0"] >= 3 else None
+            condo.append([round(float(la), 5), round(float(lo), 5), int(round(r["psm"], -1)), None if c is None else round(float(c), 1), int(r["n"]), str(p).title(), str(r["kind"])])
+    except Exception as e:
+        print(f"map condos skipped: {type(e).__name__}", file=sys.stderr)
+    return dict(months=f"{(y1 + pd.DateOffset(months=1)):%b %Y} to {end:%b %Y}", hdb=hdb, condo=condo)
+
+
+@app.get("/api/map")
+def price_map():
+    return map_data()
+
+
+@functools.lru_cache(maxsize=1)
+def lease_curve_data():
+    """What flats fetch by years of lease left, against an otherwise similar flat with a fresh 99-year lease (our lease curve, sales since 2016)."""
+    c = pd.read_csv(ROOT / "data/processed/lease_curve_2016.csv")
+    return [[float(a), round(float(b), 4)] for a, b in zip(c["remaining_lease_years"], c["value_vs_99"])]
+
+
+@app.get("/api/lease_curve")
+def lease_curve():
+    return dict(curve=lease_curve_data())
+
+
 @app.get("/api/ticker")
 def ticker():
     return clean(ticker_data())
