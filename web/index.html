@@ -106,8 +106,9 @@
   @media (prefers-reduced-motion: reduce) { .dots i { animation:none; } }
   .hero { text-align:center; padding:0 24px 22px; } .hero h2 { font-size:clamp(28px, 3.4vw, 42px); line-height:1.15; margin:14px 0 0; font-weight:700; letter-spacing:-.01em; }
   .hero p { max-width:540px; margin:10px auto 0; font-size:16.5px; color:var(--dim); } .hero .logo { width:56px; height:56px; border-radius:20px; margin:0 auto; }
-  .proof { font:inherit; font-size:13.5px; color:var(--dim); background:none; border:0; padding:0; margin-top:14px; cursor:pointer; }
-  .proof b { color:var(--fg); font-weight:600; } .proof span { color:var(--accent); font-weight:600; white-space:nowrap; } .proof:hover span { text-decoration:underline; }
+  /* the accuracy box in the sidebar (as in the mockup): one checkable claim, which opens the accuracy page */
+  .proof { font:inherit; display:flex; gap:8px; align-items:flex-start; text-align:left; width:100%; padding:10px; border:0; border-radius:12px; background:var(--soft); color:var(--fg); font-size:12.5px; line-height:1.45; cursor:pointer; }
+  .proof svg { color:var(--accent); flex:none; margin-top:2px; } .proof b { font-size:15px; font-weight:600; } .proof .dim { display:block; margin-top:2px; } .proof:hover .dim { color:var(--accent); }
   .view.chat.empty { justify-content:center; } .view.chat.empty .thread { display:none; } .view.chat:not(.empty) .hero, .view.chat:not(.empty) #starters { display:none; }
   .dock { padding:8px 24px 16px; } .dock > * { max-width:780px; margin-left:auto; margin-right:auto; }
   .composer { background:var(--panel); border-radius:30px; box-shadow:var(--shadow); padding:16px 16px 12px 22px; border:1px solid var(--line); }
@@ -252,7 +253,7 @@
 </head>
 <body>
 <aside class="nav">
-  <div class="brand"><span class="logo" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg></span><span class="word">Oikos</span></div>
+  <div class="brand"><span class="word">Oikos</span></div>
   <button class="newchat" id="newChat" type="button">+ New chat</button>
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
@@ -266,7 +267,7 @@
     <button id="setNav" type="button"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nl">Settings<sup>08</sup></span><span></span></button>
   </nav>
   <div class="navfoot">
-    <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="btn" id="acctBtn" type="button">Sign in</button><button class="btn line" id="plansBtn" type="button">Plans</button></div></div>
+    <div class="acct"><button class="proof" id="proof" type="button" hidden></button><div class="pills"><button class="btn" id="acctBtn" type="button">Sign in</button><button class="btn line" id="plansBtn" type="button">Plans</button></div></div>
     <button class="linkbtn fine" id="srcBtn" type="button" style="font-weight:400;color:var(--dim);width:fit-content">Data sources</button>
   </div>
 </aside>
@@ -284,7 +285,6 @@
     <div class="hero">
       <h2>Which home are you <span class="accent">looking at?</span></h2>
       <p>Paste a listing, a postal code or a block. You get a fair price worked out from recorded sales, not an agent's opinion.</p>
-      <button class="proof" id="proof" type="button" hidden></button>
     </div>
     <div class="dock">
       <div class="composer">
@@ -1125,10 +1125,9 @@ function showMe(m) {
   const meter = (label, note, u) => [h("div", { className: "row2" }, h("span", {}, h("b", {}, label), h("div", { className: "fine dim" }, u.resets && u.pct > 0 ? "Resets " + u.resets : note)),
       h("span", { className: "fine" }, `${u.pct}% used`)),
     h("div", { className: "use" }, h("i", { style: `width:${u.pct}%;background:${u.pct >= 90 ? "var(--neg)" : "var(--accent)"}` }))];
-  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "fine dim", style: "margin-top:4px" }, m.plan_name + " plan"));
   const more = h("button", { className: "linkbtn fine", type: "button", style: "width:fit-content;margin-top:6px" }, "See plans");
   more.addEventListener("click", () => { $("settings").close(); openPlans(); });
-  $("usage").replaceChildren(h("div", { className: "fine dim" }, m.plan_name + " plan"),
+  $("usage").replaceChildren(h("div", { className: "fine" }, ME ? ME.email : "Sign in to keep your flats and get more AI use."), h("div", { className: "fine dim" }, m.plan_name + " plan"),
     ...meter("Current session", "Starts with your first answer and lasts 5 hours", m.usage.session), ...meter("This week", "Starts with your first answer and lasts 7 days", m.usage.week), more);
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
@@ -1338,7 +1337,8 @@ function drawAccuracy() {
 }
 $("accBtn").addEventListener("click", openAccuracy);
 api("/api/accuracy").then(a => { ACC = a; const y = a.hdb.year;
-  $("proof").replaceChildren("Half our HDB estimates last year landed within ", h("b", {}, y.half_within_pct.toFixed(1) + "%"), " of the sale price. ", h("span", {}, "See every miss →"));
+  const icon = document.createElement("span"); icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>';
+  $("proof").replaceChildren(icon.firstChild, h("span", {}, "Half our HDB estimates last year landed within ", h("b", {}, y.half_within_pct.toFixed(1) + "%"), h("span", { className: "dim" }, "See how accurate we are")));
   $("proof").hidden = false; }).catch(() => {});
 $("proof").addEventListener("click", openAccuracy); $("accX").addEventListener("click", () => $("accuracy").close());
 if (location.hash === "#accuracy") openAccuracy();
