@@ -52,6 +52,7 @@
   #nav .ni { display:grid; place-items:center; opacity:.5; transform:translateX(-3px); transition:transform .35s cubic-bezier(.2,.8,.2,1.2), opacity .25s, color .25s; }
   #nav .nl sup { font-family:var(--mono); font-size:9.5px; margin-left:3px; letter-spacing:.04em; opacity:.7; }
   #nav button:hover, .newchat:hover { background:var(--soft); }
+  #nav button.sub { display:flex; padding:6px 12px 6px 44px; font-size:13.5px; margin-top:-2px; white-space:nowrap; overflow:hidden; } #nav button.sub > span:empty { display:none; } #nav button.sub .nl { overflow:hidden; text-overflow:ellipsis; } #nav button.sub .nl::before { content:"\21B3  "; color:var(--dim); }  /* the open flat's breakdown, under Ask Oikos */
   #nav button:hover { color:var(--fg); } #nav button:hover .ni { opacity:.85; transform:none; }
   #nav button.on { background:var(--soft); box-shadow:inset 3px 0 0 var(--accent); color:var(--fg); font-weight:600; }
   #nav button.on .ni { opacity:1; color:var(--accent); transform:none; animation:slidein .45s cubic-bezier(.2,.8,.2,1.2); }
@@ -269,13 +270,11 @@
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
     <button data-go="chat"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5l1.9 5.1L18 10.5l-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M19 15v6M16 18h6"/></svg></span><span class="nl">Ask Oikos<sup>01</sup></span><span></span></button>
-    <button data-go="check"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a8.5 8.5 0 1 0 9 9h-9z"/><path d="M14.5 2.8A8.5 8.5 0 0 1 21.2 9.5h-6.7z"/></svg></span><span class="nl">Full breakdown<sup>02</sup></span><span></span></button>
-    <button data-go="flats"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18M8.5 7.5h0M11.5 7.5h0M8.5 11.5h0M11.5 11.5h0M8.5 15.5h0M11.5 15.5h0"/></svg></span><span class="nl">My flats<sup>03</sup></span><span id="nFlats"></span></button>
-    <button data-go="compare"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-3 6.5a3 3 0 0 0 6 0zM19 7l-3 6.5a3 3 0 0 0 6 0z"/></svg></span><span class="nl">Compare<sup>04</sup></span><span></span></button>
-    <button data-go="alerts"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="nl">Alerts<sup>05</sup></span><span class="badge" id="nAlerts" hidden></span></button>
-    <button data-go="deals"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><span class="nl">Deals<sup>06</sup></span><span></span></button>
-    <button data-go="market"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 15v6M17 3v3M17 13v8"/><path d="M5 7h4v8H5zM15 6h4v7h-4z"/></svg></span><span class="nl">Market<sup>07</sup></span><span></span></button>
-    <button id="setNav" type="button"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nl">Settings<sup>08</sup></span><span></span></button>
+    <button data-go="check" class="sub" id="bdNav" hidden><span></span><span class="nl" id="bdName">Full breakdown</span><span></span></button>
+    <button data-go="flats"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18M8.5 7.5h0M11.5 7.5h0M8.5 11.5h0M11.5 11.5h0M8.5 15.5h0M11.5 15.5h0"/></svg></span><span class="nl">My homes<sup>02</sup></span><span id="nFlats"></span></button>
+    <button data-go="watch"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="nl">Watchlist<sup>03</sup></span><span class="badge" id="nAlerts" hidden></span></button>
+    <button data-go="market"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 15v6M17 3v3M17 13v8"/><path d="M5 7h4v8H5zM15 6h4v7h-4z"/></svg></span><span class="nl">Market<sup>04</sup></span><span></span></button>
+    <button id="setNav" type="button"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nl">Settings<sup>05</sup></span><span></span></button>
   </nav>
   <div class="chats" id="chatsBox" hidden><div class="cap dim">Recent chats</div><div id="chatList"></div></div>
   <div class="navfoot">
@@ -361,12 +360,11 @@
     </div>
   </div>
 
-  <!-- MY FLATS -->
-  <div class="view" data-view="flats" hidden><div class="grid3" id="flatList"></div></div>
-  <!-- COMPARE -->
-  <div class="view" data-view="compare" hidden><div id="cmp"></div></div>
-  <!-- ALERTS -->
-  <div class="view" data-view="alerts" hidden>
+  <!-- MY HOMES: saved homes, and the side-by-side for the ones ticked -->
+  <div class="view" data-view="flats" hidden><div class="grid3" id="flatList"></div>
+    <div class="ot" style="margin:26px 0 8px">Side by side</div><div id="cmp"></div></div>
+  <!-- WATCHLIST: alerts, then recent bargains -->
+  <div class="view" data-view="watch" hidden>
     <div class="panel"><div class="bd">
       <div class="ot" style="margin-top:0">Get told when something sells</div>
       <div class="dim">Watch a town for flats that sell 8% or more under our estimate. To watch one block for any new sale, use "Watch block" on its card in the chat.</div>
@@ -376,11 +374,11 @@
     </div></div>
     <div class="grid3" id="alertList" style="margin-top:16px"></div>
     <div class="fine" id="alertNote" style="margin-top:12px"></div>
-  </div>
-  <!-- DEALS -->
-  <div class="view" data-view="deals" hidden>
-    <label style="max-width:320px"><span class="cap dim">Town</span><select id="dealTown"></select></label>
-    <div class="panel" style="margin-top:16px"><div class="bd"><div class="cards" id="dealCards"></div><div class="fine" id="dealCardsNote" style="margin-top:10px"></div></div></div>
+    <div class="ot" style="margin:26px 0 4px">Recent bargains</div>
+    <div class="dim" style="margin-bottom:10px">Sales that closed 8% or more under our estimate at the time.</div>
+    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><label style="max-width:320px;flex:1"><span class="cap dim">Town</span><select id="dealTown"></select></label>
+      <button class="btn line" id="dealWatch" type="button">Alert me for this town</button></div>
+    <div class="panel" style="margin-top:12px"><div class="bd"><div class="cards" id="dealCards"></div><div class="fine" id="dealCardsNote" style="margin-top:10px"></div></div></div>
   </div>
   <!-- MARKET -->
   <div class="view" data-view="market" hidden>
@@ -506,14 +504,14 @@ function setProfile(p) {
   if (["soon", "relaxed"].includes(p.timeline)) profile.timeline = p.timeline;
   if (p.asked) profile.asked = true;
   store.set("profile", profile); $("age").value = $("age0").value = age() || ""; renderLife();
-  if (document.body.dataset.current === "compare") renderCompare();
+  if (document.body.dataset.current === "flats") renderCompare();
 }
 
 let F = null;                         // facts for the flat on screen, from /api/assess
 let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
 
 // ---- views
-const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My flats", compare: "Compare", alerts: "Alerts", deals: "Deals", market: "Market" };
+const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My homes", watch: "Watchlist", market: "Market" };
 function go(view) {
   document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
@@ -523,11 +521,16 @@ function go(view) {
   $("noFlat").textContent = isCondo(F) ? "The full breakdown covers HDB flats for now. For a condo, everything we have is on its card in the chat." : "Tell Oikos about a flat first, then come back here for every number behind the answer.";
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
-  if (view === "flats") renderFlats(); if (view === "compare") renderCompare(); if (view === "deals") loadDeals(); if (view === "market") loadMarket(); if (view === "alerts") loadAlerts();
+  if (view === "flats") renderFlats(); if (view === "watch") { loadAlerts(); loadDeals(); } if (view === "market") loadMarket();
+  breakdownLink();
   if (inResult) fitVerdict();
   if (view === "chat") $("msg").focus();
 }
 document.querySelectorAll("#nav button[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+function breakdownLink() {  // the full breakdown appears under Ask Oikos once an HDB flat is open (condos have no breakdown yet)
+  const on = !!F && !isCondo(F); $("bdNav").hidden = !on;
+  if (on) $("bdName").textContent = `Blk ${F.flat.block} breakdown`;
+}
 
 // ---- step 2: the flat picker
 const fill = (sel, list, chosen, label = x => x) => { sel.replaceChildren(...list.map(v => h("option", { value: v, selected: v === chosen }, label(v)))); };
@@ -572,7 +575,7 @@ $("newBtn").addEventListener("click", () => go("chat"));
 
 // ---- the result: everything that depends only on the flat
 function show() {
-  askHistory = [];
+  askHistory = []; breakdownLink();
   const f = F.flat, fair = F.fair, q = l => qOf(F, l), p0 = F.price || Math.round(fair / 1000) * 1000;
   // the slider stretches to hold their price, however far from our range it is
   const lo = Math.floor(Math.min(q(5) * 0.92, p0 * 0.97) / 1000) * 1000, hi = Math.ceil(Math.max(q(95) * 1.08, p0 * 1.03) / 1000) * 1000, pos = x => (x - lo) / (hi - lo) * 100 + "%";
@@ -1082,7 +1085,7 @@ function send(text) {
     if (u.role && u.role !== root.role) pick("r", u.role);
     if (u.profile && Object.keys(u.profile).length) setProfile(u.profile);
     if (u.work && !u.found) { w.remove(); store.set("work", u.work); if (F) await sayCommute(); else await say(`Noted. I'll show the commute to ${u.work} for each flat you check.`); }
-    else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Alerts page."); }
+    else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Watchlist."); }
     else if (u.found && u.compare && F) await compareWith(u, text, w);
     else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), u, w);
     else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), u, w);
@@ -1103,7 +1106,7 @@ const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height
 $("msg").addEventListener("input", grow);
 $("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("msg").value); } });
 $("sendBtn").addEventListener("click", () => send($("msg").value));
-$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; chatId = null; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); drawChats(); });
+$("newChat").addEventListener("click", () => { if (busy) return; F = null; askHistory = []; talk = []; ctx = {}; chatId = null; $("thread").replaceChildren(); $("chat").classList.add("empty"); go("chat"); drawChats(); breakdownLink(); });
 
 // ---- saved chats. Signed in: kept in the account (data/oikos.db) until deleted. Visitor: kept in this browser, and moved into the account on sign-in.
 // A chat is saved as it was shown (the thread's HTML) plus what the AI needs to carry on: the conversation, what earlier messages said, and the home on screen.
@@ -1229,7 +1232,7 @@ async function syncFlats() {  // the server's copy plus anything saved in this b
   if (!ME) return;
   const r = await api("/api/flats"), ids = new Set(r.flats.map(x => x.id));
   flats = [...flats.filter(x => !ids.has(x.id)), ...r.flats]; persist();
-  const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+  const view = document.body.dataset.current; if (view === "flats") renderFlats();
 }
 function openAcct(mode = "login") {
   acctMode = mode; const up = mode === "signup";
@@ -1244,14 +1247,14 @@ $("acctForm").addEventListener("submit", async e => {
   e.preventDefault(); $("acctGo").disabled = true; $("acctMsg").textContent = "";
   try {
     showMe(await api("/api/" + acctMode, { email: $("acctEmail").value, password: $("acctPw").value }));
-    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats(); syncChats(); countAlerts(); if (document.body.dataset.current === "alerts") loadAlerts();
+    $("acctPw").value = ""; $("acct").close(); toast(acctMode === "signup" ? "Account created" : "Signed in"); await syncFlats(); syncChats(); countAlerts(); if (document.body.dataset.current === "watch") loadAlerts();
   } catch (err) { $("acctMsg").textContent = err.message; } finally { $("acctGo").disabled = false; }
 });
 $("acctBtn").addEventListener("click", async () => {
   if (!ME) { openAcct("login"); return; }
   try { await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
-  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); $("newChat").click(); loadChats();  // your chats stay in your account, not on this screen setBadge(0); if (document.body.dataset.current === "alerts") loadAlerts();  // saved flats stay on the server, not in this browser
-  const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+  ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); $("newChat").click(); loadChats(); setBadge(0); if (document.body.dataset.current === "watch") loadAlerts();  // chats and saved homes stay in the account, not in this browser
+  const view = document.body.dataset.current; if (view === "flats") renderFlats();
 });
 // ---- share: a short link anyone can open, showing this flat's verdict and the advice Oikos gave
 async function shareFlat() {
@@ -1331,17 +1334,18 @@ $("saveBtn").addEventListener("click", () => saveFlat());
 function saveFlat() {
   const id = flatId(F), price = asked(), old = flats.find(x => x.id === id);
   if (old) Object.assign(old, { price, F }); else flats.unshift({ id, saved: new Date().toISOString().slice(0, 10), price, status: "Watching", notes: "", compare: false, F });
-  persist(); $("saveBtn").textContent = "Update saved flat"; toast(old ? "Saved flat updated" : "Saved to My flats");
+  persist(); $("saveBtn").textContent = "Update saved flat"; toast(old ? "Saved home updated" : "Saved to My homes");
 }
 function renderFlats() {
   const box = $("flatList");
-  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved flats yet. Ask Oikos about a flat, then press Save flat.")); return; }
+  renderCompare();
+  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved homes yet. Ask Oikos about a flat or condo, then press Save.")); return; }
   box.replaceChildren(...flats.map(item => {
     const v = verdictFor(item.F, item.price), status = h("select", {}, ...["Watching", "Viewed", "Offer made", "Dropped"].map(s => h("option", { selected: s === item.status }, s)));
     const notes = h("textarea", { rows: 2, placeholder: "Your notes", value: item.notes }), cmp = h("input", { type: "checkbox", checked: item.compare });
     status.addEventListener("change", () => { item.status = status.value; persist(); });
     notes.addEventListener("input", () => { item.notes = notes.value; persist(); });
-    cmp.addEventListener("change", () => { if (cmp.checked && flats.filter(x => x.compare).length >= 3) { cmp.checked = false; toast("Compare up to 3 flats"); return; } item.compare = cmp.checked; persist(); });
+    cmp.addEventListener("change", () => { if (cmp.checked && flats.filter(x => x.compare).length >= 3) { cmp.checked = false; toast("Compare up to 3 flats"); return; } item.compare = cmp.checked; persist(); renderCompare(); });
     const open = h("button", { className: "btn ghost", type: "button" }, "Open"), del = h("button", { className: "btn ghost", type: "button" }, "Remove");
     open.addEventListener("click", () => { F = item.F; F.price = item.price; show(); render(); go("chat"); flatCard(); });
     del.addEventListener("click", () => { flats = flats.filter(x => x !== item); persist(); renderFlats(); });
@@ -1355,7 +1359,7 @@ function renderFlats() {
 // ---- compare
 function renderCompare() {
   const sel = flats.filter(x => x.compare).slice(0, 3), box = $("cmp");
-  if (sel.length < 2) { box.replaceChildren(h("div", { className: "empty dim" }, "Tick Compare on two or three flats in My flats to see them side by side.")); return; }
+  if (sel.length < 2) { box.replaceChildren(h("div", { className: "empty dim" }, "Tick Compare on two or three homes above to see them side by side.")); return; }
   const V = sel.map(x => verdictFor(x.F, x.price)), buyer = root.role === "buyer";
   const rows = [["Verdict", (x, i) => h("span", { className: "vword", style: `color:${V[i].color};font-size:20px` }, V[i].word)], [V[0].R.priceLabel, x => money(x.price)], ["Our fair value", x => money(x.F.fair)],
     ["Price versus fair value", x => h("span", { className: "hm" }, pc(x.price / x.F.fair - 1))], ["Likely range", x => `${k(qOf(x.F, 25))} - ${k(qOf(x.F, 75))}`], ["Reliability", x => x.F.reliability],
@@ -1369,7 +1373,8 @@ function renderCompare() {
 // ---- deals and market
 const loadDeals = () => $("dealTown").value && api("/api/deals?" + new URLSearchParams({ town: $("dealTown").value })).then(d => dealCards($("dealCards"), $("dealCardsNote"), d)).catch(e => $("dealCardsNote").textContent = e.message);
 const loadMarket = () => $("mTown").value && api("/api/trend?" + new URLSearchParams({ town: $("mTown").value, flat_type: $("mType").value })).then(t => drawTrend($("mTrend"), $("mText"), t, $("mType").value, $("mTown").value)).catch(e => $("mText").textContent = e.message);
-$("dealTown").addEventListener("change", loadDeals); $("mTown").addEventListener("change", loadMarket); $("mType").addEventListener("change", loadMarket);
+$("dealTown").addEventListener("change", loadDeals);
+$("dealWatch").addEventListener("click", () => { $("alTown").value = $("dealTown").value; $("alType").value = ""; $("alAdd").click(); $("alMsg").scrollIntoView({ block: "center" }); }); $("mTown").addEventListener("change", loadMarket); $("mType").addEventListener("change", loadMarket);
 
 // ---- the brief: a one-page summary that prints
 function buildBrief() {
@@ -1392,7 +1397,7 @@ function pick(attr, val, save = true) {
   root[KEYS[attr]] = val;
   document.querySelectorAll(`.seg button[data-${attr}]`).forEach(x => x.classList.toggle("on", x.dataset[attr] === val));
   if (save) store.set(KEYS[attr], val);
-  render(); const view = document.body.dataset.current; if (view === "flats") renderFlats(); if (view === "compare") renderCompare();
+  render(); const view = document.body.dataset.current; if (view === "flats") renderFlats();
 }
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => { for (const a in KEYS) if (b.dataset[a]) pick(a, b.dataset[a]); }));
 if (!["light", "dark"].includes(store.get("theme", "light"))) store.set("theme", "light");
