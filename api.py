@@ -18,18 +18,20 @@ Needs the data and models built first (python src/update.py).
 The page works out verdicts for any price from the returned price quantiles, so dragging the price needs no
 new request. Everything returned comes from the models and the sales data; nothing is invented here.
 """
+import base64
 import functools
 import json
 import math
 import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -291,7 +293,8 @@ def me_view(who, user):
                   session_answers=int(v["session"] / acc.TYPICAL_ANSWER), week_answers=int(v["week"] / acc.TYPICAL_ANSWER)) for k, v in acc.PLANS.items() if k != "visitor"]
     w = acc.windows(who)
     use = {k: dict(pct=round(v["pct"]), resets=sg_time(v["resets_at"], k == "week") if v["resets_at"] else None) for k, v in w.items()}
-    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans)
+    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans,
+                auth="workos" if workos_on() else "password")
 
 
 class Want(BaseModel):
@@ -311,6 +314,64 @@ def interest(body: Want, request: Request, response: Response):
     return dict(ok=True)
 
 
+# ---- sign-in through WorkOS AuthKit (hosted sign-in page: email and password, email codes, Google and others, password reset).
+# On when WORKOS_API_KEY and WORKOS_CLIENT_ID are in .env; otherwise Oikos's own email-and-password sign-in is used.
+# WorkOS confirms who the person is; Oikos keeps its own session cookie and account, so usage, saved homes, chats and alerts stay put.
+def workos_on():
+    return bool(os.environ.get("WORKOS_API_KEY", "").strip() and os.environ.get("WORKOS_CLIENT_ID", "").strip())
+
+
+def workos():
+    from workos import WorkOSClient
+    return WorkOSClient(api_key=os.environ["WORKOS_API_KEY"].strip(), client_id=os.environ["WORKOS_CLIENT_ID"].strip())
+
+
+def auth_redirect_uri(request):
+    return os.environ.get("WORKOS_REDIRECT_URI", "").strip() or str(request.base_url).rstrip("/") + "/auth/callback"
+
+
+def jwt_claim(token, name):
+    """One claim from a JWT we received straight from WorkOS (the session id, needed to sign out). Not used to decide who someone is."""
+    try:
+        part = token.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))).get(name)
+    except Exception:
+        return None
+
+
+@app.get("/auth/login")
+def auth_login(request: Request, mode: str = "login"):
+    if not workos_on():
+        raise HTTPException(404, "Sign-in through WorkOS is not set up.")
+    state = secrets.token_urlsafe(24)
+    url = workos().user_management.get_authorization_url(provider="authkit", redirect_uri=auth_redirect_uri(request), state=state,
+                                                         screen_hint="sign-up" if mode == "signup" else "sign-in")
+    r = RedirectResponse(url, status_code=303)
+    r.set_cookie("oikos_auth_state", state, max_age=600, httponly=True, samesite="lax", secure=request.url.scheme == "https")
+    return r
+
+
+@app.get("/auth/callback")
+def auth_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+    fail = RedirectResponse("/?auth=failed", status_code=303)
+    fail.delete_cookie("oikos_auth_state")
+    if error or not code or not workos_on() or not state or not secrets.compare_digest(state, request.cookies.get("oikos_auth_state") or ""):
+        return fail
+    try:
+        a = workos().user_management.authenticate_with_code(code=code, ip_address=client_ip(request), user_agent=request.headers.get("user-agent"))
+    except Exception as e:
+        print(f"workos callback failed: {type(e).__name__}", file=sys.stderr)
+        return fail
+    uid, created = acc.link_workos(a.user.id, a.user.email, bool(a.user.email_verified))
+    if created:
+        acc.record(f"u:{uid}", "signup", 0, False, client_ip(request))
+    r = RedirectResponse("/?auth=ok", status_code=303)
+    r.delete_cookie("oikos_auth_state")
+    r.set_cookie("oikos_session", acc.new_session(uid, jwt_claim(a.access_token, "sid")), max_age=acc.SESSION_DAYS * 86400, httponly=True, samesite="lax",
+                 secure=request.url.scheme == "https")
+    return r
+
+
 def start_session(user_id, request, response):
     response.set_cookie("oikos_session", acc.new_session(user_id), max_age=acc.SESSION_DAYS * 86400, httponly=True, samesite="lax",
                         secure=request.url.scheme == "https")
@@ -324,6 +385,8 @@ def me(request: Request, response: Response):
 
 @app.post("/api/signup")
 def signup(body: Login, request: Request, response: Response):
+    if workos_on():
+        raise HTTPException(410, "Create your account with the Sign in button.")
     ip = client_ip(request)
     if acc.signups_today(ip) >= 3:
         raise HTTPException(429, "Too many new accounts from this network today. Try again tomorrow.")
@@ -337,6 +400,8 @@ def signup(body: Login, request: Request, response: Response):
 
 @app.post("/api/login")
 def login(body: Login, request: Request, response: Response):
+    if workos_on():
+        raise HTTPException(410, "Sign in with the Sign in button.")
     try:
         uid = acc.login(body.email, body.password)
     except ValueError as e:
@@ -348,9 +413,17 @@ def login(body: Login, request: Request, response: Response):
 
 @app.post("/api/logout")
 def logout(request: Request, response: Response):
-    acc.end_session(request.cookies.get("oikos_session"))
+    token = request.cookies.get("oikos_session")
+    sid = acc.session_workos_sid(token)
+    acc.end_session(token)
     response.delete_cookie("oikos_session")
-    return dict(ok=True)
+    out = dict(ok=True)
+    if sid and workos_on():  # also end the WorkOS session, so the next sign-in asks again; WorkOS then sends the browser back here
+        try:
+            out["logout_url"] = workos().user_management.get_logout_url(session_id=sid, return_to=str(request.base_url))
+        except Exception:
+            pass
+    return out
 
 
 @app.get("/api/flats")

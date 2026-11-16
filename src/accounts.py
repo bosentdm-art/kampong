@@ -67,8 +67,14 @@ def init():
             create table if not exists shares (id text primary key, body text not null, created real not null, views integer not null default 0);
             create table if not exists alerts (id integer primary key, user_id integer not null, kind text not null, spec text not null, baseline text not null, seen text not null, created real not null);
         """)
-        if "plan" not in [r["name"] for r in c.execute("pragma table_info(users)")]:
+        ucols = [r["name"] for r in c.execute("pragma table_info(users)")]
+        if "plan" not in ucols:
             c.execute("alter table users add column plan text not null default 'free'")
+        if "workos_id" not in ucols:  # the person's WorkOS AuthKit user, once they sign in that way
+            c.execute("alter table users add column workos_id text")
+        c.execute("create unique index if not exists users_workos on users (workos_id) where workos_id is not null")
+        if "workos_sid" not in [r["name"] for r in c.execute("pragma table_info(sessions)")]:  # the WorkOS session behind a sign-in, for signing out of both
+            c.execute("alter table sessions add column workos_sid text")
         cols = [r["name"] for r in c.execute("pragma table_info(usage)")]
         if "ip" not in cols:
             c.execute("alter table usage add column ip text")
@@ -132,12 +138,40 @@ def _th(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def new_session(user_id):
+def new_session(user_id, workos_sid=None):
     token = secrets.token_urlsafe(32)
     with db() as c:
         c.execute("delete from sessions where expires < ?", (time.time(),))
-        c.execute("insert into sessions values (?, ?, ?)", (_th(token), user_id, time.time() + SESSION_DAYS * 86400))
+        c.execute("insert into sessions (token_hash, user_id, expires, workos_sid) values (?, ?, ?, ?)", (_th(token), user_id, time.time() + SESSION_DAYS * 86400, workos_sid))
     return token
+
+
+def session_workos_sid(token):
+    if not token:
+        return None
+    with db() as c:
+        r = c.execute("select workos_sid from sessions where token_hash = ?", (_th(token),)).fetchone()
+    return r["workos_sid"] if r else None
+
+
+def link_workos(workos_id, email, verified):
+    """The Oikos account for a WorkOS AuthKit sign-in: (user id, created?). An existing account with the same email is joined
+    only when WorkOS says the email is verified, so nobody can take over an account by signing up with someone else's address."""
+    email = (email or "").strip().lower()
+    with db() as c:
+        r = c.execute("select id from users where workos_id = ?", (workos_id,)).fetchone()
+        if r:
+            return r["id"], False
+        if verified and email:
+            r = c.execute("select id from users where lower(email) = ? and workos_id is null", (email,)).fetchone()
+            if r:
+                c.execute("update users set workos_id = ? where id = ?", (workos_id, r["id"]))
+                return r["id"], False
+        if not email or c.execute("select 1 from users where lower(email) = ?", (email,)).fetchone():
+            email = f"{workos_id}@workos.local"  # an unverified address that is already taken stays unlinked
+        # no usable password: this account signs in through WorkOS only
+        cur = c.execute("insert into users (email, pw, created, workos_id) values (?, ?, ?, ?)", (email, _hash(secrets.token_urlsafe(32)), time.time(), workos_id))
+        return cur.lastrowid, True
 
 
 def user_for(token):

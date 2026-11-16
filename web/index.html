@@ -1330,6 +1330,7 @@ async function syncFlats() {  // the server's copy plus anything saved in this b
   const view = document.body.dataset.current; if (view === "flats") renderFlats();
 }
 function openAcct(mode = "login") {
+  if (PLAN?.auth === "workos") { location.href = "/auth/login" + (mode === "signup" ? "?mode=signup" : ""); return; }  // WorkOS AuthKit's own sign-in page
   acctMode = mode; const up = mode === "signup";
   $("acctTitle").textContent = $("acctGo").textContent = up ? "Create account" : "Sign in"; $("acctHint").hidden = !up;
   $("acctAsk").textContent = up ? "Already have one?" : "New here?"; $("acctSwap").textContent = up ? "Sign in" : "Create an account";
@@ -1347,7 +1348,8 @@ $("acctForm").addEventListener("submit", async e => {
 });
 $("acctBtn").addEventListener("click", async () => {
   if (!ME) { openAcct("login"); return; }
-  try { await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
+  let out; try { out = await api("/api/logout", {}); } catch (e) { toast("Could not sign out"); return; }
+  if (out.logout_url) { location.href = out.logout_url; return; }  // WorkOS ends its session too, then sends the browser back here
   ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); $("newChat").click(); loadChats(); setBadge(0); if (document.body.dataset.current === "watch") loadAlerts();  // chats and saved homes stay in the account, not in this browser
   const view = document.body.dataset.current; if (view === "flats") renderFlats();
 });
@@ -1633,6 +1635,8 @@ api("/api/ticker").then(t => { TK = t; return tickerHomes(); }).catch(() => {});
 
 persist(); go("chat");
 api("/api/me").then(m => { showMe(m); syncChats(); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
+const authResult = new URLSearchParams(location.search).get("auth");  // back from WorkOS AuthKit
+if (authResult) { toast(authResult === "ok" ? "Signed in" : "Sign-in didn't finish. Try again."); history.replaceState(null, "", location.pathname); }
 const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);
 if (shared) working(() => openShared(shared[1]));
 loadOptions().catch(e => $("formMsg").textContent = "Could not load the flat list: " + e.message);
