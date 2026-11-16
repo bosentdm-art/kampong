@@ -840,6 +840,9 @@ def ticker_data():
         a, b, last = cn[cn["market_segment"] == seg]["price_per_sqm"], ct[ct["market_segment"] == seg]["price_per_sqm"], cl[cl["market_segment"] == seg]["price_per_sqm"]
         if len(last) >= 30:
             items.append(dict(label=f"Condo resale {seg} psf", value=float(last.median() / 10.7639), unit="psf", change=float(a.median() / b.median() - 1) if len(b) >= 60 else None))
+    mm = millions_data()
+    items.append(dict(label=f"$1m+ HDB resales {mm['year']}", value=mm["count"], unit="units", change=None, open="market",
+                      tip=f"HDB flats sold for $1m or more in {mm['year']}, to {mm['through']}. Tap for the Market page."))
     dev = ura_more()[1]
     if dev is not None:
         last = dev[dev["month"] == dev["month"].max()]
@@ -851,6 +854,64 @@ def ticker_data():
         if x.get("change") is not None:
             x["change"] = round(float(x["change"]) * 100, 1)
     return dict(month=end.strftime("%b %Y"), window=isl["months"], items=items)
+
+
+@functools.lru_cache(maxsize=1)
+def millions_data():
+    """HDB resales at $1m or more: this year so far against the same months last year, the record, and where they were."""
+    end = pd.Timestamp(meta()["trained_through"] + "-01")
+    d = pd.read_parquet(ROOT / "data/processed/resale_features.parquet", columns=["sale_date", "resale_price", "town", "block", "street_name", "flat_type", "storey_range"])
+    d = d[d["sale_date"] <= end]
+    y0, y1 = pd.Timestamp(f"{end.year}-01-01"), pd.Timestamp(f"{end.year - 1}-01-01")
+    now = d[(d["sale_date"] >= y0) & (d["resale_price"] >= 1e6)]
+    before = d[(d["sale_date"] >= y1) & (d["sale_date"] <= end - pd.DateOffset(years=1)) & (d["resale_price"] >= 1e6)]
+    top = now.loc[now["resale_price"].idxmax()] if len(now) else None
+    return dict(year=end.year, through=end.strftime("%b %Y"), count=int(len(now)), last_year=int(len(before)), latest_month=int((now["sale_date"] == end).sum()),
+                record=None if top is None else dict(price=float(top["resale_price"]), block=str(top["block"]), street=str(top["street_name"]).title(), town=str(top["town"]).title(),
+                                                     flat_type=str(top["flat_type"]).title(), storey=str(top["storey_range"]).replace(" TO ", "-"), month=top["sale_date"].strftime("%b %Y")),
+                towns=[dict(town=t.title(), count=int(n)) for t, n in now["town"].value_counts().head(5).items()])
+
+
+@app.get("/api/millions")
+def millions():
+    return clean(millions_data())
+
+
+@functools.lru_cache(maxsize=1)
+def movers_data():
+    """Towns whose resale prices moved most over the last three months against the same months a year before, like for like."""
+    rows = []
+    for town in sorted(sales()["town"].unique()):
+        m = market_stats(town)
+        if m["all"] is not None and m["sales"] >= 100:
+            rows.append(dict(town=town.title(), key=town, change=round(m["all"] * 100, 1), sales=m["sales"]))
+    rows.sort(key=lambda r: -r["change"])
+    return dict(window=market_stats(None)["months"], up=rows[:5], down=rows[::-1][:5], towns=len(rows))
+
+
+@app.get("/api/movers")
+def movers():
+    return clean(movers_data())
+
+
+@functools.lru_cache(maxsize=1)
+def guess_pool():
+    """Recent HDB resales with the estimate a version of our model made before each sold: the homes for Guess the price."""
+    files = sorted((ROOT / "data/processed/oos").glob("chunk_*.parquet"))[-2:]
+    d = pd.concat([pd.read_parquet(f, columns=["sale_date", "block", "street_name", "town", "flat_type", "flat_model", "floor_area_sqm", "storey_mid", "lease_commence_date", "resale_price", "pred"]) for f in files])
+    d = d[d["sale_date"] > d["sale_date"].max() - pd.DateOffset(months=3)].dropna(subset=["pred", "resale_price"]).reset_index(drop=True)
+    return d
+
+
+@app.get("/api/guess")
+def guess():
+    import random
+    d = guess_pool()
+    r = d.iloc[random.randrange(len(d))]
+    lo = int((r["storey_mid"] - 1) // 3 * 3 + 1)
+    return clean(dict(block=str(r["block"]), street=str(r["street_name"]).title(), town=str(r["town"]).title(), flat_type=str(r["flat_type"]).title(),
+                      flat_model=str(r["flat_model"]).title(), sqm=round(float(r["floor_area_sqm"])), storey=f"{lo:02d}-{lo + 2:02d}",
+                      lease_from=int(r["lease_commence_date"]), month=r["sale_date"].strftime("%b %Y"), sold=float(r["resale_price"]), estimate=round(float(r["pred"]), -3)))
 
 
 @app.get("/api/ticker")

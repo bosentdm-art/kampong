@@ -245,6 +245,15 @@
   .badge { background:#ef4444; color:#fff; border-radius:999px; font-size:12px; font-weight:700; padding:0 7px; line-height:20px; }
   .alform { display:grid; grid-template-columns:minmax(0, 260px) minmax(0, 200px) auto; gap:10px; align-items:end; margin-top:12px; }
   .acard .bd { display:grid; gap:8px; } .acard .new { color:var(--pos); font-weight:700; }
+  /* market page: the counter, top movers and the guessing game */
+  .mgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+  .bignum { font-size:44px; font-weight:700; line-height:1.05; margin:4px 0 2px; font-variant-numeric:tabular-nums; }
+  .movers { display:grid; grid-template-columns:1fr 1fr; gap:4px 18px; margin-top:8px; } .movers .cap { margin-bottom:2px; }
+  .mv { font:inherit; display:flex; justify-content:space-between; gap:8px; padding:6px 0; border:0; border-top:1px solid var(--line); background:none; color:var(--fg); cursor:pointer; text-align:left; font-size:14px; }
+  .mv:hover span:first-child { color:var(--accent); } .mv b { font-weight:600; color:var(--dim); white-space:nowrap; }
+  .game { display:grid; gap:10px; } .game .score { color:var(--dim); font-size:13px; } .game .home { font-size:17px; font-weight:600; }
+  .guessrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .guessrow input { width:180px; font-size:16px; }
+  .reveal { display:grid; gap:4px; padding:12px 14px; border-radius:12px; background:var(--soft); } .reveal .won { font-family:var(--head); font-size:22px; font-weight:600; color:var(--accent); }
   .linkbox { background:var(--soft); border-radius:12px; padding:8px 12px; font-family:ui-monospace, Consolas, monospace; font-size:13px; overflow-wrap:anywhere; user-select:all; }
   .plangrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
   .plan { border:1px solid var(--line); border-radius:20px; padding:16px; display:grid; gap:6px; align-content:start; background:var(--bg); } .plan.cur { border:2px solid var(--accent); }
@@ -405,6 +414,9 @@
     <div id="allChats" style="margin-top:14px"></div></div></div>
   <!-- MARKET -->
   <div class="view" data-view="market" hidden>
+    <div class="mgrid"><div class="panel"><div class="bd" id="milBox"><div class="dim">Counting...</div></div></div><div class="panel"><div class="bd" id="movBox"><div class="dim">Loading...</div></div></div></div>
+    <div class="panel" style="margin-top:16px"><div class="bd" id="gameBox"><div class="dim">Finding a home...</div></div></div>
+    <div class="ot" style="margin:26px 0 8px" id="townTrend">A town over time</div>
     <div style="display:grid;grid-template-columns:minmax(0,320px) minmax(0,220px);gap:12px"><label><span class="cap dim">Town</span><select id="mTown"></select></label><label><span class="cap dim">Flat type</span><select id="mType"></select></label></div>
     <div class="panel" style="margin-top:16px"><div class="bd"><div id="mText"></div><svg id="mTrend" viewBox="0 0 700 120" width="100%" style="max-width:900px;margin-top:8px" role="img" aria-label="Price per square metre by year"></svg></div></div>
   </div>
@@ -544,7 +556,7 @@ function go(view) {
   $("noFlat").textContent = isCondo(F) ? "The full breakdown covers HDB flats for now. For a condo, everything we have is on its card in the chat." : "Tell Oikos about a flat first, then come back here for every number behind the answer.";
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
-  if (view === "flats") renderFlats(); if (view === "watch") { loadAlerts(); loadDeals(); } if (view === "market") loadMarket(); if (view === "allchats") { drawAll(); loadChats(); }
+  if (view === "flats") renderFlats(); if (view === "watch") { loadAlerts(); loadDeals(); } if (view === "market") { loadMarket(); marketExtras(); } if (view === "allchats") { drawAll(); loadChats(); }
   breakdownLink();
   if (inResult) fitVerdict();
   if (view === "chat") $("msg").focus();
@@ -1457,6 +1469,68 @@ function renderCompare() {
 const loadDeals = () => $("dealTown").value && api("/api/deals?" + new URLSearchParams({ town: $("dealTown").value })).then(d => dealCards($("dealCards"), $("dealCardsNote"), d)).catch(e => $("dealCardsNote").textContent = e.message);
 const loadMarket = () => $("mTown").value && api("/api/trend?" + new URLSearchParams({ town: $("mTown").value, flat_type: $("mType").value })).then(t => drawTrend($("mTrend"), $("mText"), t, $("mType").value, $("mTown").value)).catch(e => $("mText").textContent = e.message);
 $("dealTown").addEventListener("change", loadDeals);
+
+// ---- market page extras. Million-dollar flats and top movers come from recorded sales; the game uses real recent sales and the estimate our model made before each sold.
+let MIL = null, MOV = null, GAME = null;
+function marketExtras() {
+  if (MIL) drawMil(); else api("/api/millions").then(m => { MIL = m; drawMil(); }).catch(() => $("milBox").replaceChildren(h("div", { className: "dim" }, "Couldn't load this just now.")));
+  if (MOV) drawMov(); else api("/api/movers").then(m => { MOV = m; drawMov(); }).catch(() => $("movBox").replaceChildren(h("div", { className: "dim" }, "Couldn't load this just now.")));
+  if (!GAME) newGuess();
+}
+function drawMil() {
+  const m = MIL, ch = m.last_year ? m.count / m.last_year - 1 : null, r = m.record;
+  $("milBox").replaceChildren(h("div", { className: "cap dim" }, "Million-dollar HDB flats"), h("div", { className: "bignum" }, m.count.toLocaleString("en-US")),
+    h("div", {}, `sold for $1m or more in ${m.year}, to ${m.through}`),
+    h("div", { className: "fine" }, `${m.last_year.toLocaleString("en-US")} in the same months of ${m.year - 1}` + (ch == null ? "" : ` (${ch >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(ch * 100).toFixed(0)}%)`) + `. ${m.latest_month} in ${m.through}.`),
+    r ? h("div", { className: "kv", style: "margin-top:8px" }, h("span", { className: "dim" }, "Record this year"), h("b", {}, money(r.price))) : "",
+    r ? h("div", { className: "fine" }, `Blk ${r.block} ${r.street}, ${r.town}: ${r.flat_type}, storey ${r.storey}, sold ${r.month}.`) : "",
+    m.towns.length ? h("div", { className: "fine", style: "margin-top:6px" }, "Most in " + m.towns.slice(0, 3).map(t => `${t.town} (${t.count})`).join(", ") + ".") : "");
+}
+function drawMov() {
+  const m = MOV, col = (label, list) => h("div", {}, h("div", { className: "cap dim" }, label), ...list.map(t => {
+    const b = h("button", { className: "mv", type: "button", title: `${t.sales} sales in the last three months` }, h("span", {}, t.town), h("b", {}, `${t.change >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(t.change).toFixed(1)}%`));
+    b.addEventListener("click", () => { $("mTown").value = t.key; loadMarket(); $("townTrend").scrollIntoView({ behavior: "smooth", block: "start" }); });
+    return b; }));
+  $("movBox").replaceChildren(h("div", { className: "cap dim" }, "Top movers"), h("div", { className: "movers" }, col("Up most", m.up), col("Down most", m.down)),
+    h("div", { className: "fine", style: "margin-top:8px" }, `Resale prices, ${m.window} against the same months a year before, like for like. Towns with 100 or more sales. Tap a town to see it over the years. What has happened, not a forecast.`));
+}
+const guessScore = () => store.get("guess", { you: 0, oikos: 0, ties: 0, rounds: 0 });
+const parseGuess = t => {  // "650k", "650,000", "$1.2m" or "650" (read as thousands)
+  const m = String(t).toLowerCase().replace(/[\s,$]/g, "").match(/^(\d+(?:\.\d+)?)(k|m)?$/);
+  if (!m) return null;
+  let v = +m[1] * (m[2] === "k" ? 1e3 : m[2] === "m" ? 1e6 : 1); if (!m[2] && v < 5000) v *= 1000;
+  return v >= 50000 && v <= 3e6 ? v : null;
+};
+async function newGuess() {
+  try { GAME = await api("/api/guess"); drawGame(); } catch (e) { $("gameBox").replaceChildren(h("div", { className: "dim" }, "Couldn't find a home just now.")); }
+}
+function drawGame(guessed) {
+  const g = GAME, sc = guessScore();
+  const head = h("div", { style: "display:flex;justify-content:space-between;gap:10px;align-items:baseline" }, h("div", { className: "ot", style: "margin:0" }, "Guess the price"),
+    h("span", { className: "score" }, sc.rounds ? `You ${sc.you} \u00b7 Oikos ${sc.oikos}` + (sc.ties ? ` \u00b7 ${sc.ties} tied` : "") : "You against Oikos"));
+  const home = [h("div", { className: "home" }, `Blk ${g.block} ${g.street}, ${g.town}`),
+    h("div", { className: "dim" }, `${g.flat_type} ${g.flat_model}, ${g.sqm} sqm, storey ${g.storey}, lease from ${g.lease_from}. Sold in ${g.month}.`)];
+  if (guessed == null) {
+    const box = h("input", { type: "text", placeholder: "Your guess, e.g. 650k", "aria-label": "Your guess" }), go_ = h("button", { className: "btn", type: "button" }, "Guess"), err = h("div", { className: "fine", style: "color:var(--neg)" });
+    const submit = () => { const v = parseGuess(box.value); if (v == null) { err.textContent = "Enter a price between $50k and $3m, like 650k."; return; } reveal(v); };
+    go_.addEventListener("click", submit); box.addEventListener("keydown", e => { if (e.key === "Enter") submit(); }); box.addEventListener("input", () => { err.textContent = ""; });
+    $("gameBox").replaceChildren(h("div", { className: "game" }, head, ...home, h("div", { className: "guessrow" }, box, go_), err,
+      h("div", { className: "fine" }, "A real HDB resale from the last three months. Oikos's estimate was made by a version of the model that had only seen earlier sales.")));
+    return;
+  }
+  const you = Math.abs(guessed / g.sold - 1), oik = Math.abs(g.estimate / g.sold - 1), next = h("button", { className: "btn", type: "button" }, "Next home");
+  next.addEventListener("click", newGuess);
+  const won = Math.abs(you - oik) < 0.0005 ? "A tie." : you < oik ? "You were closer." : "Oikos was closer.";
+  $("gameBox").replaceChildren(h("div", { className: "game" }, head, ...home, h("div", { className: "reveal" }, h("div", { className: "won" }, won),
+    h("div", { className: "kv" }, h("span", {}, "It sold for"), h("b", {}, money(g.sold))),
+    h("div", { className: "kv" }, h("span", {}, "Your guess"), h("b", {}, `${money(guessed)}, off by ${(you * 100).toFixed(1)}%`)),
+    h("div", { className: "kv" }, h("span", {}, "Oikos, before the sale"), h("b", {}, `${money(g.estimate)}, off by ${(oik * 100).toFixed(1)}%`))), h("div", {}, next)));
+}
+function reveal(v) {
+  const g = GAME, sc = guessScore(), you = Math.abs(v / g.sold - 1), oik = Math.abs(g.estimate / g.sold - 1);
+  sc.rounds++; if (Math.abs(you - oik) < 0.0005) sc.ties++; else if (you < oik) sc.you++; else sc.oikos++;
+  store.set("guess", sc); drawGame(v);
+}
 $("dealWatch").addEventListener("click", () => { $("alTown").value = $("dealTown").value; $("alType").value = ""; $("alAdd").click(); $("alMsg").scrollIntoView({ block: "center" }); }); $("mTown").addEventListener("change", loadMarket); $("mType").addEventListener("change", loadMarket);
 
 // ---- the brief: a one-page summary that prints
@@ -1542,7 +1616,7 @@ function drawTicker() {
             `Your saved home. Our estimate today${ch == null ? "" : ", and the change since you saved it on " + new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.`];
   }).filter(x => x[1] !== "$0k");
   const market = TK.items.map(x => [x.label, x.text || (x.unit === "psf" ? money(x.value) + " psf" : x.unit === "sales" || x.unit === "units" ? x.value.toLocaleString("en-US") : k(x.value)), x.change == null ? null : tkChange(x.change),
-    x.open === "accuracy" ? openAccuracy : x.flat_type ? () => { if (x.town) $("mTown").value = x.town; $("mType").value = x.flat_type; go("market"); loadMarket(); } : null, x.flat_type || x.open ? "" : "info", x.open ? "How close our estimates came to the price each home sold for over the last year." : x.unit === "sales" ? `HDB resales in ${TK.month}. The change compares ${TK.window} with a year before.` : x.unit === "units" ? "Units developers have released for sale but not yet sold, from URA's monthly developer sales." : tip]);
+    x.open === "accuracy" ? openAccuracy : x.open === "market" ? () => go("market") : x.flat_type ? () => { if (x.town) $("mTown").value = x.town; $("mType").value = x.flat_type; go("market"); loadMarket(); } : null, x.flat_type || x.open ? "" : "info", x.tip ? x.tip : x.open ? "How close our estimates came to the price each home sold for over the last year." : x.unit === "sales" ? `HDB resales in ${TK.month}. The change compares ${TK.window} with a year before.` : x.unit === "units" ? "Units developers have released for sale but not yet sold, from URA's monthly developer sales." : tip]);
   const all = [...mine, ...market], copy = () => h("div", { className: "copy" }, ...all.map(a => tkItem(...a)));
   const second = copy(); second.setAttribute("aria-hidden", "true"); second.querySelectorAll("button").forEach(b => b.tabIndex = -1);
   $("tape").replaceChildren(copy(), second); $("tape").style.setProperty("--dur", Math.max(40, all.length * 6) + "s");
