@@ -231,7 +231,9 @@
   .plangrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
   .plan { border:1px solid var(--line); border-radius:20px; padding:16px; display:grid; gap:6px; align-content:start; background:var(--bg); } .plan.cur { border:2px solid var(--accent); }
   .plan .big { font-size:28px; } .plan .pill, .plan .tag { width:fit-content; margin-top:6px; }
-  .acct { display:grid; gap:6px; margin-bottom:8px; } .acct .pill { width:fit-content; }
+  .acct { display:grid; gap:8px; margin-bottom:4px; } .acct .pill { width:fit-content; } .acct .btn { padding:8px 18px; } .pills .btn + .btn { margin-left:0; }
+  .btn.line { background:var(--panel); color:var(--fg); border:1px solid var(--line); } .btn.line:hover { border-color:var(--accent); color:var(--accent); filter:none; }
+  .usage { display:grid; gap:4px; } .usage .row2 { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-top:6px; } .usage .row2 b { font-weight:600; }
   #acct form { display:grid; gap:10px; } .linkbtn { font:inherit; background:none; border:0; color:var(--accent); cursor:pointer; padding:0; font-weight:600; }
 
   @media (max-width: 1000px) {
@@ -269,10 +271,11 @@
     <button data-go="alerts"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="nl">Alerts<sup>05</sup></span><span class="badge" id="nAlerts" hidden></span></button>
     <button data-go="deals"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><span class="nl">Deals<sup>06</sup></span><span></span></button>
     <button data-go="market"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 15v6M17 3v3M17 13v8"/><path d="M5 7h4v8H5zM15 6h4v7h-4z"/></svg></span><span class="nl">Market<sup>07</sup></span><span></span></button>
+    <button id="setNav" type="button"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nl">Settings<sup>08</sup></span><span></span></button>
   </nav>
   <div class="navfoot">
-    <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="pill" id="acctBtn" type="button">Sign in</button><button class="pill" id="plansBtn" type="button">Plans</button></div></div>
-    <div class="pills"><button class="pill" id="setBtn" type="button">Settings</button><button class="linkbtn fine" id="srcBtn" type="button" style="font-weight:400;color:var(--dim)">Data sources</button></div>
+    <div class="acct"><div class="fine" id="acctInfo"></div><div class="pills"><button class="btn" id="acctBtn" type="button">Sign in</button><button class="btn line" id="plansBtn" type="button">Plans</button></div></div>
+    <button class="linkbtn fine" id="srcBtn" type="button" style="font-weight:400;color:var(--dim);width:fit-content">Data sources</button>
   </div>
 </aside>
 
@@ -416,9 +419,12 @@
   <div class="plangrid" id="planCards"></div>
   <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use in a 5-hour session and in a week: a session starts with your first answer and resets 5 hours later, the week 7 days after it starts. A detailed Research answer uses more than a normal one, and a short reply less. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
 </dialog>
-<dialog id="settings" aria-label="Settings" style="width:min(360px, 92vw)">
+<dialog id="settings" aria-label="Settings" style="width:min(440px, 92vw)">
   <div class="sheethd"><b>Settings</b><button class="x" id="setX" type="button" aria-label="Close">&times;</button></div>
   <div style="display:grid;gap:8px">
+    <div class="cap dim">Usage</div>
+    <div class="usage" id="usage"></div>
+    <div style="border-top:1px solid var(--line);margin:10px 0 2px"></div>
     <div class="cap dim">Detail</div><div class="seg" style="width:fit-content"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="fine dim">Pro shows every number behind the answer.</div>
     <div class="cap dim" style="margin-top:8px">Theme</div><div class="seg" style="width:fit-content"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
@@ -521,7 +527,7 @@ function go(view) {
   if (inResult) fitVerdict();
   if (view === "chat") $("msg").focus();
 }
-document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
+document.querySelectorAll("#nav button[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
 
 // ---- step 2: the flat picker
 const fill = (sel, list, chosen, label = x => x) => { sel.replaceChildren(...list.map(v => h("option", { value: v, selected: v === chosen }, label(v)))); };
@@ -1128,11 +1134,14 @@ function openPlans() {
 $("plansBtn").addEventListener("click", openPlans); $("plansX").addEventListener("click", () => $("plans").close());
 function showMe(m) {
   ME = m.user; PLAN = m; $("acctBtn").textContent = ME ? "Sign out" : "Sign in";
-  const meter = (label, u) => [h("div", { className: "usel" }, h("span", {}, label), h("span", {}, `${u.pct}%`)),
-    h("div", { className: "use" }, h("i", { style: `width:${u.pct}%;background:${u.pct >= 90 ? "var(--neg)" : "var(--accent)"}` })),
-    u.resets && u.pct > 0 ? h("div", { className: "fine dim" }, "Resets " + u.resets) : ""];
-  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "fine dim", style: "margin-top:4px" }, m.plan_name + " plan"),
-    ...meter("5-hour session", m.usage.session), ...meter("This week", m.usage.week));
+  const meter = (label, note, u) => [h("div", { className: "row2" }, h("span", {}, h("b", {}, label), h("div", { className: "fine dim" }, u.resets && u.pct > 0 ? "Resets " + u.resets : note)),
+      h("span", { className: "fine" }, `${u.pct}% used`)),
+    h("div", { className: "use" }, h("i", { style: `width:${u.pct}%;background:${u.pct >= 90 ? "var(--neg)" : "var(--accent)"}` }))];
+  $("acctInfo").replaceChildren(ME ? ME.email : "Sign in to keep your flats and get more AI use.", h("div", { className: "fine dim", style: "margin-top:4px" }, m.plan_name + " plan"));
+  const more = h("button", { className: "linkbtn fine", type: "button", style: "width:fit-content;margin-top:6px" }, "See plans");
+  more.addEventListener("click", () => { $("settings").close(); openPlans(); });
+  $("usage").replaceChildren(h("div", { className: "fine dim" }, m.plan_name + " plan"),
+    ...meter("Current session", "Starts with your first answer and lasts 5 hours", m.usage.session), ...meter("This week", "Starts with your first answer and lasts 7 days", m.usage.week), more);
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
 async function syncFlats() {  // the server's copy plus anything saved in this browser before signing in
@@ -1311,7 +1320,7 @@ $("age").value = $("age0").value = age() || "";
 $("ask").addEventListener("input", () => { if (F) F.price = +$("ask").value; render(); });
 addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
-$("setBtn").addEventListener("click", () => $("settings").showModal()); $("setX").addEventListener("click", () => $("settings").close());
+$("setNav").addEventListener("click", () => { refreshMe(); $("settings").showModal(); }); $("setX").addEventListener("click", () => $("settings").close());
 $("srcBtn").addEventListener("click", () => $("src").showModal()); $("srcX").addEventListener("click", () => $("src").close());
 // How close our estimates came to what homes sold for, month by month, misses included. Opened from Settings, or with /#accuracy.
 let ACC = null, accKind = "hdb";
