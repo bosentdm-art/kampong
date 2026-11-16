@@ -74,6 +74,8 @@
   /* saved chats in the sidebar */
   .chats { display:grid; grid-template-columns:minmax(0, 1fr); gap:2px; min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; padding-top:6px; border-top:1px solid var(--line); } .chats .cap { padding:4px 12px; }
   .chat-i { display:flex; align-items:center; min-width:0; border-radius:10px; }
+  .chat-i .rn { flex:1; min-width:0; font:inherit; font-size:13.5px; padding:5px 9px; margin:2px 4px; border:1px solid var(--accent); border-radius:8px; background:var(--panel); color:var(--fg); outline:none; }
+  .chatmenu .danger { color:var(--neg); }
   .chats .grp { padding:8px 12px 2px; font-size:11.5px; font-weight:600; color:var(--dim); } .allc { font:inherit; font-size:13px; color:var(--accent); background:none; border:0; text-align:left; padding:8px 12px; cursor:pointer; font-weight:600; }
   #allChats .grp { margin:18px 0 6px; font-size:12.5px; font-weight:600; color:var(--dim); } #allChats .grp:first-child { margin-top:0; }
   #allChats .chat-i { border-bottom:1px solid var(--line); border-radius:0; } #allChats .chat-i .t { font-size:14.5px; padding:11px 6px; } #allChats .chat-i .w { color:var(--dim); font-size:12.5px; white-space:nowrap; padding:0 8px; }
@@ -1156,15 +1158,16 @@ async function saveChat() {
   if (ME) {
     try { await api("/api/chats", { id: chatId, title, data, created: chatCreated }); } catch (e) { if (e.status !== 401) toast("Could not save this chat: " + e.message); return; }
   } else {
-    let list = localChats().filter(c => c.id !== chatId);
-    list.unshift({ id: chatId, title, created: chatCreated, updated: Date.now() / 1000, data });
-    for (list = list.slice(0, 30); list.length; list.pop()) { try { localStorage.setItem("oikos-chats", JSON.stringify(list)); break; } catch (e) {} }  // full browser storage drops the oldest
+    const all = localChats(), prev = all.find(c => c.id === chatId);
+    let list = all.filter(c => c.id !== chatId);
+    list.unshift({ id: chatId, title: prev?.renamed ? prev.title : title, renamed: !!prev?.renamed, pinned: !!prev?.pinned, created: chatCreated, updated: Date.now() / 1000, data });
+    for (list = [...list.filter(c => c.pinned), ...list.filter(c => !c.pinned)].slice(0, 30); list.length; list.pop()) { try { localStorage.setItem("oikos-chats", JSON.stringify(list)); break; } catch (e) {} }  // full browser storage drops the oldest
   }
   loadChats();
 }
 new MutationObserver(() => { if (restoring) return; clearTimeout(chatTimer); chatTimer = setTimeout(saveChat, 1500); }).observe($("thread"), { childList: true, subtree: true, characterData: true });
 async function loadChats() {
-  try { CHATS = ME ? (await api("/api/chats")).chats : localChats().map(({ id, title, created, updated }) => ({ id, title, created, updated })); } catch (e) { CHATS = []; }
+  try { CHATS = ME ? (await api("/api/chats")).chats : localChats().map(({ id, title, created, updated, pinned, renamed }) => ({ id, title, created, updated, pinned: !!pinned, renamed: !!renamed })); } catch (e) { CHATS = []; }
   drawChats();
 }
 const dayStart = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
@@ -1174,21 +1177,52 @@ function groupOf(ts) {  // Today, Yesterday, Previous 7 days, Previous 30 days, 
   return new Date(t).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 function chatRow(c, withTime) {
-  const open = h("button", { className: "t", type: "button", title: c.title }, c.title), del = h("button", { className: "d", type: "button", "aria-label": "Delete chat" }, "\u00d7");
+  const open = h("button", { className: "t", type: "button", title: c.title }, c.title), more = h("button", { className: "d", type: "button", "aria-label": "Chat options", "aria-haspopup": "menu" }, "\u22ef");
   open.addEventListener("click", () => { document.querySelector(".nav").classList.remove("open"); openChat(c.id); });
-  del.addEventListener("click", () => deleteChat(c));
   const when = withTime ? h("span", { className: "w" }, new Date(c.updated * 1000).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })) : "";
-  return h("div", { className: "chat-i" + (c.id === chatId ? " on" : "") }, open, when, del);
+  const r = h("div", { className: "chat-i" + (c.id === chatId ? " on" : "") }, open, when, more);
+  more.addEventListener("click", e => { e.stopPropagation(); chatMenu(c, r, more); });
+  return r;
 }
 function grouped(list, withTime) {
-  const out = []; let last = null;
-  for (const c of list) { const g = groupOf(c.updated); if (g !== last) { out.push(h("div", { className: "grp" }, g)); last = g; } out.push(chatRow(c, withTime)); }
+  const out = [], pins = list.filter(c => c.pinned); let last = null;
+  if (pins.length) { out.push(h("div", { className: "grp" }, "Pinned")); pins.forEach(c => out.push(chatRow(c, withTime))); }
+  for (const c of list.filter(c => !c.pinned)) { const g = groupOf(c.updated); if (g !== last) { out.push(h("div", { className: "grp" }, g)); last = g; } out.push(chatRow(c, withTime)); }
   return out;
+}
+// the ⋯ menu on a chat: pin it to the top, rename it, or delete it
+function chatMenu(c, r, anchor) {
+  closeChatMenu();
+  const item = (label, fn, cls = "") => { const b = h("button", { className: "mi " + cls, type: "button", role: "menuitem" }, label); b.addEventListener("click", () => { closeChatMenu(); fn(); }); return b; };
+  const m = h("div", { className: "memenu chatmenu", id: "chatMenu", role: "menu" }, item(c.pinned ? "Unpin" : "Pin to top", () => setMeta(c, { pinned: !c.pinned })),
+    item("Rename", () => renameChat(c, r)), item("Delete", () => deleteChat(c), "danger"));
+  document.body.append(m);
+  const b = anchor.getBoundingClientRect(), w = 170;
+  m.style.cssText = `position:fixed;left:${Math.max(8, Math.min(innerWidth - w - 8, b.right - w))}px;top:${Math.min(innerHeight - 150, b.bottom + 4)}px;width:${w}px;bottom:auto;right:auto`;
+}
+const closeChatMenu = () => document.getElementById("chatMenu")?.remove();
+document.addEventListener("click", e => { if (!e.target.closest("#chatMenu")) closeChatMenu(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeChatMenu(); });
+async function setMeta(c, meta) {
+  try {
+    if (ME) await api("/api/chats/" + encodeURIComponent(c.id) + "/meta", meta);
+    else localStorage.setItem("oikos-chats", JSON.stringify(localChats().map(x => x.id !== c.id ? x : { ...x, ...(meta.title != null ? { title: meta.title, renamed: true } : {}), ...(meta.pinned != null ? { pinned: meta.pinned } : {}) })));
+  } catch (e) { toast("Could not change that chat: " + e.message); return; }
+  await loadChats();
+  if (meta.pinned != null) toast(meta.pinned ? "Pinned to the top" : "Unpinned");
+}
+function renameChat(c, r) {  // the name becomes a text box: Enter saves, Esc cancels
+  const old = r.querySelector(".t"), box = h("input", { type: "text", className: "rn", value: c.title, maxLength: 120, "aria-label": "Chat name" });
+  old.replaceWith(box); box.focus(); box.select();
+  let done = false;
+  const finish = save => { if (done) return; done = true; const t = box.value.trim(); if (save && t && t !== c.title) setMeta(c, { title: t }); else drawChats(); };
+  box.addEventListener("keydown", e => { if (e.key === "Enter") finish(true); if (e.key === "Escape") { e.stopPropagation(); finish(false); } });
+  box.addEventListener("blur", () => finish(true));
 }
 function drawChats() {
   $("chatsBox").hidden = !CHATS.length;
-  $("chatList").replaceChildren(...grouped(CHATS.slice(0, 10), false));
-  $("allBtn").textContent = CHATS.length > 10 ? `All ${CHATS.length} chats \u2192` : "All chats \u2192";
+  $("chatList").replaceChildren(...grouped([...CHATS.filter(c => c.pinned), ...CHATS.filter(c => !c.pinned).slice(0, 10)], false));
+  $("allBtn").textContent = CHATS.filter(c => !c.pinned).length > 10 ? `All ${CHATS.length} chats \u2192` : "All chats \u2192";
   if (document.body.dataset.current === "allchats") drawAll();
 }
 function drawAll() {

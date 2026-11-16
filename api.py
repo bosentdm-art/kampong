@@ -397,6 +397,20 @@ def chat_put(body: ChatIn, request: Request, response: Response):
     return dict(ok=True)
 
 
+class ChatMeta(BaseModel):
+    title: str | None = None
+    pinned: bool | None = None
+
+
+@app.post("/api/chats/{cid}/meta")
+def chat_meta(cid: str, body: ChatMeta, request: Request, response: Response):
+    try:
+        acc.chat_meta(signed_in(request, response)["id"], cid, body.title, body.pinned)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return dict(ok=True)
+
+
 @app.post("/api/chats/{cid}/delete")
 def chat_delete(cid: str, request: Request, response: Response):
     acc.delete_chat(signed_in(request, response)["id"], cid)

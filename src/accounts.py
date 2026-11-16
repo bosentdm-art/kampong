@@ -78,6 +78,11 @@ def init():
         c.execute("create table if not exists feedback (id integer primary key, at real not null, who text, rating text not null, message text, reply text, note text)")
         c.execute("create table if not exists settings (key text primary key, value text not null)")
         c.execute("create table if not exists chats (id text not null, user_id integer not null, title text not null, created real not null, updated real not null, body text not null, primary key (user_id, id))")
+        ccols = [r["name"] for r in c.execute("pragma table_info(chats)")]
+        if "pinned" not in ccols:
+            c.execute("alter table chats add column pinned integer not null default 0")
+        if "renamed" not in ccols:  # a name the person chose; saving the chat again keeps it
+            c.execute("alter table chats add column renamed integer not null default 0")
         c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
 
@@ -390,8 +395,8 @@ CHAT_ID = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 
 def list_chats(user_id):
     with db() as c:
-        rows = c.execute("select id, title, created, updated from chats where user_id = ? order by updated desc limit ?", (user_id, CHATS_MAX)).fetchall()
-    return [dict(r) for r in rows]
+        rows = c.execute("select id, title, created, updated, pinned, renamed from chats where user_id = ? order by pinned desc, updated desc limit ?", (user_id, CHATS_MAX)).fetchall()
+    return [dict(r, pinned=bool(r["pinned"]), renamed=bool(r["renamed"])) for r in rows]
 
 
 def get_chat(user_id, cid):
@@ -411,8 +416,21 @@ def put_chat(user_id, cid, title, data, created=None):
         exists = c.execute("select 1 from chats where user_id = ? and id = ?", (user_id, cid)).fetchone()
         if not exists and c.execute("select count(*) from chats where user_id = ?", (user_id,)).fetchone()[0] >= CHATS_MAX:
             raise ValueError(f"You have {CHATS_MAX} saved chats. Delete some to save new ones.")
-        c.execute("insert into chats values (?, ?, ?, ?, ?, ?) on conflict(user_id, id) do update set title = excluded.title, updated = excluded.updated, body = excluded.body",
+        c.execute("insert into chats (id, user_id, title, created, updated, body) values (?, ?, ?, ?, ?, ?) on conflict(user_id, id) do update set "
+                  "title = case when chats.renamed = 1 then chats.title else excluded.title end, updated = excluded.updated, body = excluded.body",
                   (cid, user_id, title, float(created or now), now, body))
+
+
+def chat_meta(user_id, cid, title=None, pinned=None):
+    """Rename or pin a saved chat. Neither changes when it was last used."""
+    with db() as c:
+        if title is not None:
+            t = str(title).strip()[:120]
+            if not t:
+                raise ValueError("A chat needs a name.")
+            c.execute("update chats set title = ?, renamed = 1 where user_id = ? and id = ?", (t, user_id, cid))
+        if pinned is not None:
+            c.execute("update chats set pinned = ? where user_id = ? and id = ?", (1 if pinned else 0, user_id, cid))
 
 
 def delete_chat(user_id, cid):
