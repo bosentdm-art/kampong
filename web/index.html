@@ -465,7 +465,7 @@
     <div class="panel" style="margin-top:16px"><div class="bd">
       <div class="maphd"><div class="ot" style="margin:0">Price map</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" id="mapKind"><button data-k="hdb" class="on" type="button">HDB</button><button data-k="condo" type="button">Condos</button></div>
-          <div class="seg" id="mapMetric"><button data-mm="psm" class="on" type="button">Price per sqm</button><button data-mm="chg" type="button">Change in a year</button></div></div></div>
+          <div class="seg" id="mapMetric"><button data-mm="psf" class="on" type="button">Price per sq ft</button><button data-mm="psm" type="button">Price per sqm</button><button data-mm="chg" type="button">Change in a year</button></div></div></div>
       <div id="priceMap" role="region" aria-label="Map of recorded sale prices"></div><div class="maplegend" id="mapLegend"></div><div class="fine" id="mapNote" style="margin-top:6px"></div>
     </div></div>
     <div class="ot" style="margin:26px 0 8px" id="townTrend">A town over time</div>
@@ -1880,7 +1880,10 @@ function leaseBlock(f, size, small) {  // the dial with its lines; nothing for f
 }
 
 // ---- the price map: each dot is an HDB block or condo project with 3+ sales in the last 12 months. OneMap tiles, credited as OneMap asks.
-let MAP = null, MAPD = null, mapLayer = null, mapKind = "hdb", mapMetric = "psm";
+let MAP = null, MAPD = null, mapLayer = null, mapKind = "hdb", mapMetric = "psf";  // price per square foot first: it's how Singapore listings quote prices
+const SQFT = 10.7639;  // square feet in a square metre
+let mapUnit = "psf";   // the price unit last chosen; "Change in a year" shows prices in it too
+const unitPrice = psm => mapUnit === "psf" ? psm / SQFT : psm, unitName = () => mapUnit === "psf" ? "per sq ft" : "per sqm";
 const PRICE_COL = ["#e9e4ff", "#c4b6ff", "#9a82fb", "#6e4cf0", "#4322c2"], CHG_COL = ["#b42318", "#e8908a", "#c9c6d4", "#86c79a", "#15803d"], CHG_CUT = [-5, -2, 2, 5];
 function loadLeaflet() {
   return new Promise((ok, bad) => {
@@ -1902,10 +1905,11 @@ function drawMap() {
   if (!MAP || !MAPD) return;
   if (mapLayer) mapLayer.remove();
   const rows = MAPD[mapKind] || [], chg = mapMetric === "chg", use = chg ? rows.filter(r => r[3] != null) : rows;
-  const vals = use.map(r => r[2]).sort((a, b) => a - b), qv = p => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))], cuts = [qv(0.2), qv(0.4), qv(0.6), qv(0.8)];
+  if (!chg) mapUnit = mapMetric;
+  const vals = use.map(r => unitPrice(r[2])).sort((a, b) => a - b), qv = p => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))], cuts = [qv(0.2), qv(0.4), qv(0.6), qv(0.8)];
   const bin = (v, cs) => cs.findIndex(c => v < c) === -1 ? cs.length : cs.findIndex(c => v < c);
   mapLayer = L.layerGroup(use.map(r => {
-    const col = chg ? CHG_COL[bin(r[3], CHG_CUT)] : PRICE_COL[bin(r[2], cuts)];
+    const col = chg ? CHG_COL[bin(r[3], CHG_CUT)] : PRICE_COL[bin(unitPrice(r[2]), cuts)];
     const m = L.circleMarker([r[0], r[1]], { radius: mapKind === "condo" ? 5 : 4, weight: 0.6, color: "rgba(22,19,43,.35)", fillColor: col, fillOpacity: 0.9 });
     m.bindPopup(() => mapPopup(r));
     return m;
@@ -1913,7 +1917,7 @@ function drawMap() {
   const fmt = v => "$" + Math.round(v).toLocaleString("en-US");
   $("mapLegend").replaceChildren(...(chg
     ? ["Down 5% or more", "Down 2-5%", "Within 2%", "Up 2-5%", "Up 5% or more"].map((t, i) => h("span", {}, h("i", { style: `background:${CHG_COL[i]}` }), t))
-    : [`Under ${fmt(cuts[0])}`, `${fmt(cuts[0])}-${fmt(cuts[1])}`, `${fmt(cuts[1])}-${fmt(cuts[2])}`, `${fmt(cuts[2])}-${fmt(cuts[3])}`, `${fmt(cuts[3])}+`].map((t, i) => h("span", {}, h("i", { style: `background:${PRICE_COL[i]}` }), t + " per sqm"))));
+    : [`Under ${fmt(cuts[0])}`, `${fmt(cuts[0])}-${fmt(cuts[1])}`, `${fmt(cuts[1])}-${fmt(cuts[2])}`, `${fmt(cuts[2])}-${fmt(cuts[3])}`, `${fmt(cuts[3])}+`].map((t, i) => h("span", {}, h("i", { style: `background:${PRICE_COL[i]}` }), t + " " + unitName()))));
   $("mapNote").textContent = `Recorded sales, ${MAPD.months}: ${use.length.toLocaleString("en-US")} ${mapKind === "hdb" ? "HDB blocks" : "condo projects"} with 3 or more sales.` +
     (chg ? " Change compares each one's median price per sqm with the 12 months before, where both years had 3 or more sales. What has happened, not a forecast." : "");
 }
@@ -1921,7 +1925,7 @@ function mapPopup(r) {
   const hdb = mapKind === "hdb", name = hdb ? `Blk ${r[5]} ${r[6]}` : r[5], b = h("button", { className: "btn", type: "button" }, hdb ? "Check a flat here" : "Check a unit here");
   b.addEventListener("click", () => { MAP.closePopup(); go("chat"); $("msg").value = name + ", "; grow(); $("msg").focus(); });
   return h("div", {}, h("b", {}, name), h("div", { className: "dim" }, hdb ? r[7] : r[6]),
-    h("div", {}, `$${r[2].toLocaleString("en-US")} per sqm, the median of ${r[4]} sales in 12 months`),
+    h("div", {}, `$${Math.round(unitPrice(r[2])).toLocaleString("en-US")} ${unitName()}, the median of ${r[4]} sales in 12 months`),
     r[3] != null ? h("div", {}, `${r[3] >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(r[3]).toFixed(1)}% on the 12 months before`) : "", b);
 }
 document.querySelectorAll("#mapKind button").forEach(b => b.addEventListener("click", () => { mapKind = b.dataset.k; document.querySelectorAll("#mapKind button").forEach(x => x.classList.toggle("on", x === b)); drawMap(); }));
