@@ -522,6 +522,14 @@ def billing_portal(request: Request, response: Response):
         raise HTTPException(502, "Stripe didn't answer just now. Try again in a moment.")
 
 
+@app.post("/api/billing/sync")
+def billing_sync(request: Request, response: Response):
+    """Back from Stripe's portal: re-read the subscription now, so a switch or cancellation shows at once."""
+    user = paying_user(request, response)
+    billing.refresh(user["id"], force=True)
+    return me_view(f"u:{user['id']}", acc.user_for_id(user["id"]))
+
+
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):
     """Stripe's messages about subscriptions and invoices. Only acted on with a valid signature (STRIPE_WEBHOOK_SECRET)."""

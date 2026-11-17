@@ -155,10 +155,10 @@ def confirm_checkout(user, session_id):
     return apply_subscription(s["subscription"], user["id"])
 
 
-def refresh(user_id):
-    """Re-read a paying account's subscription from Stripe, at most once an hour (renewals, failed cards, cancellations)."""
+def refresh(user_id, force=False):
+    """Re-read a paying account's subscription from Stripe: at most once an hour, or now (force) when the person is back from the portal."""
     b = acc.billing_of(user_id)
-    if not on() or not b or not b["stripe_sub"] or time.time() - (b["checked"] or 0) < RECHECK:
+    if not on() or not b or not b["stripe_sub"] or (not force and time.time() - (b["checked"] or 0) < RECHECK):
         return
     try:
         apply_subscription(stripe("GET", f"/subscriptions/{b['stripe_sub']}"), user_id)

@@ -1600,7 +1600,8 @@ const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
       toast(r.plan && r.plan !== "free" ? `You're on ${r.me.plan_name} now. Thank you!` : "Payment received. Your plan will update in a moment."); }
     catch (e) { toast(e.message); }
   } else if (q.get("checkout") === "cancelled") toast("No charge made.");
-  else refreshMe();
+  else { try { const before = PLAN && PLAN.plan_name, m = await api("/api/billing/sync", {}); showMe(m);
+    toast(m.billing?.cancel_at_end ? `Cancelled. You keep ${m.plan_name} until ${m.billing.renews}.` : before && before !== m.plan_name ? `You're on ${m.plan_name} now.` : "Billing updated."); } catch (e) { refreshMe(); } }
 })();
 // Cloudflare Turnstile for visitors: a quiet check before AI answers. Most people never see it; when Cloudflare is unsure it shows a box to tick.
 let humanReady = Promise.resolve();
