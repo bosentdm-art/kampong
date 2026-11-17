@@ -513,7 +513,7 @@
     <div class="cap dim">Detail</div><div class="seg" style="width:fit-content"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="fine dim">Pro shows every number behind the answer.</div>
     <div class="cap dim" style="margin-top:8px">Theme</div><div class="seg" style="width:fit-content"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
-    <div class="cap dim" style="margin-top:8px">Sounds</div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="sndSeg" style="width:fit-content"><button data-snd="off">Off</button><button data-snd="on">On</button></div><button class="linkbtn fine" id="sndTry" type="button">Play a sample</button></div>
+    <div class="cap dim" style="margin-top:8px">Sounds</div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="sndSeg" style="width:fit-content"><button data-snd="off">Off</button><button data-snd="on">On</button></div><div class="seg" id="volSeg" style="width:fit-content" aria-label="Volume"><button data-vol="soft">Soft</button><button data-vol="medium">Medium</button><button data-vol="loud">Loud</button></div><button class="linkbtn fine" id="sndTry" type="button">Play a sample</button></div>
     <div class="fine dim">Quiet sounds while I'm thinking, when an answer is ready on another tab, for new alerts and in the guessing game. Never on prices.</div>
     <div class="cap dim" style="margin-top:8px">Trust</div><button class="proof" id="proof" type="button" hidden></button>
   </div>
@@ -811,29 +811,60 @@ const REASONS = { daily_budget: "today's AI budget is used up", no_api_key: "the
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ---- sounds (off unless switched on). Web Audio only: browsers allow it once the person has clicked or typed on the page.
-const SND = { on: store.get("sound", false), ctx: null };
+// Oikos means home, so the sounds are a home's: a doorbell when an answer is ready, a knock at the door for an alert,
+// a clock's tick-tock while it thinks, a marimba for the game and a full chime when a plan is bought. All synthesised here: no files.
+const SND = { on: store.get("sound", false), vol: store.get("soundVol", "medium"), ctx: null, out: null, room: null, tock: false };
+const VOL = { soft: 0.55, medium: 1, loud: 1.6 };
 function audio() {
   if (!SND.on) return null;
-  try { SND.ctx = SND.ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  try {
+    if (!SND.ctx) {
+      const ctx = SND.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.connect(ctx.destination);
+      SND.out = ctx.createGain(); SND.out.connect(comp);
+      // a small room: one soft echo, so the bells ring instead of beeping
+      const d = ctx.createDelay(1), fb = ctx.createGain(), wet = ctx.createGain(), lp = ctx.createBiquadFilter();
+      d.delayTime.value = 0.16; fb.gain.value = 0.28; wet.gain.value = 0.22; lp.type = "lowpass"; lp.frequency.value = 2600;
+      d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(wet); wet.connect(SND.out);
+      SND.room = d;
+    }
+  } catch (e) { return null; }
+  SND.out.gain.value = 0.9 * (VOL[SND.vol] || 1);
   if (SND.ctx.state === "suspended") SND.ctx.resume().catch(() => {});
   return SND.ctx;
 }
-function playTone(f, at = 0, dur = 0.35, vol = 0.12, type = "sine") {  // one soft note: quick rise, gentle fall, a little filtering so it never sounds harsh
-  const ctx = audio(); if (!ctx) return;
-  const t = ctx.currentTime + at, o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
-  o.type = type; o.frequency.value = f; lp.type = "lowpass"; lp.frequency.value = 2400;
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(lp); lp.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur + 0.05);
+function partial(ctx, f, t, dur, vol, type = "sine", room = false) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(SND.out); if (room) g.connect(SND.room);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function bell(f, at = 0, vol = 0.5) {  // a doorbell bar: the note, plus the out-of-tune overtones that make metal sound like metal
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + at;
+  partial(ctx, f, t, 1.6, vol, "sine", true); partial(ctx, f * 2.76, t, 0.7, vol * 0.28, "sine", true); partial(ctx, f * 5.4, t, 0.25, vol * 0.1, "sine", true);
+}
+function marimba(f, at = 0, vol = 0.5) {  // wooden bar: a warm note with a quick bright knock on top
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + at;
+  partial(ctx, f, t, 0.55, vol, "sine", true); partial(ctx, f * 4, t, 0.09, vol * 0.35, "sine"); partial(ctx, f * 10, t, 0.025, vol * 0.12, "triangle");
+}
+function wood(f, at = 0, vol = 0.5, len = 0.07) {  // a knock on a wooden door: a short burst of filtered noise with a hollow tone under it
+  const ctx = audio(); if (!ctx) return; const t = ctx.currentTime + at;
+  const n = Math.floor(ctx.sampleRate * len), buf = ctx.createBuffer(1, n, ctx.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+  const src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = buf; bp.type = "bandpass"; bp.frequency.value = f * 2.2; bp.Q.value = 5; g.gain.value = vol * 1.6;
+  src.connect(bp); bp.connect(g); g.connect(SND.out); src.start(t);
+  partial(ctx, f, t, len * 1.8, vol * 0.7, "triangle");
 }
 const sound = {
-  tick: () => playTone(1320, 0, 0.05, 0.022, "triangle"),                              // the thinking tick: barely there
-  ready: () => { playTone(659.3, 0, 0.5, 0.1); playTone(880, 0.13, 0.7, 0.09); },          // an answer is waiting on another tab
-  knock: () => { playTone(330, 0, 0.16, 0.12, "triangle"); playTone(392, 0.11, 0.2, 0.1, "triangle"); },  // a new Watchlist alert
-  win: () => { playTone(523.3, 0, 0.3, 0.09); playTone(659.3, 0.09, 0.3, 0.09); playTone(784, 0.18, 0.55, 0.09); },
-  lose: () => { playTone(440, 0, 0.3, 0.07); playTone(370, 0.14, 0.5, 0.06); },
-  paid: () => { playTone(523.3, 0, 0.9, 0.06); playTone(659.3, 0.06, 0.9, 0.05); playTone(784, 0.12, 1.1, 0.05); },
-  sample: () => { playTone(659.3, 0, 0.5, 0.1); playTone(880, 0.13, 0.7, 0.09); playTone(330, 1.0, 0.16, 0.12, "triangle"); playTone(392, 1.11, 0.2, 0.1, "triangle");
-    playTone(523.3, 1.8, 0.3, 0.09); playTone(659.3, 1.89, 0.3, 0.09); playTone(784, 1.98, 0.55, 0.09); },  // ready, alert, win
+  tick: () => { SND.tock = !SND.tock; wood(SND.tock ? 1250 : 940, 0, 0.13, 0.035); },          // the clock: tick, tock
+  ready: () => { bell(659.3, 0, 0.5); bell(523.3, 0.42, 0.5); },                                  // the doorbell: ding... dong
+  knock: () => { wood(170, 0, 0.6); wood(165, 0.17, 0.55); },                                     // knock knock
+  win: () => { [523.3, 659.3, 784, 1046.5].forEach((f, i) => marimba(f, i * 0.085, 0.42)); bell(2093, 0.36, 0.12); },
+  lose: () => { marimba(493.9, 0, 0.38); marimba(392, 0.16, 0.34); marimba(329.6, 0.32, 0.3); },
+  paid: () => { [523.3, 659.3, 784, 1046.5].forEach((f, i) => bell(f, i * 0.18, 0.4)); },          // the full chime: welcome home
+  sample: () => { sound.ready(); setTimeout(sound.knock, 1500); setTimeout(sound.win, 2400); },
 };
 function setSound(on) {
   SND.on = on; store.set("sound", on);
@@ -2001,7 +2032,10 @@ if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
 $("setNav").addEventListener("click", () => { refreshMe(); $("settings").showModal(); });
 setSound(SND.on);
 $("sndSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; setSound(b.dataset.snd === "on"); if (SND.on) sound.ready(); });
-$("sndTry").addEventListener("click", () => { const was = SND.on; SND.on = true; sound.sample(); SND.on = was; }); $("setX").addEventListener("click", () => $("settings").close());
+const markVol = () => document.querySelectorAll("#volSeg button").forEach(b => b.classList.toggle("on", b.dataset.vol === SND.vol)); markVol();
+$("volSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; SND.vol = b.dataset.vol; store.set("soundVol", SND.vol); markVol();
+  const was = SND.on; SND.on = true; sound.ready(); setTimeout(() => { SND.on = was; }, 1400); });
+$("sndTry").addEventListener("click", () => { const was = SND.on; SND.on = true; sound.sample(); setTimeout(() => { SND.on = was; }, 3200); }); $("setX").addEventListener("click", () => $("settings").close());
 $("srcBtn").addEventListener("click", () => $("src").showModal()); $("srcX").addEventListener("click", () => $("src").close());
 // How close our estimates came to what homes sold for, month by month, misses included. Opened from Settings, or with /#accuracy.
 let ACC = null, accKind = "hdb";
