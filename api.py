@@ -1,4 +1,4 @@
-"""Oikos API: the trained models behind a small web service, plus the front end in web/.
+"""Kampong API: the trained models behind a small web service, plus the front end in web/.
 
 Run:  python -m uvicorn api:app --port 8700     then open http://localhost:8700
 Needs the data and models built first (python src/update.py).
@@ -52,7 +52,7 @@ import finder as fd  # noqa: E402
 import docs  # noqa: E402
 import billing  # noqa: E402
 
-app = FastAPI(title="Oikos")
+app = FastAPI(title="Kampong")
 
 
 # ---- picking up a data refresh without a restart. src/update.py finishes by writing models/range.json; when that
@@ -327,7 +327,7 @@ class Rate(BaseModel):
     note: str | None = None
 
 
-# ---- documents uploaded in the chat (src/docs.py): explained, and filled in where Oikos can. The file is read in memory and never kept.
+# ---- documents uploaded in the chat (src/docs.py): explained, and filled in where Kampong can. The file is read in memory and never kept.
 @app.post("/api/doc")
 def read_doc(request: Request, response: Response, file: UploadFile = File(...), note: str = Form(""), context: str = Form("{}")):
     who, ip = gate(request, response)
@@ -352,7 +352,7 @@ def read_doc(request: Request, response: Response, file: UploadFile = File(...),
 
 @app.post("/api/feedback")
 def feedback(body: Rate, request: Request, response: Response):
-    """A thumbs up or down on an answer, with what went wrong if they say. Kept privately to improve Oikos."""
+    """A thumbs up or down on an answer, with what went wrong if they say. Kept privately to improve Kampong."""
     if body.rating not in ("up", "down"):
         raise HTTPException(422, "A rating is up or down.")
     acc.log_feedback(visitor(request, response)[0], body.rating, body.message, body.reply, body.note)
@@ -393,8 +393,8 @@ def interest(body: Want, request: Request, response: Response):
 
 
 # ---- sign-in through WorkOS AuthKit (hosted sign-in page: email and password, email codes, Google and others, password reset).
-# On when WORKOS_API_KEY and WORKOS_CLIENT_ID are in .env; otherwise Oikos's own email-and-password sign-in is used.
-# WorkOS confirms who the person is; Oikos keeps its own session cookie and account, so usage, saved homes, chats and alerts stay put.
+# On when WORKOS_API_KEY and WORKOS_CLIENT_ID are in .env; otherwise Kampong's own email-and-password sign-in is used.
+# WorkOS confirms who the person is; Kampong keeps its own session cookie and account, so usage, saved homes, chats and alerts stay put.
 def workos_on():
     return bool(os.environ.get("WORKOS_API_KEY", "").strip() and os.environ.get("WORKOS_CLIENT_ID", "").strip())
 
@@ -465,7 +465,7 @@ def me(request: Request, response: Response):
     return me_view(f"u:{user['id']}" if user else who, user)
 
 
-# ---- paid plans through Stripe (src/billing.py). People pay on Stripe's own pages; Oikos never sees card details.
+# ---- paid plans through Stripe (src/billing.py). People pay on Stripe's own pages; Kampong never sees card details.
 def site_base(request):
     return os.environ.get("OIKOS_PUBLIC_URL", "").strip().rstrip("/") or str(request.base_url).rstrip("/")
 
@@ -1086,7 +1086,7 @@ def ticker_data():
         items.append(dict(label=f"New launches unsold ({last['month'].max():%b})", value=int((last["launched_to_date"] - last["sold_to_date"]).clip(lower=0).sum()), unit="units", change=None))
     h = accuracy_data()[0]
     yr = h[h["month"] > h["month"].max() - pd.DateOffset(months=12)]
-    items.append(dict(label="Oikos accuracy", text=f"half within {acc_summary(yr)['half_within_pct']}%", open="accuracy"))
+    items.append(dict(label="Kampong accuracy", text=f"half within {acc_summary(yr)['half_within_pct']}%", open="accuracy"))
     for x in items:
         if x.get("change") is not None:
             x["change"] = round(float(x["change"]) * 100, 1)
@@ -1240,7 +1240,7 @@ def num(x, lo, hi, kind=float):
 
 @app.post("/api/understand")
 def understand(m: Message, request: Request = None, response: Response = None):
-    """Read a chat message (see _understand), and privately log the ones Oikos could not handle, so they can be fixed."""
+    """Read a chat message (see _understand), and privately log the ones Kampong could not handle, so they can be fixed."""
     out = _understand(m, request, response)
     if request is not None and not m.current and not out.get("found") and not out.get("work") and not out.get("watch") and not out.get("paper") and (out.get("note") or not out.get("reply")):
         acc.log_feedback(visitor(request, response)[0], "miss", m.text, out.get("note"))
@@ -1419,7 +1419,7 @@ def trend(town, flat_type):
 
 @functools.lru_cache(maxsize=64)
 def facts_for(town, street_name, block, flat_type, flat_model, floor_area_sqm, storey_range, lease_commence_date, price):
-    """All the facts for one flat and price. Cached, so follow-up questions to Ask Oikos do not recompute them."""
+    """All the facts for one flat and price. Cached, so follow-up questions to Ask Kampong do not recompute them."""
     f = Flat(town=town, street_name=street_name, block=block, flat_type=flat_type, flat_model=flat_model, floor_area_sqm=floor_area_sqm,
              storey_range=storey_range, lease_commence_date=lease_commence_date, price=price)
     nums = [int(x) for x in re.findall(r"\d+", f.storey_range)]
@@ -1471,7 +1471,7 @@ class Ask(Flat):
 
 @app.post("/api/ask")
 def ask(a: Ask, request: Request, response: Response):
-    """Ask Oikos: a short plain-English explanation of this flat's options, written by a model from the facts."""
+    """Ask Kampong: a short plain-English explanation of this flat's options, written by a model from the facts."""
     if a.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
     who, ip = gate(request, response)
@@ -1727,7 +1727,7 @@ class Share(Flat):
 
 @app.post("/api/share")
 def share(sh: Share, request: Request, response: Response):
-    """A short link to this flat, price and role, with the advice Oikos gave for it (or the rule-based text if none is on file)."""
+    """A short link to this flat, price and role, with the advice Kampong gave for it (or the rule-based text if none is on file)."""
     if sh.role not in ("buyer", "seller"):
         raise HTTPException(422, "role must be buyer or seller")
     who = visitor(request, response)[0]

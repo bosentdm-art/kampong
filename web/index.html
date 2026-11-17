@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oikos - HDB and condo price advice</title>
+<title>Kampong - HDB and condo price advice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Atkinson Hyperlegible for figures only: this file holds just the digits and $ % , . so every other character falls through to Lexend. All fonts here are SIL Open Font License 1.1. -->
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
 <style>
-  /* Oikos: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
+  /* Kampong: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
      The design (approved mockups: design/mockup-violet.html for layout, design/mockup-hdb.html for colour): white page, flat cards with thin lines,
      HDB blue as the brand colour and HDB orange only for "check this".
      Green and red appear only on money (good price / overpriced), always with a word or an arrow. .hl marks dates and times, .hm marks figures.
      Type: Newsreader (serif) for the name, the big question, window titles and verdicts; Lexend for words; Atkinson Hyperlegible for figures
      (its slashed zero and distinct digits are hard to misread). */
   :root { --mono: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --disp: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --head: "Newsreader", Georgia, serif; --r:18px; }
-  /* HDB colours, picked from the painted panels on HDB blocks. Blue is Oikos (buttons, links, the active section, your messages).
+  /* HDB colours, picked from the painted panels on HDB blocks. Blue is Kampong (buttons, links, the active section, your messages).
      Orange means "check this" and nothing else (short lease, notes to check, the alerts badge). Green and red are good or bad for you. */
   [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#1f2328; --dim:#5a5f66; --line:#e3e3df; --panel:#ffffff; --glass:#ffffff;
     --accent:#1a88d4; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --hl:#0f5e99; --hlbg:#e6f1fa; --mk:#e6f1fa;
@@ -57,7 +57,7 @@
   #nav .ni { display:grid; place-items:center; opacity:.5; transform:translateX(-3px); transition:transform .35s cubic-bezier(.2,.8,.2,1.2), opacity .25s, color .25s; }
   #nav .nl sup { font-family:var(--mono); font-size:9.5px; margin-left:3px; letter-spacing:.04em; opacity:.7; }
   #nav button:hover, .newchat:hover { background:var(--soft); }
-  #nav button.sub { display:flex; padding:6px 12px 6px 44px; font-size:13.5px; margin-top:-2px; white-space:nowrap; overflow:hidden; } #nav button.sub > span:empty { display:none; } #nav button.sub .nl { overflow:hidden; text-overflow:ellipsis; } #nav button.sub .nl::before { content:"\21B3  "; color:var(--dim); }  /* the open flat's breakdown, under Ask Oikos */
+  #nav button.sub { display:flex; padding:6px 12px 6px 44px; font-size:13.5px; margin-top:-2px; white-space:nowrap; overflow:hidden; } #nav button.sub > span:empty { display:none; } #nav button.sub .nl { overflow:hidden; text-overflow:ellipsis; } #nav button.sub .nl::before { content:"\21B3  "; color:var(--dim); }  /* the open flat's breakdown, under Ask Kampong */
   #nav button:hover { color:var(--fg); } #nav button:hover .ni { opacity:.85; transform:none; }
   #nav button.on { background:var(--soft); box-shadow:inset 3px 0 0 var(--accent); color:var(--fg); font-weight:600; }
   #nav button.on .ni { opacity:1; color:var(--accent); transform:none; animation:slidein .45s cubic-bezier(.2,.8,.2,1.2); }
@@ -366,11 +366,11 @@
 </head>
 <body>
 <aside class="nav">
-  <div class="brand"><span class="word">Oikos</span></div>
+  <div class="brand"><span class="word">Kampong</span></div>
   <button class="newchat" id="newChat" type="button">+ New chat</button>
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <nav id="nav">
-    <button data-go="chat"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5l1.9 5.1L18 10.5l-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M19 15v6M16 18h6"/></svg></span><span class="nl">Ask Oikos<sup>01</sup></span><span></span></button>
+    <button data-go="chat"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5l1.9 5.1L18 10.5l-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M19 15v6M16 18h6"/></svg></span><span class="nl">Ask Kampong<sup>01</sup></span><span></span></button>
     <button data-go="check" class="sub" id="bdNav" hidden><span></span><span class="nl" id="bdName">Full breakdown</span><span></span></button>
     <button data-go="flats"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18M8.5 7.5h0M11.5 7.5h0M8.5 11.5h0M11.5 11.5h0M8.5 15.5h0M11.5 15.5h0"/></svg></span><span class="nl">My homes<sup>02</sup></span><span id="nFlats"></span></button>
     <button data-go="watch"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><span class="nl">Watchlist<sup>03</sup></span><span class="badge" id="nAlerts" hidden></span></button>
@@ -406,7 +406,7 @@
     </div>
     <div class="dock">
       <div class="composer">
-        <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Oikos, paste a listing or attach a document" aria-label="Message Oikos"></textarea>
+        <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Kampong, paste a listing or attach a document" aria-label="Message Kampong"></textarea>
         <div class="crow">
           <div class="pills"><button class="pill attach" id="attachBtn" type="button" aria-label="Attach a document" title="Attach a letter, form or listing screenshot (PDF or image)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button><input type="file" id="fileIn" accept=".pdf,image/png,image/jpeg,image/webp" hidden><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div><button class="pill" id="researchBtn" type="button" aria-pressed="false" title="Longer, more detailed answers. Each uses more of your AI allowance.">Research</button></div>
           <button class="send" id="sendBtn" type="button" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg></button>
@@ -418,7 +418,7 @@
 
   <!-- FULL BREAKDOWN -->
   <div class="view" data-view="check" hidden>
-    <div class="empty dim" id="noFlat">Tell Oikos about a flat first, then come back here for every number behind the answer.</div>
+    <div class="empty dim" id="noFlat">Tell Kampong about a flat first, then come back here for every number behind the answer.</div>
     <div id="result" hidden>
       <div id="checks"></div>
       <div class="result">
@@ -508,7 +508,7 @@
   </div>
 </div>
 
-<!-- Flat details: pick a flat from lists, or correct what Oikos read -->
+<!-- Flat details: pick a flat from lists, or correct what Kampong read -->
 <dialog id="sheet" aria-label="Flat details">
   <div class="sheethd"><b>Flat details</b><button class="x" id="sheetX" type="button" aria-label="Close">&times;</button></div>
   <div class="pick">
@@ -552,8 +552,8 @@
     <div class="cap dim" style="margin-top:8px">Trust</div><button class="proof" id="proof" type="button" hidden></button>
   </div>
 </dialog>
-<dialog id="accuracy" aria-label="How accurate is Oikos" style="width:min(720px, 94vw)">
-  <div class="sheethd"><b>How accurate is Oikos?</b><button class="x" id="accX" type="button" aria-label="Close">&times;</button></div>
+<dialog id="accuracy" aria-label="How accurate is Kampong" style="width:min(720px, 94vw)">
+  <div class="sheethd"><b>How accurate is Kampong?</b><button class="x" id="accX" type="button" aria-label="Close">&times;</button></div>
   <div class="acc" id="accBody" style="display:grid;gap:12px"><div class="dim">Loading...</div></div>
 </dialog>
 <dialog id="src" aria-label="Data sources">
@@ -617,7 +617,7 @@ const flatName = f => isCondo(f) ? title(f.project) : `Blk ${f.flat.block} ${tit
 const flatDesc = f => isCondo(f) ? `${f.property_type}, ${title(f.street)} (D${f.district}), ${Math.round(f.flat.floor_area_sqm)} sqm, floors ${f.flat.storey}, ${f.freehold ? "freehold" : Math.round(f.lease_now) + " years of lease left"}`
   : `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
 // What the person has told us about themselves: { age (the youngest buyer), who: "alone" | "couple", first_home, timeline: "soon" | "relaxed", asked }.
-// Nothing is assumed: with no age, the lease is given in years and Oikos asks.
+// Nothing is assumed: with no age, the lease is given in years and Kampong asks.
 let profile = store.get("profile", {});
 const age = () => profile.age >= 21 && profile.age <= 90 ? profile.age : null;
 const you = () => ({ who: profile.who || null, first_home: typeof profile.first_home === "boolean" ? profile.first_home : null, timeline: profile.timeline || null });
@@ -636,14 +636,14 @@ let F = null;                         // facts for the flat on screen, from /api
 let flats = store.get("flats", []);   // saved flats: { id, saved, price, status, notes, compare, F }
 
 // ---- views
-const VIEWS = { chat: "Ask Oikos", check: "Full breakdown", flats: "My homes", watch: "Watchlist", market: "Market", allchats: "All chats" };
+const VIEWS = { chat: "Ask Kampong", check: "Full breakdown", flats: "My homes", watch: "Watchlist", market: "Market", allchats: "All chats" };
 function go(view) {
   document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== view);
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.go === view));
   document.body.dataset.current = view;  // not data-view: that attribute marks the view containers
   const inResult = view === "check" && F && !isCondo(F);
   $("bar").hidden = view === "chat"; $("result").hidden = !F || isCondo(F); $("noFlat").hidden = !!F && !isCondo(F);
-  $("noFlat").textContent = isCondo(F) ? "The full breakdown covers HDB flats for now. For a condo, everything we have is on its card in the chat." : "Tell Oikos about a flat first, then come back here for every number behind the answer.";
+  $("noFlat").textContent = isCondo(F) ? "The full breakdown covers HDB flats for now. For a condo, everything we have is on its card in the chat." : "Tell Kampong about a flat first, then come back here for every number behind the answer.";
   $("crumb").textContent = VIEWS[view]; $("flatcap").textContent = inResult ? flatName(F) + " / " + flatDesc(F) : "";
   $("actions").hidden = !inResult;
   if (view === "flats") renderFlats(); if (view === "watch") { loadAlerts(); loadDeals(); } if (view === "market") { loadMarket(); marketExtras(); } if (view === "allchats") { drawAll(); loadChats(); }
@@ -652,7 +652,7 @@ function go(view) {
   if (view === "chat") $("msg").focus();
 }
 document.querySelectorAll("#nav button[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
-function breakdownLink() {  // the full breakdown appears under Ask Oikos once an HDB flat is open (condos have no breakdown yet)
+function breakdownLink() {  // the full breakdown appears under Ask Kampong once an HDB flat is open (condos have no breakdown yet)
   const on = !!F && !isCondo(F); $("bdNav").hidden = !on;
   if (on) $("bdName").textContent = `Blk ${F.flat.block} breakdown`;
 }
@@ -847,7 +847,7 @@ const REASONS = { daily_budget: "today's AI budget is used up", no_api_key: "the
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ---- sounds (off unless switched on). Web Audio only: browsers allow it once the person has clicked or typed on the page.
-// Oikos means home, so the sounds are a home's: a doorbell when an answer is ready, a knock at the door for an alert,
+// Kampong is about home and neighbours, so the sounds are a home's: a doorbell when an answer is ready, a knock at the door for an alert,
 // a clock's tick-tock while it thinks, a marimba for the game and a full chime when a plan is bought. All synthesised here: no files.
 const SND = { on: store.get("sound", false), vol: store.get("soundVol", "medium"), ctx: null, out: null, room: null, tock: false };
 const VOL = { soft: 0.55, medium: 1, loud: 1.6 };
@@ -906,7 +906,7 @@ function setSound(on) {
   SND.on = on; store.set("sound", on);
   document.querySelectorAll("#sndSeg button").forEach(b => b.classList.toggle("on", (b.dataset.snd === "on") === on));
 }
-// While Oikos is thinking: a faint tick that speeds up. Research suggests sound like this makes a wait feel shorter.
+// While Kampong is thinking: a faint tick that speeds up. Research suggests sound like this makes a wait feel shorter.
 function thinkingTicks() {
   if (!SND.on || document.hidden) return () => {};
   // gentle on purpose: nothing for the first second (quick answers stay silent), an unhurried pace that only speeds up a little, and silence after 12 seconds
@@ -965,7 +965,7 @@ function sourceList(list) {
   return h("div", { className: "src" }, "Sources: ", ...list.slice(0, 6).flatMap((s, i) => [i ? " · " : "", h("a", { href: s.url, target: "_blank", rel: "noopener noreferrer" }, host(s.url) || s.title)]));
 }
 let lastMsg = "";  // the person's last message, sent with a thumbs up or down so we know what the answer was to
-// Thumbs up or down under an answer. Down asks what went wrong (optional). Kept privately to improve Oikos.
+// Thumbs up or down under an answer. Down asks what went wrong (optional). Kept privately to improve Kampong.
 function thumbs(message, reply) {
   const up = h("button", { className: "thumb", type: "button", ariaLabel: "Good answer", title: "Good answer" }, "\u{1F44D}");
   const down = h("button", { className: "thumb", type: "button", ariaLabel: "Bad answer", title: "Bad answer" }, "\u{1F44E}");
@@ -1191,8 +1191,8 @@ function quickVerdict(u) {
   const box = h("div", { className: "qv" });
   const msgBtn = buyer ? btn("Draft my offer message", () => {
     const text = offerMessage(mine), pre = h("pre", {}, text), copy = btn("Copy", () => { navigator.clipboard?.writeText(text).then(() => toast("Copied. Paste it into WhatsApp or your email."), () => toast("Couldn't copy: select the text instead.")); });
-    msgBtn.replaceWith(h("div", { style: "display:grid;gap:8px" }, h("b", {}, "Your offer message"), pre, h("div", { className: "pills" }, copy, btn("Ask Oikos to change it", () => { use(mine); $("msg").value = "Rewrite my offer message to be "; grow(); $("msg").focus(); })),
-      h("div", { className: "fine" }, "You send it yourself. Oikos never contacts agents or sellers.")));
+    msgBtn.replaceWith(h("div", { style: "display:grid;gap:8px" }, h("b", {}, "Your offer message"), pre, h("div", { className: "pills" }, copy, btn("Ask Kampong to change it", () => { use(mine); $("msg").value = "Rewrite my offer message to be "; grow(); $("msg").focus(); })),
+      h("div", { className: "fine" }, "You send it yourself. Kampong never contacts agents or sellers.")));
   }) : null;
   box.append(chips, h("div", { className: "head" }, ...head), offer, ...flags,
     h("div", { className: "pills" }, msgBtn, btn("Save", () => { use(mine); saveFlat(); }), condo ? null : btn("Watch block", () => { use(mine); watchBlock(); }), buyer && !condo ? btn("Help with the paperwork", () => { use(mine); paperCard(); }) : null),
@@ -1200,7 +1200,7 @@ function quickVerdict(u) {
   return row("bot", box);
 }
 
-// ---- the paperwork helper: Oikos fills in every answer it can for the HDB resale forms, and the person copies them into HDB's own forms and submits.
+// ---- the paperwork helper: Kampong fills in every answer it can for the HDB resale forms, and the person copies them into HDB's own forms and submits.
 // It never logs in with Singpass and never submits anything. Steps, fees and deadlines follow HDB's published resale process.
 const nextWorkingDay = d => { const n = new Date(d); do { n.setDate(n.getDate() + 1); } while (n.getDay() === 0 || n.getDay() === 6); return n; };
 const dstr = d => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -1242,7 +1242,7 @@ function paperCard() {
     h("div", { className: "dim" }, f ? `For ${flatName(f)}. Change anything below and every answer updates.` : "Tell me the flat first for the address and fees, or fill in what you know."),
     h("div", { className: "inputs" }, h("label", {}, "Option date", dateIn), h("label", {}, "Agreed price ($)", priceIn), h("label", {}, "Option fee ($)", feeIn)),
     h("div", { className: "q" }, h("span", { className: "fine" }, "Paying with"), ...payBtns), out,
-    h("div", { className: "fine" }, "You submit everything yourself on HDB's sites. Oikos never asks for your Singpass. Public holidays can move deadlines: HDB's portal has the final dates.")));
+    h("div", { className: "fine" }, "You submit everything yourself on HDB's sites. Kampong never asks for your Singpass. Public holidays can move deadlines: HDB's portal has the final dates.")));
 }
 async function loadFlat(spec, price, u = {}, w = waiting("Looking up the flat")) {
   ctx = {};
@@ -1416,7 +1416,7 @@ async function send(text, opts = {}) {
     } else await askOikos(text, null, w);
   });
 }
-// ---- documents. Oikos reads a letter, form or listing screenshot: it explains it, lists the figures and dates that matter, and fills in
+// ---- documents. Kampong reads a letter, form or listing screenshot: it explains it, lists the figures and dates that matter, and fills in
 // the answers it can (fillable PDFs come back filled in). The file goes to /api/doc and is never kept; NRIC numbers are hidden.
 const FILE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/></svg>';
 const kb = n => n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB";
@@ -1495,7 +1495,7 @@ let chatId = null, chatCreated = 0, restoring = false, chatTimer = 0, CHATS = []
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^\w-]/g, "");
 const localChats = () => store.get("chats", []);
 const flatSpec = f => !f ? null : isCondo(f) ? { kind: "condo", condo: f.condo, price: f.price ?? null } : { kind: "hdb", flat: f.flat, price: f.price ?? null };
-function cleanHTML(html) {  // a saved chat is shown again as HTML: keep only what Oikos itself draws
+function cleanHTML(html) {  // a saved chat is shown again as HTML: keep only what Kampong itself draws
   const d = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
   d.querySelectorAll("script,iframe,object,embed,link,style,meta,base,form").forEach(n => n.remove());
   d.querySelectorAll("*").forEach(n => [...n.attributes].forEach(a => { if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) n.removeAttribute(a.name); }));
@@ -1585,7 +1585,7 @@ function drawChats() {
 }
 function drawAll() {
   const q = $("chatSearch").value.trim().toLowerCase(), list = CHATS.filter(c => !q || c.title.toLowerCase().includes(q));
-  $("allChats").replaceChildren(...(list.length ? grouped(list, true) : [h("div", { className: "empty dim" }, q ? `No chats named like "${$("chatSearch").value.trim()}".` : "No saved chats yet. Your conversations with Oikos are kept here.")]));
+  $("allChats").replaceChildren(...(list.length ? grouped(list, true) : [h("div", { className: "empty dim" }, q ? `No chats named like "${$("chatSearch").value.trim()}".` : "No saved chats yet. Your conversations with Kampong are kept here.")]));
 }
 $("chatSearch").addEventListener("input", drawAll);
 $("allBtn").addEventListener("click", () => { document.querySelector(".nav").classList.remove("open"); go("allchats"); });
@@ -1758,7 +1758,7 @@ $("acctBtn").addEventListener("click", async () => {
   ME = null; flats = []; persist(); await refreshMe(); toast("Signed out"); $("newChat").click(); loadChats(); setBadge(0); if (document.body.dataset.current === "watch") loadAlerts();  // chats and saved homes stay in the account, not in this browser
   const view = document.body.dataset.current; if (view === "flats") renderFlats();
 });
-// ---- share: a short link anyone can open, showing this flat's verdict and the advice Oikos gave
+// ---- share: a short link anyone can open, showing this flat's verdict and the advice Kampong gave
 async function shareFlat() {
   try {
     const f = F.flat, r = await api("/api/share", { town: f.town, street_name: f.street_name, block: f.block, flat_type: f.flat_type, flat_model: f.flat_model,
@@ -1774,7 +1774,7 @@ async function openShared(sid) {
   pick("r", sh.role, false);
   F = await api("/api/assess", { ...sh.flat, price: sh.price });
   show(); render(); history.replaceState(null, "", "/");
-  row("bot", h("div", { className: "txt" }, "Someone shared this flat with you. Here is what Oikos made of it on ", hl(new Date(sh.created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })), "."));
+  row("bot", h("div", { className: "txt" }, "Someone shared this flat with you. Here is what Kampong made of it on ", hl(new Date(sh.created).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })), "."));
   flatCard(); await sleep(1300);
   askHistory.push({ role: "user", content: "Explain my options." }, { role: "assistant", content: sh.advice });
   await say(formatted(sh.advice), h("span", { className: "src" }, "Shared advice. Ask a question below to get your own."));
@@ -1842,7 +1842,7 @@ function saveFlat() {
 function renderFlats() {
   const box = $("flatList");
   renderCompare();
-  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved homes yet. Ask Oikos about a flat or condo, then press Save.")); return; }
+  if (!flats.length) { box.replaceChildren(h("div", { className: "empty dim" }, "No saved homes yet. Ask Kampong about a flat or condo, then press Save.")); return; }
   box.replaceChildren(...flats.map(item => {
     const v = verdictFor(item.F, item.price), status = h("select", {}, ...["Watching", "Viewed", "Offer made", "Dropped"].map(s => h("option", { selected: s === item.status }, s)));
     const notes = h("textarea", { rows: 2, placeholder: "Your notes", value: item.notes }), cmp = h("input", { type: "checkbox", checked: item.compare });
@@ -2019,7 +2019,7 @@ async function newGuess() {
 function drawGame(guessed) {
   const g = GAME, sc = guessScore();
   const head = h("div", { style: "display:flex;justify-content:space-between;gap:10px;align-items:baseline" }, h("div", { className: "ot", style: "margin:0" }, "Guess the price"),
-    h("span", { className: "score" }, sc.rounds ? `You ${sc.you} \u00b7 Oikos ${sc.oikos}` + (sc.ties ? ` \u00b7 ${sc.ties} tied` : "") : "You against Oikos"));
+    h("span", { className: "score" }, sc.rounds ? `You ${sc.you} \u00b7 Kampong ${sc.oikos}` + (sc.ties ? ` \u00b7 ${sc.ties} tied` : "") : "You against Kampong"));
   const home = [h("div", { className: "home" }, `Blk ${g.block} ${g.street}, ${g.town}`),
     h("div", { className: "dim" }, `${g.flat_type} ${g.flat_model}, ${g.sqm} sqm, storey ${g.storey}, lease from ${g.lease_from}. Sold in ${g.month}.`)];
   if (guessed == null) {
@@ -2027,16 +2027,16 @@ function drawGame(guessed) {
     const submit = () => { const v = parseGuess(box.value); if (v == null) { err.textContent = "Enter a price between $50k and $3m, like 650k."; return; } reveal(v); };
     go_.addEventListener("click", submit); box.addEventListener("keydown", e => { if (e.key === "Enter") submit(); }); box.addEventListener("input", () => { err.textContent = ""; });
     $("gameBox").replaceChildren(h("div", { className: "game" }, head, ...home, h("div", { className: "guessrow" }, box, go_), err,
-      h("div", { className: "fine" }, "A real HDB resale from the last three months. Oikos's estimate was made by a version of the model that had only seen earlier sales.")));
+      h("div", { className: "fine" }, "A real HDB resale from the last three months. Kampong's estimate was made by a version of the model that had only seen earlier sales.")));
     return;
   }
   const you = Math.abs(guessed / g.sold - 1), oik = Math.abs(g.estimate / g.sold - 1), next = h("button", { className: "btn", type: "button" }, "Next home");
   next.addEventListener("click", newGuess);
-  const won = Math.abs(you - oik) < 0.0005 ? "A tie." : you < oik ? "You were closer." : "Oikos was closer.";
+  const won = Math.abs(you - oik) < 0.0005 ? "A tie." : you < oik ? "You were closer." : "Kampong was closer.";
   $("gameBox").replaceChildren(h("div", { className: "game" }, head, ...home, h("div", { className: "reveal" }, h("div", { className: "won" }, won),
     h("div", { className: "kv" }, h("span", {}, "It sold for"), h("b", {}, money(g.sold))),
     h("div", { className: "kv" }, h("span", {}, "Your guess"), h("b", {}, `${money(guessed)}, off by ${(you * 100).toFixed(1)}%`)),
-    h("div", { className: "kv" }, h("span", {}, "Oikos, before the sale"), h("b", {}, `${money(g.estimate)}, off by ${(oik * 100).toFixed(1)}%`))), h("div", {}, next)));
+    h("div", { className: "kv" }, h("span", {}, "Kampong, before the sale"), h("b", {}, `${money(g.estimate)}, off by ${(oik * 100).toFixed(1)}%`))), h("div", {}, next)));
 }
 function reveal(v) {
   const g = GAME, sc = guessScore(), you = Math.abs(v / g.sold - 1), oik = Math.abs(g.estimate / g.sold - 1);
@@ -2057,7 +2057,7 @@ $("dealWatch").addEventListener("click", () => { $("alTown").value = $("dealTown
 // ---- the brief: a one-page summary that prints
 function buildBrief() {
   const a = asked(), v = verdictFor(F, a), q = l => qOf(F, l), buyer = root.role === "buyer", sec = t => h("h3", {}, t);
-  $("brief").replaceChildren(h("div", { className: "cap" }, "Oikos " + (buyer ? "offer" : "pricing") + " brief / " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })),
+  $("brief").replaceChildren(h("div", { className: "cap" }, "Kampong " + (buyer ? "offer" : "pricing") + " brief / " + new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })),
     h("h2", {}, v.word), h("div", {}, h("b", {}, flatName(F)), " / " + flatDesc(F)), h("p", {}, v.R.line(v.p) + " " + v.R.lead + money(a) + " is " + pc(a / F.fair - 1) + " versus our fair value of " + money(F.fair) + "."),
     sec("The numbers"), kv(v.R.priceLabel, money(a)), kv("Our fair value", money(F.fair)), kv("Likely range (half of comparable sales)", `${money(q(25))} - ${money(q(75))}`), kv("Wide range (8 in 10)", `${money(q(10))} - ${money(q(90))}`),
     kv("Reliability of this estimate", F.reliability), kv("Lease left", Math.round(F.lease_now) + " years"),
@@ -2065,7 +2065,7 @@ function buildBrief() {
     sec("Your options"), h("ul", {}, ...optionsFor(F, a, root.role, v.i).map(([t, text]) => h("li", {}, h("b", {}, t + ": "), text))),
     ...(F.notes.length ? [sec("Why reliability is " + F.reliability.toLowerCase()), h("ul", {}, ...F.notes.map(n => h("li", {}, n)))] : []),
     ...(F.recent.length ? [sec("Recent sales of this flat type in the block"), ...F.recent.map(r => kv(`${month(r.month)}, storey ${r.storey}, ${Math.round(r.floor_area_sqm)} sqm`, money(r.price)))] : []),
-    h("p", { style: "margin-top:16pt;font-size:9pt" }, "An indicative estimate from public HDB sales data (data.gov.sg, Singapore Open Data Licence v1.0), not a valuation or advice. It cannot see renovation, the exact floor, view or condition. For a loan or a sale you need a licensed valuer. Oikos is not affiliated with HDB or any government agency."));
+    h("p", { style: "margin-top:16pt;font-size:9pt" }, "An indicative estimate from public HDB sales data (data.gov.sg, Singapore Open Data Licence v1.0), not a valuation or advice. It cannot see renovation, the exact floor, view or condition. For a loan or a sale you need a licensed valuer. Kampong is not affiliated with HDB or any government agency."));
 }
 $("briefBtn").addEventListener("click", () => { buildBrief(); window.print(); });
 

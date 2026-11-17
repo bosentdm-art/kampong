@@ -1,4 +1,4 @@
-"""Compare models on the same Ask Oikos cases: python src/compare_models.py
+"""Compare models on the same Ask Kampong cases: python src/compare_models.py
 
 Each model answers the same six questions about real flats, through the same prompt, tools, number check and
 fallback as the app. Scores are automatic (did the answer pass the number check first time, use the right tool,
@@ -82,7 +82,7 @@ def main():
     (ROOT / "reports").mkdir(exist_ok=True)
     (ROOT / "reports/model_comparison.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=2), encoding="utf-8")
 
-    md = ["# Ask Oikos model comparison", "", f"Run {time.strftime('%Y-%m-%d %H:%M')}. Same prompt, tools, number check and fallback as the app. "
+    md = ["# Ask Kampong model comparison", "", f"Run {time.strftime('%Y-%m-%d %H:%M')}. Same prompt, tools, number check and fallback as the app. "
           "All models through OpenRouter with providers that do not keep or train on prompts.", "",
           "| Model | Answered by model | Passed figure check first try | Right tool | Gives advice | Declines loans/CPF | States low reliability | Avg words | Avg cost (cents) | Avg seconds |",
           "|---|---|---|---|---|---|---|---|---|---|"]

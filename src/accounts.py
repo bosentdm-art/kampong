@@ -1,4 +1,4 @@
-"""Accounts, sessions, saved flats and usage counts for Oikos, in one SQLite file (data/oikos.db, not in Git).
+"""Accounts, sessions, saved flats and usage counts for Kampong, in one SQLite file (data/oikos.db, not in Git).
 
 Passwords are stored only as salted scrypt hashes. A session is a random token kept in an HttpOnly cookie; the
 database holds only its SHA-256. Visitors without an account get a random anonymous id so their usage can be counted.
@@ -158,7 +158,7 @@ def session_workos_sid(token):
 
 
 def link_workos(workos_id, email, verified):
-    """The Oikos account for a WorkOS AuthKit sign-in: (user id, created?). An existing account with the same email is joined
+    """The Kampong account for a WorkOS AuthKit sign-in: (user id, created?). An existing account with the same email is joined
     only when WorkOS says the email is verified, so nobody can take over an account by signing up with someone else's address."""
     email = (email or "").strip().lower()
     with db() as c:
@@ -284,7 +284,7 @@ FEEDBACK_DAYS = 180  # feedback and missed messages are kept this long, then del
 
 
 def log_feedback(who, rating, message=None, reply=None, note=None):
-    """Keep a thumbs up or down, a message Oikos couldn't handle ("miss") or an answer that turned the question away ("declined").
+    """Keep a thumbs up or down, a message Kampong couldn't handle ("miss") or an answer that turned the question away ("declined").
     Private: only read on this machine with src/review_feedback.py. At most 100 a day from one person."""
     cut = lambda s, n: str(s)[:n] if s else None
     now = time.time()
@@ -374,7 +374,7 @@ def signups_today(ip):
 
 
 # ---- saved flats
-# ---- shared links. A link holds the flat, the price, the role and the advice Oikos gave (taken from the server's own
+# ---- shared links. A link holds the flat, the price, the role and the advice Kampong gave (taken from the server's own
 # copy, never from the browser, so a link cannot carry text we did not write).
 def put_advice(key, text):
     with db() as c:

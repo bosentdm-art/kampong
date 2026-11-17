@@ -1,6 +1,6 @@
 """Find homes that fit what a person asks for: "4 room under 600k near an MRT in the east".
 
-Oikos has no live listings (we do not scrape the portals), so the answer is where such homes have actually sold:
+Kampong has no live listings (we do not scrape the portals), so the answer is where such homes have actually sold:
 HDB blocks, or condo projects, with sales in the last 12 months that meet the requirements, what they went for, and
 how often a sale there came in within the budget. Each result is one tap from a full check of a flat in that block.
 

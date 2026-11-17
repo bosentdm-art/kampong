@@ -3,11 +3,11 @@ subscription's state copied onto the account so limits change straight away.
 
 On when STRIPE_SECRET_KEY is in .env (a test key, sk_test_..., while building). STRIPE_WEBHOOK_SECRET (whsec_...) is
 optional: with it, Stripe's messages about renewals, failed payments and cancellations arrive at /api/stripe/webhook.
-Without it, Oikos still stays correct: it confirms each checkout itself when the person comes back, and re-checks a paid
+Without it, Kampong still stays correct: it confirms each checkout itself when the person comes back, and re-checks a paid
 account's subscription with Stripe at most once an hour.
 
 Plans are found by the price's lookup key (oikos_plus_monthly, oikos_pro_monthly), so no Stripe ids live in the code.
-Card details never touch Oikos: people pay on Stripe's own page. Talks to Stripe's REST API with `requests` directly."""
+Card details never touch Kampong: people pay on Stripe's own page. Talks to Stripe's REST API with `requests` directly."""
 import hashlib
 import hmac
 import json
@@ -82,7 +82,7 @@ def plan_for_price(pid):
 
 
 def customer_for(user):
-    """The person's Stripe customer, made the first time they pay. Only the email and Oikos account id are sent."""
+    """The person's Stripe customer, made the first time they pay. Only the email and Kampong account id are sent."""
     b = acc.billing_of(user["id"])
     if b and b["stripe_customer"]:
         return b["stripe_customer"]
@@ -113,7 +113,7 @@ def _portal_config():
         else:
             prods = {p: stripe("GET", f"/prices/{price_id(p)}")["product"] for p in LOOKUP}
             c = stripe("POST", "/billing_portal/configurations", {
-                "business_profile": {"headline": "Oikos: manage your plan"},
+                "business_profile": {"headline": "Kampong: manage your plan"},
                 "features": {"invoice_history": {"enabled": True}, "payment_method_update": {"enabled": True},
                              "subscription_cancel": {"enabled": True, "mode": "at_period_end"},
                              "subscription_update": {"enabled": True, "default_allowed_updates": ["price"], "proration_behavior": "create_prorations",
@@ -146,7 +146,7 @@ def apply_subscription(sub, user_id=None):
 
 
 def confirm_checkout(user, session_id):
-    """Called when the person comes back from Checkout: Oikos asks Stripe itself rather than trusting the page."""
+    """Called when the person comes back from Checkout: Kampong asks Stripe itself rather than trusting the page."""
     s = stripe("GET", f"/checkout/sessions/{session_id}", {"expand": ["subscription"]})
     if str(s.get("client_reference_id")) != str(user["id"]):
         raise ValueError("That checkout belongs to another account.")

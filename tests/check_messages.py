@@ -2,7 +2,7 @@
                                         .venv/Scripts/python tests/check_messages.py --ai   (also asks the AI: about 1 cent)
 
 Sixty-odd messages of the kind people really send (short, vague, Singlish, couples, sellers, condo switches, timing
-questions), each with what Oikos must make of it. The first run checks how a message is read (the rules in api.py and
+questions), each with what Kampong must make of it. The first run checks how a message is read (the rules in api.py and
 listing_parser.py) with the AI switched off, so it is exact and repeatable. --ai adds checks on what the AI writes:
 things it must never say (a condo is "outside what I cover", an age nobody gave, "move fast" on a shaky estimate).
 
@@ -22,7 +22,7 @@ CONDO = dict(kind="condo", project="PARC ESTA", area=70.0, floor=12)
 
 # (message, what is on screen: None | "hdb" | "condo", what must come back)
 #   flat="85|WHAMPOA DR"  an HDB flat is found      condo="PARC ESTA"  a condo is found       area="BISHAN"  an area answer for that town
-#   market=True  a market answer    question=True  passed on as a question about the home on screen    asks=True  Oikos asks for more
+#   market=True  a market answer    question=True  passed on as a question about the home on screen    asks=True  Kampong asks for more
 #   plus exact values for: flat_type, price, storey, role, compare, work, watch, changed (a word in the list), profile (the keys given)
 CASES = [
     # --- a full flat, written many ways
@@ -106,7 +106,7 @@ CASES = [
     ("I work at Raffles Place", "hdb", dict(work="Raffles Place")),
     ("my office is in one-north", None, dict(work="one-north")),
     ("alert me when this block has a new sale", "hdb", dict(watch=True)),
-    # --- things Oikos does not do yet: it must still answer sensibly, not crash (with --ai the reply is checked too)
+    # --- things Kampong does not do yet: it must still answer sensibly, not crash (with --ai the reply is checked too)
     ("123456", None, dict(nothing=True)),  # a postal code that is not an HDB block with sales: a note, no home
     ("bto or resale? we are getting married next year", None, dict(nothing=True)),
     ("hello", None, dict(nothing=True)),
@@ -140,7 +140,7 @@ def check(text, on, want):
     if want.get("question"):
         need(not u["found"] and not u.get("reply") and not u.get("note") and not u.get("area") and not u.get("market") and not u.get("work") and not u.get("watch"), f"a question for the AI, got found={u['found']} reply={(u.get('reply') or '')[:50]!r}")
     if want.get("asks"):
-        need(not u["found"] and bool(u.get("reply") or u.get("note")), "Oikos to ask for more")
+        need(not u["found"] and bool(u.get("reply") or u.get("note")), "Kampong to ask for more")
     if want.get("nothing"):
         need(not u["found"] and not u.get("area") and not u.get("market") and not u.get("find"), f"no home and no card, got found={u['found']}")
     if "find" in want:
@@ -192,7 +192,7 @@ def ai_checks():
     r = ask("Is the lease a problem for us?", age=29, profile=dict(who="couple", first_home=True))
     need("age 29: works out the lease against it (88)", "88" in r["text"], r["text"])
     r = ask("what about condos, can you check Parc Esta for me?")
-    need("never says condos are outside what Oikos covers", not __import__("re").search(r"outside what|don't cover|do not cover|only (?:cover|advise on) hdb", r["text"], __import__("re").I), r["text"])
+    need("never says condos are outside what Kampong covers", not __import__("re").search(r"outside what|don't cover|do not cover|only (?:cover|advise on) hdb", r["text"], __import__("re").I), r["text"])
     r = ask("how much can we borrow from the bank for this?")
     need("a loan question is turned away, and marked so it does not use up an answer", r.get("declined") is True, r["text"])
     r = ask("is now a good time to buy or will prices drop?")

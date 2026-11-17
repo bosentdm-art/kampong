@@ -1,4 +1,4 @@
-"""What people told Oikos, and the messages it couldn't handle. Private: reads data/oikos.db on this machine only.
+"""What people told Kampong, and the messages it couldn't handle. Private: reads data/oikos.db on this machine only.
 
     python src/review_feedback.py              the last 14 days, newest first
     python src/review_feedback.py --days 60    a longer stretch

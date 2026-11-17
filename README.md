@@ -35,14 +35,16 @@ Add rows to `cases/known_cases.csv` (or point `listing_file` at a text file of a
 .venv\Scripts\python src\score_cases.py
 ```
 
-## Oikos web app (API + front end)
+## Kampong web app (API + front end)
+
+Kampong (called Oikos until November 2026) is the product; the company behind it is Oiko. Internal names such as the `oikos_session` cookie, `data/oikos.db` and `OIKOS_*` settings keep the old name on purpose.
 ```
 .venv\Scripts\python -m uvicorn api:app --port 8700
 ```
 Then open http://localhost:8700. `api.py` wraps the models (`/api/options`, `/api/parse`, `/api/assess`)
 and serves the page in `web/`. The Streamlit app (`app.py`) still works and is now the fallback.
 
-## Ask Oikos (the AI explanations)
+## Ask Kampong (the AI explanations)
 Add `ANTHROPIC_API_KEY=...` to `.env`. The model (default `claude-haiku-5-5`, set `OIKOS_LLM_MODEL` to change it)
 does not learn from our data: for each question it is handed that flat's facts and two tools that call the
 engine, then explains them. Every dollar figure, percentage, year count and size in its answer is checked against

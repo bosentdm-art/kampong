@@ -302,3 +302,7 @@ realestateai/
   empty answer in the first run, up to ~116s), Claude Haiku 5.5 0.084c (6.8s), GLM 5.3 0.43c (8.7s).
 - Limits: six cases, two runs, automatic checks are simple patterns; voice still needs a human read. Provider that
   served each OpenRouter call was not recorded.
+
+## Renamed to Kampong (2026-11-17)
+
+The product is now called Kampong; the company is Oiko. Everything people or the AI see says Kampong. Internal names (cookies, browser storage keys, oikos.db, OIKOS_* settings, Stripe lookup keys) keep the old name so nothing breaks. Domain not bought yet.
