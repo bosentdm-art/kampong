@@ -10,16 +10,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
 <style>
   /* Oikos: a chat with the AI is the home page. Navigation on the left, one view at a time on the right.
-     The design (approved mockup: design/mockup-violet.html): white page, flat cards with thin lines, electric violet as the only brand colour.
+     The design (approved mockups: design/mockup-violet.html for layout, design/mockup-hdb.html for colour): white page, flat cards with thin lines,
+     HDB blue as the brand colour and HDB orange only for "check this".
      Green and red appear only on money (good price / overpriced), always with a word or an arrow. .hl marks dates and times, .hm marks figures.
      Type: Newsreader (serif) for the name, the big question, window titles and verdicts; Lexend for words; Atkinson Hyperlegible for figures
      (its slashed zero and distinct digits are hard to misread). */
   :root { --mono: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --disp: "Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; --head: "Newsreader", Georgia, serif; --r:18px; }
-  [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#16132b; --dim:#615b78; --line:#e7e4ef; --panel:#ffffff; --glass:#ffffff;
-    --accent:#5b3df5; --on-accent:#ffffff; --soft:#f1eeff; --pos:#15803d; --neg:#b42318; --hl:#3b22c9; --hlbg:#f1eeff; --mk:#f1eeff;
-    --shadow:0 10px 30px rgba(40,20,120,.08); --shadow2:0 2px 8px rgba(40,20,120,.06); }
-  [data-theme="dark"]  { --bg:#100e1c; --sky:none; --fg:#ece9f7; --dim:#a39dbd; --line:#2e2949; --panel:#191629; --glass:#191629;
-    --accent:#8b76ff; --on-accent:#120f24; --soft:#241f3d; --pos:#4ade80; --neg:#fb7185; --hl:#b3a6ff; --hlbg:#241f3d; --mk:#241f3d;
+  /* HDB colours, picked from the painted panels on HDB blocks. Blue is Oikos (buttons, links, the active section, your messages).
+     Orange means "check this" and nothing else (short lease, notes to check, the alerts badge). Green and red are good or bad for you. */
+  [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#1f2328; --dim:#5a5f66; --line:#e3e3df; --panel:#ffffff; --glass:#ffffff;
+    --accent:#1a88d4; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --hl:#0f5e99; --hlbg:#e6f1fa; --mk:#e6f1fa;
+    --warn:#f5a55f; --warn-ink:#9a5a0c; --warn-bg:#fdf0e2;
+    --shadow:0 10px 30px rgba(20,40,60,.08); --shadow2:0 2px 8px rgba(20,40,60,.06); }
+  [data-theme="dark"]  { --bg:#14171a; --sky:none; --fg:#ecedee; --dim:#a3a9b0; --line:#2e343a; --panel:#1d2125; --glass:#1d2125;
+    --accent:#4ba8ec; --on-accent:#0c1116; --soft:#1e2b37; --pos:#4ade80; --neg:#fb7185; --hl:#8cc8f5; --hlbg:#1e2b37; --mk:#1e2b37;
+    --warn:#f5a55f; --warn-ink:#f5a55f; --warn-bg:#33240f;
     --shadow:0 10px 30px rgba(0,0,0,.45); --shadow2:0 2px 8px rgba(0,0,0,.35); }
   * { box-sizing: border-box; }
   html, body { height:100%; }
@@ -159,7 +164,7 @@
   .qv .offer { font-size:16px; } .qv .offer b { font-size:19px; font-variant-numeric:tabular-nums; }
   .qv .flag { display:grid; grid-template-columns:26px 1fr; gap:10px; padding-top:10px; border-top:1px solid var(--line); font-size:14.5px; }
   .qv .flag i { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-style:normal; font-weight:700; font-size:13px; background:var(--soft); color:var(--accent); }
-  .qv .flag i.neg { background:color-mix(in srgb, var(--neg) 14%, transparent); color:var(--neg); } .qv .flag i.amb { background:color-mix(in srgb, #c98a2e 18%, transparent); color:#a86a12; }
+  .qv .flag i.neg { background:color-mix(in srgb, var(--neg) 14%, transparent); color:var(--neg); } .qv .flag i.amb { background:var(--warn-bg); color:var(--warn-ink); }
   .qv .flag b { display:block; } .qv .flag span.dim { font-size:14px; }
   .qv .speed { font-size:12.5px; color:var(--dim); }
   .qv pre { margin:0; white-space:pre-wrap; font:inherit; font-size:14.5px; background:var(--soft); border-radius:12px; padding:12px 14px; }
@@ -190,10 +195,10 @@
   .vbig { font-size:clamp(30px, 4vw, 44px); font-weight:700; line-height:1.05; letter-spacing:-.01em; }
   .mini { position:relative; height:12px; border-radius:999px; margin:4px 0; } .mini i { position:absolute; top:50%; width:22px; height:22px; border-radius:50%; background:var(--panel); border:5px solid var(--fg); transform:translate(-50%, -50%); box-shadow:var(--shadow2); }
   .tiles { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; } .tile { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 14px; }
-  .tile.key { background:var(--fg); border-color:var(--fg); color:var(--panel); } .tile.key .cap { color:var(--panel); opacity:.75; } .tile.key b { color:var(--panel) !important; }  /* the one fact to remember */ .tile b { display:block; font-size:20px; white-space:nowrap; }
-  .note { background:var(--soft); border-radius:14px; padding:10px 14px; font-size:14px; }
+  .tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .tile.key .cap { color:var(--on-accent); opacity:.8; } .tile.key b { color:var(--on-accent) !important; }  /* the one fact to remember */ .tile b { display:block; font-size:20px; white-space:nowrap; }
+  .note { background:var(--warn-bg); border-left:4px solid var(--warn); border-radius:4px 14px 14px 4px; padding:10px 14px; font-size:14px; } .note > b:first-child { color:var(--warn-ink); }
   dialog { border:0; border-radius:28px; padding:22px; width:min(580px, 94vw); background:var(--panel); color:var(--fg); box-shadow:var(--shadow); }
-  dialog::backdrop { background:rgba(22,19,43,.38); }
+  dialog::backdrop { background:rgba(20,24,28,.38); }
   .sheethd { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; font-size:19px; } .x { font:inherit; font-size:22px; line-height:1; width:36px; height:36px; border-radius:50%; border:0; background:var(--soft); color:var(--accent); cursor:pointer; }
 
   /* full breakdown */
@@ -232,7 +237,7 @@
   .life-top { display:flex; gap:28px; align-items:center; flex-wrap:wrap; }
   .life-top input { width:96px; margin-top:4px; }
   .life { position:relative; height:18px; margin:30px 0 30px; border-radius:999px; background:var(--soft); } .life i { position:absolute; left:0; top:0; bottom:0; border-radius:999px; transition:width .15s; }
-  .warn { border:1px solid var(--line); border-left:8px solid #eab308; border-radius:14px; background:var(--panel); padding:10px 14px; margin-bottom:10px; }
+  .warn { border:1px solid var(--line); border-left:8px solid var(--warn); border-radius:14px; background:var(--panel); padding:10px 14px; margin-bottom:10px; }
 
   /* my flats, compare */
   .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; }
@@ -278,7 +283,7 @@
   .more summary::-webkit-details-marker { display:none; } .more .kv:first-of-type { margin-top:6px; }
   .bars { display:grid; gap:8px; } .br { display:grid; grid-template-columns:86px 1fr auto; gap:10px; align-items:center; } .br .bar { height:10px; border-radius:999px; background:var(--soft); overflow:hidden; }
   .br .bar i { display:block; height:100%; border-radius:999px; background:var(--accent); opacity:.75; width:0; transition:width .9s cubic-bezier(.2,.8,.2,1) .3s; } .br b { white-space:nowrap; }
-  .badge { background:#ef4444; color:#fff; border-radius:999px; font-size:12px; font-weight:700; padding:0 7px; line-height:20px; }
+  .badge { background:var(--warn); color:#1f2328; border-radius:999px; font-size:12px; font-weight:700; padding:0 7px; line-height:20px; }
   .alform { display:grid; grid-template-columns:minmax(0, 260px) minmax(0, 200px) auto; gap:10px; align-items:end; margin-top:12px; }
   .acard .bd { display:grid; gap:8px; } .acard .new { color:var(--pos); font-weight:700; }
   /* market page: the counter, top movers and the guessing game */
@@ -316,7 +321,7 @@
   .reveal { display:grid; gap:4px; padding:12px 14px; border-radius:12px; background:var(--soft); } .reveal .won { font-family:var(--head); font-size:22px; font-weight:600; color:var(--accent); }
   /* the lease dial: a clock face from 0 to 99 years, the needle at the years left */
   .ldial { display:flex; gap:14px; align-items:center; } .ldial svg { flex:none; } .ldial .lt { display:grid; gap:2px; font-size:14px; } .ldial .lt b { font-weight:600; }
-  .ldial.sm { gap:10px; } .ldial.sm .lt { font-size:13px; } .ldial .lwarn { color:#a86a12; }
+  .ldial.sm { gap:10px; } .ldial.sm .lt { font-size:13px; } .ldial .lwarn { color:var(--warn-ink); }
   /* the price map */
   .maphd { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:space-between; margin-bottom:10px; } .maphd .seg { margin:0; }
   #priceMap { height:440px; border-radius:12px; border:1px solid var(--line); overflow:hidden; background:var(--soft); z-index:0; }
@@ -1883,8 +1888,8 @@ function leaseDial(years, size) {
   const arc = (from, to, rr) => { const [x0, y0] = pt(from, rr), [x1, y1] = pt(Math.min(to, 98.99), rr); return `M${x0} ${y0} A${rr} ${rr} 0 ${(to - from) / 99 > 0.5 ? 1 : 0} 1 ${x1} ${y1}`; };
   const svg = el("svg", { width: S, height: S, viewBox: `0 0 ${S} ${S}`, role: "img", "aria-label": `${Math.round(years)} of 99 years of lease left` });
   el("circle", { cx: c, cy: c, r, fill: "none", stroke: "var(--soft)", "stroke-width": w }, svg);
-  el("path", { d: arc(0, 60, r + w / 2 + 2), fill: "none", stroke: "#d9a55a", "stroke-width": S > 80 ? 2 : 1.5, opacity: 0.8 }, svg);  // the short-lease zone
-  if (v > 0.5) el("path", { d: arc(0, v, r), fill: "none", stroke: v < 60 ? "#c98a2e" : "var(--accent)", "stroke-width": w, "stroke-linecap": "round" }, svg);
+  el("path", { d: arc(0, 60, r + w / 2 + 2), fill: "none", stroke: "var(--warn)", "stroke-width": S > 80 ? 2 : 1.5, opacity: 0.8 }, svg);  // the short-lease zone, in "check this" orange
+  if (v > 0.5) el("path", { d: arc(0, v, r), fill: "none", stroke: v < 60 ? "var(--warn)" : "var(--accent)", "stroke-width": w, "stroke-linecap": "round" }, svg);
   if (S > 80) for (let t = 0; t < 99; t += 10) { const [a1, b1] = pt(t, r - w / 2 - 2), [a2, b2] = pt(t, r - w / 2 - 6); el("line", { x1: a1, y1: b1, x2: a2, y2: b2, stroke: "var(--dim)", "stroke-width": 1 }, svg); }
   // the needle runs from just outside the centre number to the edge, so the two never overlap
   const big = S > 70, [ix, iy] = pt(v, big ? r * 0.5 : 0), [nx, ny] = pt(v, r - w - (S > 80 ? 6 : 4));
@@ -1908,7 +1913,7 @@ let MAP = null, MAPD = null, mapLayer = null, mapKind = "hdb", mapMetric = "psf"
 const SQFT = 10.7639;  // square feet in a square metre
 let mapUnit = "psf";   // the price unit last chosen; "Change in a year" shows prices in it too
 const unitPrice = psm => mapUnit === "psf" ? psm / SQFT : psm, unitName = () => mapUnit === "psf" ? "per sq ft" : "per sqm";
-const PRICE_COL = ["#e9e4ff", "#c4b6ff", "#9a82fb", "#6e4cf0", "#4322c2"], CHG_COL = ["#b42318", "#e8908a", "#c9c6d4", "#86c79a", "#15803d"], CHG_CUT = [-5, -2, 2, 5];
+const PRICE_COL = ["#e3f0fa", "#b3d5f0", "#78b4e3", "#2f8bd2", "#0f5e99"], CHG_COL = ["#b42318", "#e8908a", "#c6c9cc", "#86c79a", "#15803d"], CHG_CUT = [-5, -2, 2, 5];
 function loadLeaflet() {
   return new Promise((ok, bad) => {
     if (window.L) return ok();
@@ -1934,7 +1939,7 @@ function drawMap() {
   const bin = (v, cs) => cs.findIndex(c => v < c) === -1 ? cs.length : cs.findIndex(c => v < c);
   mapLayer = L.layerGroup(use.map(r => {
     const col = chg ? CHG_COL[bin(r[3], CHG_CUT)] : PRICE_COL[bin(unitPrice(r[2]), cuts)];
-    const m = L.circleMarker([r[0], r[1]], { radius: mapKind === "condo" ? 5 : 4, weight: 0.6, color: "rgba(22,19,43,.35)", fillColor: col, fillOpacity: 0.9 });
+    const m = L.circleMarker([r[0], r[1]], { radius: mapKind === "condo" ? 5 : 4, weight: 0.6, color: "rgba(20,24,28,.35)", fillColor: col, fillOpacity: 0.9 });
     m.bindPopup(() => mapPopup(r));
     return m;
   })).addTo(MAP);
