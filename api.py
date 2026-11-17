@@ -553,6 +553,8 @@ def flats_put(body: Saved, request: Request, response: Response):
 
 WORK = re.compile(r"\b(?:i work|i'm working|my (?:office|work|workplace|job)(?: is)?|office is|work(?:ing)? (?:is )?(?:at|in|near)|commute|travel(?:ling)? to work|get to work)\b[^.?!]*?\b(?:at|in|to|near|is)\s+([A-Za-z0-9][A-Za-z0-9 '&-]{2,50})", re.I)
 WATCH = re.compile(r"\b(alert me|notify me|let me know when|tell me when|watch this|keep an eye)\b", re.I)
+# "help me fill in my resale paperwork", "what goes in the OTP?": the page opens the paperwork helper
+PAPER = re.compile(r"\b(paperwork|resale application|option to purchase|request for value|fill (?:in|out|up)\b.*\b(?:form|forms|application|otp|paperwork)|(?:hdb|resale) forms?|\botp\b)", re.I)
 QUESTION = re.compile(r"\?|\b(what if|what about|should|could|can i|would|how|why|worth it|is it|is this|explain|compare)\b", re.I)
 SPEC = ("town", "street_name", "block", "flat_type", "flat_model", "floor_area_sqm", "storey_range", "lease_commence_date")
 COMPARE = re.compile(r"\b(compare|compared|comparing|comparison|versus|vs|better|worse|which one|which is|which should|which would|rather|instead of|cheaper than|dearer than)\b", re.I)
@@ -1123,7 +1125,7 @@ def num(x, lo, hi, kind=float):
 def understand(m: Message, request: Request = None, response: Response = None):
     """Read a chat message (see _understand), and privately log the ones Oikos could not handle, so they can be fixed."""
     out = _understand(m, request, response)
-    if request is not None and not m.current and not out.get("found") and not out.get("work") and not out.get("watch") and (out.get("note") or not out.get("reply")):
+    if request is not None and not m.current and not out.get("found") and not out.get("work") and not out.get("watch") and not out.get("paper") and (out.get("note") or not out.get("reply")):
         acc.log_feedback(visitor(request, response)[0], "miss", m.text, out.get("note"))
     return out
 
@@ -1143,6 +1145,8 @@ def _understand(m, request=None, response=None):
         return base
     if base["watch"] and not p["block"]:  # "alert me when this block has a new sale": the page sets the alert up
         return base
+    if PAPER.search(m.text[:600]) and not p["block"] and not p["asking"]:  # the paperwork helper, filled in from the flat on screen
+        return {**base, "paper": True}
     asks = bool(QUESTION.search(m.text[:600]))
     if llm.is_policy(m.text[:600]) and not p["block"] and not p["asking"] and not (condo_ready() and cc.find_in_text(m.text[:2000])):
         return clean({**base, **policy_answer(m.text, m.history, who, ip, m.detail)})
