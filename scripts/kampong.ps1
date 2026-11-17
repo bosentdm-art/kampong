@@ -2,7 +2,9 @@
 #   Kampong itself: the Python server on port 8700, listening on this computer only.
 #   The Cloudflare Tunnel "kampong": passes visitors from https://kampong.com.de to that server.
 # Usually run through start-kampong.cmd / stop-kampong.cmd in the project folder.
-param([ValidateSet("start", "stop", "status")] [string]$Action = "status")
+#   install-backup: a Windows scheduled task, "Kampong backup", runs scripts\backup.py every night at 3am
+#   (or as soon as the computer is next on, if it was off or asleep then).
+param([ValidateSet("start", "stop", "status", "install-backup")] [string]$Action = "status")
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -27,7 +29,22 @@ function Show-Status {
     }
 }
 
-if ($Action -eq "status") { Show-Status; exit 0 }
+if ($Action -eq "status") {
+    Show-Status
+    $t = Get-ScheduledTaskInfo -TaskName "Kampong backup" -ErrorAction SilentlyContinue
+    Write-Host ("Nightly backup : " + $(if ($t) { "on (last run " + $(if ($t.LastRunTime.Year -gt 2000) { $t.LastRunTime } else { "not yet" }) + ", next " + $t.NextRunTime + ")" } else { "not set up" }))
+    exit 0
+}
+
+if ($Action -eq "install-backup") {
+    $act = New-ScheduledTaskAction -Execute $Python -Argument "`"$Root\scripts\backup.py`"" -WorkingDirectory $Root
+    $when = New-ScheduledTaskTrigger -Daily -At 3am
+    $opts = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -RunOnlyIfNetworkAvailable
+    Register-ScheduledTask -TaskName "Kampong backup" -Description "Backs up Kampong's database (data\oikos.db) to Cloudflare R2. See scripts\backup.py." `
+        -Action $act -Trigger $when -Settings $opts -Force | Out-Null
+    Write-Host "Nightly backup set up: every day at 3am, or when this computer is next on if it was off then."
+    exit 0
+}
 
 if ($Action -eq "stop") {
     if (Tunnel-Procs) { Tunnel-Procs | Stop-Process -Force; Write-Host "Tunnel stopped." } else { Write-Host "Tunnel was not running." }
