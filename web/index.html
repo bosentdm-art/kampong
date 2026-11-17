@@ -20,11 +20,11 @@
      Orange means "check this" and nothing else (short lease, notes to check, the alerts badge). Green and red are good or bad for you. */
   [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#1f2328; --dim:#5a5f66; --line:#e3e3df; --panel:#ffffff; --glass:#ffffff;
     --accent:#1a88d4; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --hl:#0f5e99; --hlbg:#e6f1fa; --mk:#e6f1fa;
-    --warn:#f5a55f; --warn-ink:#9a5a0c; --warn-bg:#fdf0e2;
+    --warn:#f5a55f; --warn-ink:#9a5a0c; --warn-bg:#fdf0e2; --t-hdb:#1a88d4; --t-condo:#7b4fe0; --t-landed:#e0a400;
     --shadow:0 10px 30px rgba(20,40,60,.08); --shadow2:0 2px 8px rgba(20,40,60,.06); }
   [data-theme="dark"]  { --bg:#14171a; --sky:none; --fg:#ecedee; --dim:#a3a9b0; --line:#2e343a; --panel:#1d2125; --glass:#1d2125;
     --accent:#4ba8ec; --on-accent:#0c1116; --soft:#1e2b37; --pos:#4ade80; --neg:#fb7185; --hl:#8cc8f5; --hlbg:#1e2b37; --mk:#1e2b37;
-    --warn:#f5a55f; --warn-ink:#f5a55f; --warn-bg:#33240f;
+    --warn:#f5a55f; --warn-ink:#f5a55f; --warn-bg:#33240f; --t-hdb:#4ba8ec; --t-condo:#a88bff; --t-landed:#f2c230;
     --shadow:0 10px 30px rgba(0,0,0,.45); --shadow2:0 2px 8px rgba(0,0,0,.35); }
   * { box-sizing: border-box; }
   html, body { height:100%; }
@@ -181,6 +181,11 @@
   .doc .ans:first-of-type { border-top:0; } .doc .ans b { text-align:right; } .doc .ans .miss { color:var(--dim); font-style:italic; font-weight:400; }
   .doc .ans button { font:inherit; font-size:12px; border:1px solid var(--line); background:var(--panel); color:var(--accent); border-radius:8px; padding:2px 8px; cursor:pointer; }
   .doc .due { color:var(--neg); font-weight:600; }
+  /* home types: blue HDB, purple condo, gold landed. The colour is the type; the word says it too. */
+  .type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; line-height:1.4; }
+  .type.hdb { background:var(--t-hdb); } .type.condo { background:var(--t-condo); } .type.landed { background:var(--t-landed); color:#1f2328; }
+  [data-theme="dark"] .type.hdb, [data-theme="dark"] .type.condo { color:#0c1116; }
+  #mapKind button[data-k="hdb"].on { background:var(--t-hdb); color:#fff; } #mapKind button[data-k="condo"].on { background:var(--t-condo); color:#fff; }
   /* the paperwork helper */
   .paper { display:grid; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:16px 18px; max-width:100%; }
   .paper h3 { font-family:var(--head); font-weight:600; font-size:20px; margin:0; }
@@ -582,15 +587,15 @@ const toast = text => { const t = h("div", { className: "toast" }, text); docume
 
 // ---- verdict scales. p = share of comparable sales (0-100) that went for less than the price being checked.
 // Buyer thresholds match deal_label() in src/advice.py; keep the two in step.
-const C = { bright: ["#22c55e", "#0f9d3a"], green: ["#16a34a", "#166534"], yellow: ["#eab308", "#8a6100"], orange: ["#f97316", "#c2410c"], red: ["#ef4444", "#b42318"] };
+const C = { bright: ["#22c55e", "#0f9d3a"], green: ["#16a34a", "#166534"], yellow: ["#eab308", "#8a6100"], lightred: ["#f87171", "#c2453a"], red: ["#ef4444", "#b42318"], warn: ["#f5a55f", "#9a5a0c"] };
 const tone = (max, word, short, c) => ({ max, word, short, dark: C[c][0], light: C[c][1] });
 const ROLES = {
   buyer: { lead: "Asking ", mark: "ASKING", priceLabel: "Asking price",
-    tones: [tone(10, "Great deal", "GREAT", "bright"), tone(30, "Good deal", "GOOD", "green"), tone(65, "Fair price", "FAIR", "yellow"), tone(90, "Pricey", "PRICEY", "orange"), tone(101, "Overpriced", "OVER", "red")],
+    tones: [tone(10, "Great deal", "GREAT", "bright"), tone(30, "Good deal", "GOOD", "green"), tone(65, "Fair price", "FAIR", "yellow"), tone(90, "Pricey", "PRICEY", "lightred"), tone(101, "Overpriced", "OVER", "red")],
     line: p => p < 10 ? "Cheaper than about 9 in 10 comparable sales." : p < 30 ? `Cheaper than about ${Math.round(100 - p)}% of comparable sales.`
       : p < 65 ? "In line with what comparable flats sell for." : p < 90 ? `Dearer than about ${Math.round(p)}% of comparable sales.` : "Dearer than about 9 in 10 comparable sales." },
   seller: { lead: "Your price of ", mark: "YOUR PRICE", priceLabel: "Listing price",
-    tones: [tone(20, "Underpriced", "UNDER", "yellow"), tone(50, "Priced to sell", "TO SELL", "bright"), tone(75, "Fair ask", "FAIR", "green"), tone(90, "Ambitious", "AMBITIOUS", "orange"), tone(101, "Too high", "TOO HIGH", "red")],
+    tones: [tone(20, "Underpriced", "UNDER", "yellow"), tone(50, "Priced to sell", "TO SELL", "bright"), tone(75, "Fair ask", "FAIR", "green"), tone(90, "Ambitious", "AMBITIOUS", "lightred"), tone(101, "Too high", "TOO HIGH", "red")],
     line: p => p < 20 ? "Most comparable flats sold for more. You could ask for more." : p < 50 ? "At or just under what comparable flats sell for. Buyers checking recent sales will see good value."
       : p < 75 ? "In line with comparable sales, with room to negotiate." : p < 90 ? `Above about ${Math.round(p)}% of comparable sales. Buyers checking recent sales will see it as expensive.`
       : "Above about 9 in 10 comparable sales. Few comparable flats have sold this high." } };
@@ -605,7 +610,9 @@ function verdictFor(f, price, role = root.role) {
   const R = ROLES[role], p = percentile(f, price), t = R.tones.find(t => p < t.max);
   return { R, p, t, i: R.tones.indexOf(t), word: (f.reliability === "Low" ? "Likely " : "") + t.word, color: root.theme === "dark" ? t.dark : t.light };
 }
-const isCondo = f => !!f && f.kind === "condo";  // a private condo unit: same card and advice, no full breakdown yet
+const isCondo = f => !!f && f.kind === "condo";
+const typeTag = f => !f ? "" : isCondo(f) ? h("span", { className: "type condo", title: f.property_type || "Private condo" }, f.property_type === "Executive Condominium" ? "EC" : "Condo")
+  : h("span", { className: "type hdb", title: "HDB flat" }, "HDB");  // a private condo unit: same card and advice, no full breakdown yet
 const flatName = f => isCondo(f) ? title(f.project) : `Blk ${f.flat.block} ${title(f.flat.street_name)}`;
 const flatDesc = f => isCondo(f) ? `${f.property_type}, ${title(f.street)} (D${f.district}), ${Math.round(f.flat.floor_area_sqm)} sqm, floors ${f.flat.storey}, ${f.freehold ? "freehold" : Math.round(f.lease_now) + " years of lease left"}`
   : `${title(f.flat.flat_type)} ${title(f.flat.flat_model)}, ${Math.round(f.flat.floor_area_sqm)} sqm, storey ${f.flat.storey}, lease from ${f.flat.lease_commence_date}`;
@@ -786,7 +793,7 @@ function renderLife() {
     $("lifeLine").replaceChildren("Enter your age to see how old you will be when the lease ends.");
     $("lifeBar").style.width = "0"; $("lifeTicks").replaceChildren(); $("lifeRows").replaceChildren(); return;
   }
-  const a = age(), lease = F.lease_now, end = leaseEnd(F), ok = end >= 95, col = ok ? C.bright : end >= 85 ? C.orange : C.red, x = v => Math.max(0, Math.min(100, (v - a) / (95 - a) * 100));
+  const a = age(), lease = F.lease_now, end = leaseEnd(F), ok = end >= 95, col = ok ? C.bright : end >= 85 ? C.warn : C.red, x = v => Math.max(0, Math.min(100, (v - a) / (95 - a) * 100));
   $("lifeWord").textContent = ok ? "Lasts past 95" : "Ends when you are " + end;
   $("lifeWord").style.color = root.theme === "dark" ? col[0] : col[1];
   $("lifeLine").replaceChildren("The lease has ", hl(Math.round(lease) + " years"), " left, so it runs until you are ", hl(String(end)), ok ? ", past age 95." : ".");
@@ -1106,7 +1113,7 @@ function flatCard(u = {}) {
   let from = 0; const stops = v.R.tones.map(z => { const to = Math.min(z.max, 100), stop = `${z.dark} ${from}% ${to}%`; from = to; return stop; });
   const dot = h("i", { style: "left:3%" }), fairB = h("b", {}, k(F.fair));
   const r = row("bot", h("div", { className: "fcardc" },
-    h("div", { className: "ctop" }, h("div", {}, h("b", {}, flatName(F)), h("div", { className: "dim fine" }, flatDesc(F))), h("span", { className: "tag" }, F.reliability + " reliability")),
+    h("div", { className: "ctop" }, h("div", {}, h("b", {}, flatName(F)), typeTag(F), h("div", { className: "dim fine" }, flatDesc(F))), h("span", { className: "tag" }, F.reliability + " reliability")),
     priced ? h("div", { className: "vbig", style: `color:${v.color}` }, v.word) : h("div", { className: "vbig" }, "Worth about " + k(F.fair)),
     priced ? h("div", {}, v.R.lead, fig(money(a), v.color), " is ", fig(pc(a / F.fair - 1), v.color), " versus our fair value of ", fig(money(F.fair)), ". ", ...rich(v.R.line(v.p)))
       : h("div", {}, ...rich(`Half of comparable flats sold between ${k(q(25))} and ${k(q(75))}. Tell me the ${buyer ? "asking" : "listing"} price and I'll give you a verdict.`)),
@@ -1154,7 +1161,7 @@ function quickVerdict(u) {
   const f = F, a = f.price, fair = f.fair, gap = a - fair, pct = gap / fair * 100, buyer = root.role === "buyer", condo = isCondo(f), mine = f;
   const read = condo ? [title(f.project), f.condo.bedrooms ? f.condo.bedrooms + "-bed" : null, f.condo.floor_area_sqm ? Math.round(f.condo.floor_area_sqm) + " sqm" : null]
     : [flatName(f), title(f.flat.flat_type), Math.round(f.flat.floor_area_sqm) + " sqm", "Storey " + f.flat.storey];
-  const chips = h("div", { className: "read" }, ...read.filter(Boolean).map(t => h("span", {}, t)), h("span", {}, (buyer ? "Asking " : "Listing ") + money(a)),
+  const chips = h("div", { className: "read" }, typeTag(f), ...read.filter(Boolean).map(t => h("span", {}, t)), h("span", {}, (buyer ? "Asking " : "Listing ") + money(a)),
     ...(u.assumed || []).map(t => h("span", { className: "guess", title: "Not in your message, so I assumed it. Tell me if it's wrong." }, t)));
   const head = Math.abs(pct) < 2 ? [h("span", {}, "About what it's worth.")]
     : gap > 0 ? ["About ", h("span", { style: "color:var(--neg)" }, money(near1k(gap)) + " above"), " what it's worth."]
@@ -1320,7 +1327,7 @@ function compareCard(A, pa, B, pb) {
     ["Price versus fair value", (f, p) => p ? h("span", { className: "hm" }, pc(p / f.fair - 1)) : "-"], ["Likely range", f => `${k(qOf(f, 25))} - ${k(qOf(f, 75))}`], ["Size", f => Math.round(f.flat.floor_area_sqm) + " sqm"],
     ["Per sqm", (f, p) => money((p || f.fair) / f.flat.floor_area_sqm) + (p ? "" : " (fair value)")], ["Floor", f => f.flat.storey], ["Lease left", f => f.freehold ? "Freehold" : Math.round(f.lease_now) + " years"],
     ["Nearest MRT", mrt], ["Reliability", f => f.reliability]];
-  return row("bot", h("div", { className: "fcardc" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...X.map(([f]) => h("th", {}, flatName(f), h("div", { className: "fine dim", style: "font-weight:400" }, isCondo(f) ? f.property_type : title(f.flat.flat_type) + ", " + title(f.flat.town))))),
+  return row("bot", h("div", { className: "fcardc" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...X.map(([f]) => h("th", {}, flatName(f), typeTag(f), h("div", { className: "fine dim", style: "font-weight:400" }, isCondo(f) ? f.property_type : title(f.flat.flat_type) + ", " + title(f.flat.town))))),
     ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...X.map(([f, p], i) => h("td", {}, fn(f, p, i))))))));
 }
 async function compareWith(u, text, w) {
@@ -1845,7 +1852,7 @@ function renderFlats() {
     const open = h("button", { className: "btn ghost", type: "button" }, "Open"), del = h("button", { className: "btn ghost", type: "button" }, "Remove");
     open.addEventListener("click", () => { F = item.F; F.price = item.price; show(); render(); go("chat"); flatCard(); });
     del.addEventListener("click", () => { flats = flats.filter(x => x !== item); persist(); renderFlats(); });
-    return h("div", { className: "panel fcard" }, h("div", { className: "bd" }, h("div", { className: "vword", style: `color:${v.color}` }, v.word), h("div", { className: "ot", style: "margin:0" }, flatName(item.F)), h("div", { className: "dim" }, flatDesc(item.F)),
+    return h("div", { className: "panel fcard" }, h("div", { className: "bd" }, h("div", { className: "vword", style: `color:${v.color}` }, v.word), h("div", { className: "ot", style: "margin:0" }, flatName(item.F), typeTag(item.F)), h("div", { className: "dim" }, flatDesc(item.F)),
       leaseBlock(item.F, 56, true) || "", kv(v.R.priceLabel, money(item.price)), kv("Our fair value", money(item.F.fair)), h("div", { className: "kv" }, h("span", { className: "dim" }, "Saved"), hl(new Date(item.saved).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))),
       h("label", {}, h("span", { className: "cap dim" }, "Status"), status), notes,
       h("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:8px" }, h("label", { style: "display:flex;gap:6px;align-items:center" }, cmp, "Compare"), h("div", {}, open, del))));
@@ -1862,7 +1869,7 @@ function renderCompare() {
     ["Size", x => Math.round(x.F.flat.floor_area_sqm) + " sqm"], ["Price per sqm", x => money(x.price / x.F.flat.floor_area_sqm)], ["Storey", x => x.F.flat.storey], ["Lease left", x => x.F.freehold ? "Freehold" : hl(Math.round(x.F.lease_now) + " years")],
     ...(buyer && age() != null ? [[`Lease runs until you are (age ${age()})`, x => { const e = leaseEnd(x.F); return e >= 95 ? "past 95" : String(e); }]] : []),
     ["Biggest price driver", x => { const d = [...x.F.drivers].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0]; return d ? `${d[0]} ${pc(d[1])}` : "-"; }], ["Status", x => x.status], ["Your notes", x => x.notes || "-"]];
-  box.replaceChildren(h("div", { className: "panel" }, h("div", { className: "bd" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...sel.map(x => h("th", {}, flatName(x.F), h("div", { className: "fine", style: "font-weight:400" }, title(x.F.flat.flat_type) + ", " + title(x.F.flat.town))))),
+  box.replaceChildren(h("div", { className: "panel" }, h("div", { className: "bd" }, h("table", { className: "cmp" }, h("tr", {}, h("th", {}, ""), ...sel.map(x => h("th", {}, flatName(x.F), typeTag(x.F), h("div", { className: "fine", style: "font-weight:400" }, title(x.F.flat.flat_type) + ", " + title(x.F.flat.town))))),
     ...rows.map(([label, fn]) => h("tr", {}, h("td", {}, label), ...sel.map((x, i) => h("td", {}, fn(x, i)))))))));
 }
 
@@ -1913,7 +1920,8 @@ let MAP = null, MAPD = null, mapLayer = null, mapKind = "hdb", mapMetric = "psf"
 const SQFT = 10.7639;  // square feet in a square metre
 let mapUnit = "psf";   // the price unit last chosen; "Change in a year" shows prices in it too
 const unitPrice = psm => mapUnit === "psf" ? psm / SQFT : psm, unitName = () => mapUnit === "psf" ? "per sq ft" : "per sqm";
-const PRICE_COL = ["#e3f0fa", "#b3d5f0", "#78b4e3", "#2f8bd2", "#0f5e99"], CHG_COL = ["#b42318", "#e8908a", "#c6c9cc", "#86c79a", "#15803d"], CHG_CUT = [-5, -2, 2, 5];
+const PRICE_COLS = { hdb: ["#e3f0fa", "#b3d5f0", "#78b4e3", "#2f8bd2", "#0f5e99"], condo: ["#efe9fd", "#d2c3fa", "#a98cf1", "#7b4fe0", "#4f2aa8"] };
+const PRICE_COL = PRICE_COLS.hdb, CHG_COL = ["#b42318", "#e8908a", "#c6c9cc", "#86c79a", "#15803d"], CHG_CUT = [-5, -2, 2, 5];
 function loadLeaflet() {
   return new Promise((ok, bad) => {
     if (window.L) return ok();
@@ -1938,7 +1946,7 @@ function drawMap() {
   const vals = use.map(r => unitPrice(r[2])).sort((a, b) => a - b), qv = p => vals[Math.min(vals.length - 1, Math.floor(p * vals.length))], cuts = [qv(0.2), qv(0.4), qv(0.6), qv(0.8)];
   const bin = (v, cs) => cs.findIndex(c => v < c) === -1 ? cs.length : cs.findIndex(c => v < c);
   mapLayer = L.layerGroup(use.map(r => {
-    const col = chg ? CHG_COL[bin(r[3], CHG_CUT)] : PRICE_COL[bin(unitPrice(r[2]), cuts)];
+    const col = chg ? CHG_COL[bin(r[3], CHG_CUT)] : PRICE_COLS[mapKind][bin(unitPrice(r[2]), cuts)];
     const m = L.circleMarker([r[0], r[1]], { radius: mapKind === "condo" ? 5 : 4, weight: 0.6, color: "rgba(20,24,28,.35)", fillColor: col, fillOpacity: 0.9 });
     m.bindPopup(() => mapPopup(r));
     return m;
@@ -1946,7 +1954,7 @@ function drawMap() {
   const fmt = v => "$" + Math.round(v).toLocaleString("en-US");
   $("mapLegend").replaceChildren(...(chg
     ? ["Down 5% or more", "Down 2-5%", "Within 2%", "Up 2-5%", "Up 5% or more"].map((t, i) => h("span", {}, h("i", { style: `background:${CHG_COL[i]}` }), t))
-    : [`Under ${fmt(cuts[0])}`, `${fmt(cuts[0])}-${fmt(cuts[1])}`, `${fmt(cuts[1])}-${fmt(cuts[2])}`, `${fmt(cuts[2])}-${fmt(cuts[3])}`, `${fmt(cuts[3])}+`].map((t, i) => h("span", {}, h("i", { style: `background:${PRICE_COL[i]}` }), t + " " + unitName()))));
+    : [`Under ${fmt(cuts[0])}`, `${fmt(cuts[0])}-${fmt(cuts[1])}`, `${fmt(cuts[1])}-${fmt(cuts[2])}`, `${fmt(cuts[2])}-${fmt(cuts[3])}`, `${fmt(cuts[3])}+`].map((t, i) => h("span", {}, h("i", { style: `background:${PRICE_COLS[mapKind][i]}` }), t + " " + unitName()))));
   $("mapNote").textContent = `Recorded sales, ${MAPD.months}: ${use.length.toLocaleString("en-US")} ${mapKind === "hdb" ? "HDB blocks" : "condo projects"} with 3 or more sales.` +
     (chg ? " Change compares each one's median price per sqm with the 12 months before, where both years had 3 or more sales. What has happened, not a forecast." : "");
 }
