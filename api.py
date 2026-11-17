@@ -50,6 +50,7 @@ import condo as cc  # noqa: E402
 import condo_features as cf  # noqa: E402
 import finder as fd  # noqa: E402
 import docs  # noqa: E402
+import billing  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -365,7 +366,11 @@ def me_view(who, user):
                   session_answers=int(v["session"] / acc.TYPICAL_ANSWER), week_answers=int(v["week"] / acc.TYPICAL_ANSWER)) for k, v in acc.PLANS.items() if k != "visitor"]
     w = acc.windows(who)
     use = {k: dict(pct=round(v["pct"]), resets=sg_time(v["resets_at"], k == "week") if v["resets_at"] else None) for k, v in w.items()}
-    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans,
+    b = acc.billing_of(user["id"]) if user else None
+    bill = dict(on=billing.on(), test=billing.test_mode(), paying=bool(b and b["stripe_sub"] and b["sub_status"] in billing.PAID),
+                status=b["sub_status"] if b else None, cancel_at_end=bool(b and b["cancel_at_end"]),
+                renews=time.strftime("%d %b %Y", time.gmtime(b["paid_until"] + 8 * 3600)) if b and b["paid_until"] else None, customer=bool(b and b["stripe_customer"]))
+    return dict(user=dict(email=user["email"]) if user else None, plan=plan, plan_name=acc.PLANS[plan]["name"], usage=use, plans=plans, billing=bill,
                 auth="workos" if workos_on() else "password",
                 turnstile=os.environ.get("TURNSTILE_SITE_KEY", "").strip() if turnstile_on() and not user else None, human=is_human(who))
 
@@ -453,7 +458,83 @@ def start_session(user_id, request, response):
 
 @app.get("/api/me")
 def me(request: Request, response: Response):
-    return me_view(*visitor(request, response))
+    who, user = visitor(request, response)
+    if user and billing.on():
+        billing.refresh(user["id"])  # a paying account's subscription, re-read from Stripe at most once an hour
+        user = acc.user_for_id(user["id"])
+    return me_view(f"u:{user['id']}" if user else who, user)
+
+
+# ---- paid plans through Stripe (src/billing.py). People pay on Stripe's own pages; Oikos never sees card details.
+def site_base(request):
+    return os.environ.get("OIKOS_PUBLIC_URL", "").strip().rstrip("/") or str(request.base_url).rstrip("/")
+
+
+def paying_user(request, response):
+    if not billing.on():
+        raise HTTPException(503, "Payments aren't switched on yet.")
+    user = visitor(request, response)[1]
+    if not user:
+        raise HTTPException(401, "Create a free account first, then choose a plan.")
+    return user
+
+
+@app.post("/api/checkout")
+def checkout(body: Want, request: Request, response: Response):
+    user = paying_user(request, response)
+    if body.plan not in billing.LOOKUP:
+        raise HTTPException(400, "Unknown plan.")
+    try:
+        return dict(url=billing.checkout_url(user, body.plan, site_base(request)))
+    except (RuntimeError, requests.RequestException) as e:
+        print(f"checkout failed: {e}", file=sys.stderr)
+        raise HTTPException(502, "Stripe didn't answer just now. Try again in a moment.")
+
+
+class Done(BaseModel):
+    session_id: str
+
+
+@app.post("/api/checkout/done")
+def checkout_done(body: Done, request: Request, response: Response):
+    user = paying_user(request, response)
+    if not re.fullmatch(r"cs_[\w]{10,200}", body.session_id):
+        raise HTTPException(400, "That isn't a checkout.")
+    try:
+        plan = billing.confirm_checkout(user, body.session_id)
+    except ValueError as e:
+        raise HTTPException(403, str(e))
+    except (RuntimeError, requests.RequestException):
+        raise HTTPException(502, "I couldn't confirm the payment with Stripe yet. Reload in a minute.")
+    fresh = acc.user_for_id(user["id"])
+    return dict(plan=plan, me=me_view(f"u:{user['id']}", fresh))
+
+
+@app.post("/api/billing/portal")
+def billing_portal(request: Request, response: Response):
+    user = paying_user(request, response)
+    try:
+        return dict(url=billing.portal_url(user, site_base(request)))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except (RuntimeError, requests.RequestException) as e:
+        print(f"portal failed: {e}", file=sys.stderr)
+        raise HTTPException(502, "Stripe didn't answer just now. Try again in a moment.")
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe's messages about subscriptions and invoices. Only acted on with a valid signature (STRIPE_WEBHOOK_SECRET)."""
+    secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+    payload = await request.body()
+    if not secret or not billing.on() or not billing.verify_webhook(payload, request.headers.get("stripe-signature", ""), secret):
+        raise HTTPException(400, "Bad signature")
+    try:
+        billing.handle_event(json.loads(payload))
+    except Exception as e:
+        print(f"webhook failed: {type(e).__name__}: {e}", file=sys.stderr)
+        raise HTTPException(500, "Could not handle the event")  # Stripe retries later
+    return dict(ok=True)
 
 
 @app.post("/api/signup")

@@ -89,6 +89,9 @@ def init():
             c.execute("alter table chats add column pinned integer not null default 0")
         if "renamed" not in ccols:  # a name the person chose; saving the chat again keeps it
             c.execute("alter table chats add column renamed integer not null default 0")
+        # Stripe billing (src/billing.py): the customer and subscription behind a paid plan. No card details are ever stored.
+        c.execute("create table if not exists billing (user_id integer primary key, stripe_customer text, stripe_sub text, sub_status text, paid_until real, cancel_at_end integer not null default 0, checked real)")
+        c.execute("create index if not exists billing_customer on billing (stripe_customer)")
         c.execute("insert or ignore into settings values ('ip_salt', ?)", (secrets.token_hex(16),))
 
 
@@ -193,6 +196,35 @@ def set_plan(email, plan):
     with db() as c:
         if not c.execute("update users set plan = ? where email = ?", (plan, email.strip().lower())).rowcount:
             raise ValueError("no account with that email")
+
+
+def set_plan_for(user_id, plan):
+    with db() as c:
+        c.execute("update users set plan = ? where id = ?", (plan if plan in PLANS and plan != "visitor" else "free", user_id))
+
+
+BILLING_COLS = ("stripe_customer", "stripe_sub", "sub_status", "paid_until", "cancel_at_end", "checked")
+
+
+def billing_of(user_id):
+    with db() as c:
+        return c.execute("select * from billing where user_id = ?", (user_id,)).fetchone()
+
+
+def set_billing(user_id, **kw):
+    kw = {k: v for k, v in kw.items() if k in BILLING_COLS}
+    with db() as c:
+        c.execute("insert or ignore into billing (user_id) values (?)", (user_id,))
+        if kw:
+            c.execute(f"update billing set {', '.join(k + ' = ?' for k in kw)} where user_id = ?", (*kw.values(), user_id))
+
+
+def user_for_customer(customer):
+    if not customer:
+        return None
+    with db() as c:
+        r = c.execute("select user_id from billing where stripe_customer = ?", (customer,)).fetchone()
+        return r["user_id"] if r else None
 
 
 def want_plan(user_id, plan):

@@ -502,7 +502,7 @@
 <dialog id="plans" aria-label="Plans" style="width:min(760px, 94vw)">
   <div class="sheethd"><b>Plans</b><button class="x" id="plansX" type="button" aria-label="Close">&times;</button></div>
   <div class="plangrid" id="planCards"></div>
-  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use in a 5-hour session and in a week: a session starts with your first answer and resets 5 hours later, the week 7 days after it starts. A detailed Research answer uses more than a normal one, and a short reply less. Paid plans are not on sale yet: tell us which one you want and we'll let you know.</div>
+  <div class="fine center" style="margin-top:12px">Every plan gives the same advice and the same checks. Plans differ in how much AI you can use in a 5-hour session and in a week: a session starts with your first answer and resets 5 hours later, the week 7 days after it starts. A detailed Research answer uses more than a normal one, and a short reply less.<span id="planNote"> Paid plans are not on sale yet: tell us which one you want and we'll let you know.</span></div>
 </dialog>
 <dialog id="settings" aria-label="Settings" style="width:min(440px, 92vw)">
   <div class="sheethd"><b>Settings</b><button class="x" id="setX" type="button" aria-label="Close">&times;</button></div>
@@ -1534,18 +1534,34 @@ $("starters").replaceChildren(pasteBtn, ...[["tag", "Find a 4-room under $600k n
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";
+// Paid plans: Stripe Checkout to subscribe, Stripe's customer portal to switch plan, change card or cancel (src/billing.py).
+async function toStripe(path, body, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Opening Stripe..."; }
+  try { const r = await api(path, body); location.href = r.url; }
+  catch (e) { toast(e.message); if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; } }
+}
+const manageBilling = btn => toStripe("/api/billing/portal", {}, btn);
 function openPlans() {
   if (!PLAN) return;
+  const bill = PLAN.billing || {}, selling = bill.on;
+  $("planNote").textContent = selling ? " Pay monthly by card, Apple Pay or Google Pay on Stripe's secure page. Cancel any time: you keep the plan until the month you've paid for ends."
+    + (bill.test ? " Test mode: no real charges. Use card 4242 4242 4242 4242, any future date and any CVC." : "") : " Paid plans are not on sale yet: tell us which one you want and we'll let you know.";
   $("planCards").replaceChildren(...PLAN.plans.map(p => {
-    const cur = ME && PLAN.plan === p.id, b = h("button", { className: "pill", type: "button" }, !ME && p.id === "free" ? "Create a free account" : "I want this");
+    const cur = ME && PLAN.plan === p.id, paid = p.price > 0;
+    const label = !ME ? (p.id === "free" ? "Create a free account" : selling ? `Get ${p.name}` : "I want this")
+      : !selling ? "I want this" : bill.paying ? (paid ? `Switch to ${p.name}` : "Cancel in billing") : `Upgrade to ${p.name}`;
+    const b = h("button", { className: "pill", type: "button" }, label); b.dataset.label = label;
     b.addEventListener("click", async () => {
       if (!ME) { $("plans").close(); openAcct("signup"); return; }
+      if (selling) { if (bill.paying) manageBilling(b); else toStripe("/api/checkout", { plan: p.id }, b); return; }
       try { await api("/api/interest", { plan: p.id }); b.replaceWith(h("span", { className: "tag" }, "Noted. We'll be in touch.")); } catch (e) { toast(e.message); }
     });
     return h("div", { className: "plan" + (cur ? " cur" : "") }, h("b", {}, p.name), h("div", { className: "big" }, p.price ? "S$" + p.price : "Free"), h("div", { className: "fine" }, p.price ? "a month" : "no card needed"),
       h("div", {}, ...(p.id === "free" ? [h("b", {}, "AI use")] : [h("b", {}, p.times_free + "\u00d7"), " the Free plan's AI use"])),
       h("div", { className: "fine dim" }, `About ${p.session_answers} full answers per 5 hours and ${p.week_answers} a week. Research answers use more.`),
-      h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb), cur ? h("span", { className: "tag" }, "Your plan") : (ME && p.id === "free") ? null : b);
+      h("div", {}, h("b", {}, p.alerts), " alerts"), h("div", { className: "dim" }, p.blurb),
+      cur ? h("div", { style: "display:grid;gap:6px;justify-items:start" }, h("span", { className: "tag" }, "Your plan"), cur && paid && bill.paying ? (() => { const m = h("button", { className: "linkbtn fine", type: "button" }, "Manage billing"); m.dataset.label = "Manage billing"; m.addEventListener("click", () => manageBilling(m)); return m; })() : null)
+        : (ME && p.id === "free" && !bill.paying) ? null : b);
   }));
   $("plans").showModal();
 }
@@ -1566,8 +1582,26 @@ function showMe(m) {
   more.addEventListener("click", () => { $("settings").close(); openPlans(); });
   $("usage").replaceChildren(h("div", { className: "fine" }, ME ? ME.email : "Sign in to keep your flats and get more AI use."), h("div", { className: "fine dim" }, m.plan_name + " plan"),
     ...meter("Current session", "Starts with your first answer and lasts 5 hours", m.usage.session), ...meter("This week", "Starts with your first answer and lasts 7 days", m.usage.week), more);
+  const bill = m.billing || {};
+  if (ME && bill.on && bill.customer) {
+    const mb = h("button", { className: "linkbtn fine", type: "button", style: "width:fit-content" }, "Manage billing"); mb.dataset.label = "Manage billing";
+    mb.addEventListener("click", () => manageBilling(mb));
+    $("usage").append(h("div", { className: "fine dim", style: "margin-top:6px" }, bill.paying ? (bill.cancel_at_end ? `Cancelled: your plan ends on ${bill.renews}.` : bill.status === "past_due" ? "Your last payment didn't go through. Update your card to keep your plan." : `Renews on ${bill.renews}.`) : "No active subscription."), mb);
+  }
 }
 const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
+// Back from Stripe: confirm the checkout with Stripe (not the address bar), then tidy the address
+(async () => {
+  const q = new URLSearchParams(location.search), back = q.get("checkout") || q.get("billing");
+  if (!back) return;
+  history.replaceState(null, "", location.pathname);
+  if (q.get("checkout") === "done" && q.get("session_id")) {
+    try { const r = await api("/api/checkout/done", { session_id: q.get("session_id") }); showMe(r.me);
+      toast(r.plan && r.plan !== "free" ? `You're on ${r.me.plan_name} now. Thank you!` : "Payment received. Your plan will update in a moment."); }
+    catch (e) { toast(e.message); }
+  } else if (q.get("checkout") === "cancelled") toast("No charge made.");
+  else refreshMe();
+})();
 // Cloudflare Turnstile for visitors: a quiet check before AI answers. Most people never see it; when Cloudflare is unsure it shows a box to tick.
 let humanReady = Promise.resolve();
 function checkHuman(m) {
