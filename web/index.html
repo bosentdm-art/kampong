@@ -285,8 +285,32 @@
   .mgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
   .bignum { font-size:44px; font-weight:700; line-height:1.05; margin:4px 0 2px; font-variant-numeric:tabular-nums; }
   .movers { display:grid; grid-template-columns:1fr 1fr; gap:4px 18px; margin-top:8px; } .movers .cap { margin-bottom:2px; }
-  .mv { font:inherit; display:flex; justify-content:space-between; gap:8px; padding:6px 0; border:0; border-top:1px solid var(--line); background:none; color:var(--fg); cursor:pointer; text-align:left; font-size:14px; }
-  .mv:hover span:first-child { color:var(--accent); } .mv b { font-weight:600; color:var(--dim); white-space:nowrap; }
+  .mv { font:inherit; width:100%; display:grid; grid-template-columns:18px minmax(0, 1fr) auto; gap:4px 8px; align-items:center; padding:7px 0; border:0; border-top:1px solid var(--line); background:none; color:var(--fg); cursor:pointer; text-align:left; font-size:15px; }
+  .mv .rk { font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums; } .mv .tn { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mv:hover .tn { color:var(--accent); } .mv b { font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .mv .mvbar { grid-column:2 / 4; display:block; width:100%; height:5px; border-radius:99px; background:var(--soft); overflow:hidden; position:static; }
+  .mv .mvbar i { display:block; position:static; height:5px; margin:0; border-radius:99px; transform-origin:left; animation:mvgrow .7s ease-out both; }
+  @keyframes mvgrow { from { transform:scaleX(0); } } @media (prefers-reduced-motion: reduce) { .mv .mvbar i { animation:none; } }
+  .movers .lab { display:inline-flex; gap:6px; align-items:center; font-size:12.5px; font-weight:700; letter-spacing:.02em; padding:3px 10px; border-radius:99px; margin-bottom:4px; }
+  .movers .lab.up { color:var(--pos); background:color-mix(in srgb, var(--pos) 12%, transparent); } .movers .lab.dn { color:var(--neg); background:color-mix(in srgb, var(--neg) 12%, transparent); }
+  /* the million-dollar counter: the page's headline figure */
+  .panel.feat { background:linear-gradient(160deg, var(--soft), var(--panel) 70%); border-color:color-mix(in srgb, var(--accent) 28%, var(--line)); }
+  .milhead { display:flex; justify-content:space-between; align-items:center; gap:10px; } .milhead .tag { white-space:nowrap; }
+  .milnum { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin:6px 0 0; }
+  .milnum .bignum { font-size:clamp(52px, 6vw, 68px); color:var(--accent); margin:0; letter-spacing:-.02em; }
+  .chip-up, .chip-dn { font-size:14px; font-weight:700; padding:4px 10px; border-radius:99px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .chip-up { color:var(--pos); background:color-mix(in srgb, var(--pos) 13%, transparent); } .chip-dn { color:var(--neg); background:color-mix(in srgb, var(--neg) 13%, transparent); }
+  .milbars { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:5px; align-items:end; height:78px; margin-top:14px; }
+  .milbars .mb { position:relative; height:100%; display:flex; align-items:flex-end; justify-content:center; }
+  .milbars .last { position:absolute; bottom:0; left:12%; right:12%; border:1.5px dashed color-mix(in srgb, var(--dim) 55%, transparent); border-bottom:0; border-radius:4px 4px 0 0; }
+  .milbars .now { position:relative; width:64%; background:color-mix(in srgb, var(--accent) 55%, transparent); border-radius:4px 4px 0 0; transform-origin:bottom; animation:milrise .8s ease-out both; }
+  .milbars .mb.latest .now { background:var(--accent); }
+  @keyframes milrise { from { transform:scaleY(0); } } @media (prefers-reduced-motion: reduce) { .milbars .now { animation:none; } }
+  .milmonths { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:5px; font-size:10.5px; color:var(--dim); text-align:center; margin-top:4px; }
+  .milkey { display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:6px; } .milkey i { display:inline-block; width:12px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:5px; }
+  .record { margin-top:14px; padding:12px 14px; border-radius:14px; background:var(--panel); border:1px solid var(--line); display:grid; gap:2px; }
+  .record .rv { font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; } .record .cap { color:var(--accent); font-weight:700; }
+  .towns { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; } .towns span { font-size:12.5px; padding:3px 10px; border-radius:99px; background:var(--panel); border:1px solid var(--line); }
   .game { display:grid; gap:10px; } .game .score { color:var(--dim); font-size:13px; } .game .home { font-size:17px; font-weight:600; }
   .guessrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .guessrow input { width:180px; font-size:16px; }
   .reveal { display:grid; gap:4px; padding:12px 14px; border-radius:12px; background:var(--soft); } .reveal .won { font-family:var(--head); font-size:22px; font-weight:600; color:var(--accent); }
@@ -460,7 +484,7 @@
     <div id="allChats" style="margin-top:14px"></div></div></div>
   <!-- MARKET -->
   <div class="view" data-view="market" hidden>
-    <div class="mgrid"><div class="panel"><div class="bd" id="milBox"><div class="dim">Counting...</div></div></div><div class="panel"><div class="bd" id="movBox"><div class="dim">Loading...</div></div></div></div>
+    <div class="mgrid"><div class="panel feat"><div class="bd" id="milBox"><div class="dim">Counting...</div></div></div><div class="panel"><div class="bd" id="movBox"><div class="dim">Loading...</div></div></div></div>
     <div class="panel" style="margin-top:16px"><div class="bd" id="gameBox"><div class="dim">Finding a home...</div></div></div>
     <div class="panel" style="margin-top:16px"><div class="bd">
       <div class="maphd"><div class="ot" style="margin:0">Price map</div>
@@ -1940,20 +1964,33 @@ function marketExtras() {
   priceMap();
 }
 function drawMil() {
-  const m = MIL, ch = m.last_year ? m.count / m.last_year - 1 : null, r = m.record;
-  $("milBox").replaceChildren(h("div", { className: "cap dim" }, "Million-dollar HDB flats"), h("div", { className: "bignum" }, m.count.toLocaleString("en-US")),
-    h("div", {}, `sold for $1m or more in ${m.year}, to ${m.through}`),
-    h("div", { className: "fine" }, `${m.last_year.toLocaleString("en-US")} in the same months of ${m.year - 1}` + (ch == null ? "" : ` (${ch >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(ch * 100).toFixed(0)}%)`) + `. ${m.latest_month} in ${m.through}.`),
-    r ? h("div", { className: "kv", style: "margin-top:8px" }, h("span", { className: "dim" }, "Record this year"), h("b", {}, money(r.price))) : "",
-    r ? h("div", { className: "fine" }, `Blk ${r.block} ${r.street}, ${r.town}: ${r.flat_type}, storey ${r.storey}, sold ${r.month}.`) : "",
-    m.towns.length ? h("div", { className: "fine", style: "margin-top:6px" }, "Most in " + m.towns.slice(0, 3).map(t => `${t.town} (${t.count})`).join(", ") + ".") : "");
+  const m = MIL, ch = m.last_year ? m.count / m.last_year - 1 : null, r = m.record, num = h("div", { className: "bignum" }, "0");
+  const bm = m.by_month || [], bl = m.by_month_last || [], top = Math.max(1, ...bm, ...bl);
+  const bars = bm.length ? [h("div", { className: "milbars", role: "img", ariaLabel: `Million-dollar resales by month in ${m.year}, against ${m.year - 1}` },
+      ...bm.map((n, i) => h("div", { className: "mb" + (i === bm.length - 1 ? " latest" : ""), title: `${m.months[i]}: ${n} in ${m.year}, ${bl[i] || 0} in ${m.year - 1}` },
+        h("span", { className: "last", style: `height:${(bl[i] || 0) / top * 100}%` }), h("span", { className: "now", style: `height:${n / top * 100}%;animation-delay:${i * 0.04}s` })))),
+    h("div", { className: "milmonths" }, ...m.months.map(x => h("span", {}, x[0]))),
+    h("div", { className: "milkey" }, h("span", {}, h("i", { style: "background:var(--accent)" }), String(m.year)), h("span", {}, h("i", { style: "border:1.5px dashed var(--dim)" }), String(m.year - 1)))] : [];
+  $("milBox").replaceChildren(
+    h("div", { className: "milhead" }, h("div", { className: "cap dim" }, "Million-dollar HDB flats"), h("span", { className: "tag" }, `${m.year} so far`)),
+    h("div", { className: "milnum" }, num, ch == null ? "" : h("span", { className: ch >= 0 ? "chip-up" : "chip-dn" }, `${ch >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(ch * 100).toFixed(0)}% on ${m.year - 1}`)),
+    h("div", {}, `sold for $1m or more, January to ${m.through}. ${m.latest_month} in ${m.through} alone.`),
+    ...bars,
+    r ? h("div", { className: "record" }, h("span", { className: "cap" }, "Record this year"), h("span", { className: "rv" }, money(r.price)),
+      h("span", { className: "fine" }, `Blk ${r.block} ${r.street}, ${r.town}: ${r.flat_type}, storey ${r.storey}, sold ${r.month}.`)) : "",
+    m.towns.length ? h("div", { className: "towns" }, h("span", { style: "border:0;background:none;padding-left:0;color:var(--dim)" }, "Most in"), ...m.towns.slice(0, 4).map(t => h("span", {}, `${t.town} \u00b7 ${t.count}`))) : "");
+  countUp(num, m.count, v => Math.round(v).toLocaleString("en-US"));
 }
 function drawMov() {
-  const m = MOV, col = (label, list) => h("div", {}, h("div", { className: "cap dim" }, label), ...list.map(t => {
-    const b = h("button", { className: "mv", type: "button", title: `${t.sales} sales in the last three months` }, h("span", {}, t.town), h("b", {}, `${t.change >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(t.change).toFixed(1)}%`));
+  const m = MOV, most = Math.max(0.1, ...m.up.concat(m.down).map(t => Math.abs(t.change)));
+  const col = (label, list, up) => h("div", {}, h("span", { className: "lab " + (up ? "up" : "dn") }, (up ? "\u25B2 " : "\u25BC ") + label), ...list.map((t, i) => {
+    const c = t.change >= 0 ? "var(--pos)" : "var(--neg)";
+    const b = h("button", { className: "mv", type: "button", title: `${t.sales} sales in the last three months` }, h("span", { className: "rk" }, String(i + 1)), h("span", { className: "tn" }, t.town),
+      h("b", { style: `color:${c}` }, `${t.change >= 0 ? "\u25B2" : "\u25BC"} ${Math.abs(t.change).toFixed(1)}%`),
+      h("span", { className: "mvbar" }, h("i", { style: `width:${Math.max(4, Math.abs(t.change) / most * 100)}%;background:${c};animation-delay:${i * 0.06}s` })));
     b.addEventListener("click", () => { $("mTown").value = t.key; loadMarket(); $("townTrend").scrollIntoView({ behavior: "smooth", block: "start" }); });
     return b; }));
-  $("movBox").replaceChildren(h("div", { className: "cap dim" }, "Top movers"), h("div", { className: "movers" }, col("Up most", m.up), col("Down most", m.down)),
+  $("movBox").replaceChildren(h("div", { className: "cap dim" }, "Top movers"), h("div", { className: "movers" }, col("Up most", m.up, true), col("Down most", m.down, false)),
     h("div", { className: "fine", style: "margin-top:8px" }, `Resale prices, ${m.window} against the same months a year before, like for like. Towns with 100 or more sales. Tap a town to see it over the years. What has happened, not a forecast.`));
 }
 const guessScore = () => store.get("guess", { you: 0, oikos: 0, ties: 0, rounds: 0 });

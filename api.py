@@ -1106,7 +1106,11 @@ def millions_data():
     return dict(year=end.year, through=end.strftime("%b %Y"), count=int(len(now)), last_year=int(len(before)), latest_month=int((now["sale_date"] == end).sum()),
                 record=None if top is None else dict(price=float(top["resale_price"]), block=str(top["block"]), street=str(top["street_name"]).title(), town=str(top["town"]).title(),
                                                      flat_type=str(top["flat_type"]).title(), storey=str(top["storey_range"]).replace(" TO ", "-"), month=top["sale_date"].strftime("%b %Y")),
-                towns=[dict(town=t.title(), count=int(n)) for t, n in now["town"].value_counts().head(5).items()])
+                towns=[dict(town=t.title(), count=int(n)) for t, n in now["town"].value_counts().head(5).items()],
+                # month by month, this year against the same months last year (for the bars under the counter)
+                months=[pd.Timestamp(end.year, i, 1).strftime("%b") for i in range(1, end.month + 1)],
+                by_month=[int((now["sale_date"].dt.month == i).sum()) for i in range(1, end.month + 1)],
+                by_month_last=[int((before["sale_date"].dt.month == i).sum()) for i in range(1, end.month + 1)])
 
 
 @app.get("/api/millions")
