@@ -163,6 +163,19 @@
   .qv .flag b { display:block; } .qv .flag span.dim { font-size:14px; }
   .qv .speed { font-size:12.5px; color:var(--dim); }
   .qv pre { margin:0; white-space:pre-wrap; font:inherit; font-size:14.5px; background:var(--soft); border-radius:12px; padding:12px 14px; }
+  /* documents: attach, drop, and the card that explains them */
+  .pill.attach { padding:8px 11px; display:inline-grid; place-items:center; }
+  .composer.drop { outline:2px dashed var(--accent); outline-offset:4px; }
+  .filebub { display:inline-flex; gap:8px; align-items:center; } .filebub svg { flex:none; }
+  .doc { display:grid; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:16px 18px; max-width:100%; }
+  .doc h3 { font-family:var(--head); font-weight:600; font-size:20px; margin:0; } .doc .sum { font-size:15.5px; line-height:1.6; }
+  .doc .part { border-top:1px solid var(--line); padding-top:10px; display:grid; gap:4px; } .doc .part > b { font-size:14px; }
+  .doc .kv span:first-child { color:var(--dim); } .doc .kv b { text-align:right; white-space:normal; }
+  .doc ol { margin:0; padding-left:20px; display:grid; gap:4px; font-size:14.5px; }
+  .doc .ans { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:10px; align-items:center; padding:5px 0; border-top:1px dashed var(--line); font-size:14.5px; }
+  .doc .ans:first-of-type { border-top:0; } .doc .ans b { text-align:right; } .doc .ans .miss { color:var(--dim); font-style:italic; font-weight:400; }
+  .doc .ans button { font:inherit; font-size:12px; border:1px solid var(--line); background:var(--panel); color:var(--accent); border-radius:8px; padding:2px 8px; cursor:pointer; }
+  .doc .due { color:var(--neg); font-weight:600; }
   /* the paperwork helper */
   .paper { display:grid; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:16px 18px; max-width:100%; }
   .paper h3 { font-family:var(--head); font-weight:600; font-size:20px; margin:0; }
@@ -359,9 +372,9 @@
     </div>
     <div class="dock">
       <div class="composer">
-        <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Oikos, or paste a listing" aria-label="Message Oikos"></textarea>
+        <textarea id="msg" rows="1" maxlength="20000" placeholder="Message Oikos, paste a listing or attach a document" aria-label="Message Oikos"></textarea>
         <div class="crow">
-          <div class="pills"><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div><button class="pill" id="researchBtn" type="button" aria-pressed="false" title="Longer, more detailed answers. Each uses more of your AI allowance.">Research</button></div>
+          <div class="pills"><button class="pill attach" id="attachBtn" type="button" aria-label="Attach a document" title="Attach a letter, form or listing screenshot (PDF or image)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button><input type="file" id="fileIn" accept=".pdf,image/png,image/jpeg,image/webp" hidden><button class="pill" id="pickBtn" type="button">+ Pick a flat</button><div class="seg"><button data-r="buyer">Buying</button><button data-r="seller">Selling</button></div><button class="pill" id="researchBtn" type="button" aria-pressed="false" title="Longer, more detailed answers. Each uses more of your AI allowance.">Research</button></div>
           <button class="send" id="sendBtn" type="button" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/></svg></button>
         </div>
       </div>
@@ -1259,13 +1272,13 @@ function marketCard(m) {
     m.newer != null && m.older != null ? h("div", {}, "Flats up to 20 years old ", h("b", { style: col(m.newer) }, pc(m.newer)), ", older flats ", h("b", { style: col(m.older) }, pc(m.older)), ".") : null,
     h("div", { className: "fine" }, "What has happened, not a forecast. Each change compares the same town, flat type and age group.")));
 }
-async function send(text) {
+async function send(text, opts = {}) {
   text = text.trim(); if (!text || busy) return;
   await humanReady;
   $("msg").value = ""; grow(); go("chat");
   row("you", h("div", { className: "bub" }, text.length > 500 ? text.slice(0, 500) + "..." : text));
   lastMsg = text;
-  const t0 = Date.now(), pasted = text.length >= 70 || /\n/.test(text);  // a pasted listing gets the quick verdict first
+  const t0 = Date.now(), pasted = opts.pasted || text.length >= 70 || /\n/.test(text);  // a pasted listing gets the quick verdict first
   return working(async () => {
     await sleep(350);
     const w = waiting("Reading your message");
@@ -1294,6 +1307,72 @@ async function send(text) {
     } else await askOikos(text, null, w);
   });
 }
+// ---- documents. Oikos reads a letter, form or listing screenshot: it explains it, lists the figures and dates that matter, and fills in
+// the answers it can (fillable PDFs come back filled in). The file goes to /api/doc and is never kept; NRIC numbers are hidden.
+const FILE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/></svg>';
+const kb = n => n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB";
+function docContext() {
+  const c = { profile: you() };
+  if (F) { c.flat = isCondo(F) ? { project: F.project, ...F.condo } : F.flat; if (hasPrice()) c.price = F.price; c.fair_value = Math.round(F.fair); }
+  if (age() != null) c.profile = { ...c.profile, age: age() };
+  return c;
+}
+async function sendDoc(file) {
+  if (!file || busy) return;
+  if (file.size > 10 * 1024 * 1024) { toast("That file is over 10 MB. Try a screenshot of the page that matters."); return; }
+  await humanReady;
+  const note = $("msg").value.trim(); $("msg").value = ""; grow(); go("chat");
+  const ic = h("span"); ic.innerHTML = FILE_ICON;
+  row("you", h("div", { className: "bub" }, h("span", { className: "filebub" }, ic.firstChild, `${file.name} · ${kb(file.size)}`), note ? h("div", { style: "margin-top:6px" }, note) : ""));
+  lastMsg = note || file.name;
+  let listing = null;
+  await working(async () => {
+    await sleep(300);
+    const w = waiting("Reading your document"), beats = [setTimeout(() => w.set("Picking out the figures and dates"), 3500), setTimeout(() => w.set("Filling in what I can"), 9000)];
+    const fd = new FormData(); fd.append("file", file); fd.append("note", note); fd.append("context", JSON.stringify(docContext()));
+    try {
+      const r = await fetch("/api/doc", { method: "POST", body: fd });
+      const d = await r.json().catch(() => ({}));
+      beats.forEach(clearTimeout); w.remove();
+      if (!r.ok) {
+        await say(typeof d.detail === "string" ? d.detail : "I couldn't read that document.");
+        if (r.status === 429) { const b = h("button", { className: "pill", type: "button" }, ME ? "See plans" : "Create a free account"); b.addEventListener("click", () => ME ? openPlans() : openAcct("signup")); row("bot", b); }
+        return;
+      }
+      docCard(d, file.name);
+      talk.push({ role: "user", content: `(uploaded ${file.name}) ${note}`.slice(0, 800) }, { role: "assistant", content: `${d.title}. ${d.summary}`.slice(0, 1200) });
+      listing = d.kind === "listing" && d.listing_text ? d.listing_text : null;
+      refreshMe();
+    } catch (e) { beats.forEach(clearTimeout); w.remove(); throw e; }
+  });
+  if (listing) { await sleep(600); send(listing, { pasted: true }); }  // a listing screenshot gets the same verdict as a pasted listing
+}
+function docCard(d, name) {
+  const copyBtn = v => { const b = h("button", { type: "button" }, "Copy"); b.addEventListener("click", () => navigator.clipboard?.writeText(v).then(() => toast("Copied"))); return b; };
+  const parts = [h("h3", {}, d.title), h("div", { className: "sum" }, d.summary)];
+  if (d.deadlines.length) parts.push(h("div", { className: "part" }, h("b", {}, "Dates to keep"), ...d.deadlines.map(x => h("div", { className: "kv" }, h("span", {}, x.what), h("b", { className: "due" }, x.date)))));
+  if (d.facts.length) parts.push(h("div", { className: "part" }, h("b", {}, "What it says"), ...d.facts.map(x => h("div", { className: "kv" }, h("span", {}, x.label), h("b", {}, x.value)))));
+  const got = d.blanks.filter(b => b.answer), need = d.blanks.filter(b => !b.answer);
+  if (d.blanks.length) parts.push(h("div", { className: "part" }, h("b", {}, got.length ? `Filled in for you (${got.length} of ${d.blanks.length})` : "What it asks for"),
+    ...got.map(b => h("div", { className: "ans" }, h("span", {}, b.label, b.source ? h("span", { className: "fine dim" }, ` · from ${b.source}`) : ""), h("b", {}, b.answer), copyBtn(b.answer))),
+    ...need.map(b => h("div", { className: "ans" }, h("span", {}, b.label), h("b", { className: "miss" }, "You'll need to add this"), h("span")))));
+  if (d.filled_pdf) {
+    const bytes = Uint8Array.from(atob(d.filled_pdf), c => c.charCodeAt(0)), url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    parts.push(h("div", { className: "part" }, h("b", {}, `I filled in ${d.filled} of ${d.fields} boxes in your PDF`),
+      h("div", { className: "pills" }, h("a", { className: "pill", href: url, download: d.filled_name, style: "text-decoration:none" }, "Download the filled-in PDF")),
+      h("div", { className: "fine" }, "Open it, check every box, add what's missing, then sign and submit it yourself.")));
+  }
+  if (d.next_steps.length) parts.push(h("div", { className: "part" }, h("b", {}, "What to do next"), h("ol", {}, ...d.next_steps.map(x => h("li", {}, x)))));
+  parts.push(h("div", { className: "fine" }, "I don't keep your file, and NRIC numbers are hidden. Figures are copied from the document, so check them against your copy. This isn't legal advice."));
+  return row("bot", h("div", { className: "doc" }, ...parts));
+}
+$("attachBtn").addEventListener("click", () => $("fileIn").click());
+$("fileIn").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; sendDoc(f); });
+{ const box = document.querySelector(".composer");
+  ["dragenter", "dragover"].forEach(t => box.addEventListener(t, e => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); box.classList.add("drop"); } }));
+  ["dragleave", "drop"].forEach(t => box.addEventListener(t, () => box.classList.remove("drop")));
+  box.addEventListener("drop", e => { const f = e.dataTransfer?.files?.[0]; if (f) { e.preventDefault(); sendDoc(f); } }); }
+$("msg").addEventListener("paste", e => { const f = [...(e.clipboardData?.files || [])].find(x => /^image\/|pdf$/.test(x.type)); if (f) { e.preventDefault(); sendDoc(f); } });
 const grow = () => { const m = $("msg"); m.style.height = "auto"; m.style.height = Math.min(200, m.scrollHeight) + "px"; };
 $("msg").addEventListener("input", grow);
 $("msg").addEventListener("paste", () => setTimeout(() => { if ($("msg").value.length >= 70) toast("Got it. Press Enter for a verdict in seconds."); }, 0));
@@ -1441,14 +1520,17 @@ const ICON = { tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5
   block: '<path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18"/>', sell: '<path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/>',
   rule: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/>',
   clip: '<rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h2a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1h2"/>',
+  up: '<path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/>',
   doc: '<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4M9.5 13h5M9.5 17h5"/>' };
 const iconChip = (icon, text) => { const c = chip(text); const i = document.createElement("span"); i.setAttribute("aria-hidden", "true");
   i.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ICON[icon]}</svg>`; c.prepend(i.firstChild); return c; };
 const EXAMPLE_LISTING = "RARE 4RM @ AMK Ave 4 for SALE!! Blk 177, high floor (10-12), 91sqm New Gen layout, well kept, 4 mins to Mayflower MRT. Asking $598,000 nego. Call/WA now!";
 const pasteBtn = iconChip("clip", "Paste a listing, get a verdict").cloneNode(true);  // a copy drops chip()'s send-on-click: this one fills the box with an example instead
 pasteBtn.addEventListener("click", () => { $("msg").value = EXAMPLE_LISTING; grow(); $("msg").focus(); toast("An example listing. Press Enter, or paste your own."); });
+const upChip = iconChip("up", "Upload a letter, form or screenshot").cloneNode(true);  // opens the file picker instead of sending
+upChip.addEventListener("click", () => $("fileIn").click());
 $("starters").replaceChildren(pasteBtn, ...[["tag", "Find a 4-room under $600k near an MRT"], ["block", "Parc Esta 2-bed, $1.7m"],
-  ["doc", "Help me fill in my HDB resale paperwork"], ["sell", "Selling my 4-room, 272C Punggol Walk"], ["rule", "What's the ABSD on a second home?"]].map(([i, t]) => iconChip(i, t)));
+  ["doc", "Help me fill in my HDB resale paperwork"], ["sell", "Selling my 4-room, 272C Punggol Walk"], ["rule", "What's the ABSD on a second home?"]].map(([i, t]) => iconChip(i, t)), upChip);
 
 // ---- accounts: sign in to keep saved flats on the server; usage is counted for everyone (limits come later)
 let ME = null, PLAN = null, acctMode = "login";

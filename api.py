@@ -32,7 +32,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -49,6 +49,7 @@ import nearby as nb  # noqa: E402
 import condo as cc  # noqa: E402
 import condo_features as cf  # noqa: E402
 import finder as fd  # noqa: E402
+import docs  # noqa: E402
 
 app = FastAPI(title="Oikos")
 
@@ -323,6 +324,29 @@ class Rate(BaseModel):
     message: str | None = None
     reply: str | None = None
     note: str | None = None
+
+
+# ---- documents uploaded in the chat (src/docs.py): explained, and filled in where Oikos can. The file is read in memory and never kept.
+@app.post("/api/doc")
+def read_doc(request: Request, response: Response, file: UploadFile = File(...), note: str = Form(""), context: str = Form("{}")):
+    who, ip = gate(request, response)
+    if acc.budget_spent():
+        raise HTTPException(503, "Reading documents is paused for the rest of today. Try again tomorrow.")
+    data = file.file.read(docs.MAX_BYTES + 1)
+    try:
+        ctx = json.loads(context or "{}")
+    except ValueError:
+        ctx = {}
+    try:
+        out = docs.read(data, file.filename or "", file.content_type or "", note, ctx if isinstance(ctx, dict) else {})
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    acc.record(who, "ask", out.get("cost_cents"), out.get("answered"), ip, charge=bool(out.get("answered")))
+    if not out.get("ok"):
+        raise HTTPException(502, "I couldn't read that document just now. Try again, or send a clearer photo or screenshot.")
+    out.pop("cost_cents", None)
+    out.pop("answered", None)
+    return out
 
 
 @app.post("/api/feedback")
