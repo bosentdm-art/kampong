@@ -7,3 +7,6 @@ models/
 .env
 reports/*.csv
 .claude/
+
+# local run logs from scripts/kampong.ps1
+logs/
