@@ -513,6 +513,8 @@
     <div class="cap dim">Detail</div><div class="seg" style="width:fit-content"><button data-m="simple">Simple</button><button data-m="pro">Pro</button></div>
     <div class="fine dim">Pro shows every number behind the answer.</div>
     <div class="cap dim" style="margin-top:8px">Theme</div><div class="seg" style="width:fit-content"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
+    <div class="cap dim" style="margin-top:8px">Sounds</div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="sndSeg" style="width:fit-content"><button data-snd="off">Off</button><button data-snd="on">On</button></div><button class="linkbtn fine" id="sndTry" type="button">Play a sample</button></div>
+    <div class="fine dim">Quiet sounds while I'm thinking, when an answer is ready on another tab, for new alerts and in the guessing game. Never on prices.</div>
     <div class="cap dim" style="margin-top:8px">Trust</div><button class="proof" id="proof" type="button" hidden></button>
   </div>
 </dialog>
@@ -808,6 +810,43 @@ let askHistory = [], talk = [], busy = false;
 const REASONS = { daily_budget: "today's AI budget is used up", no_api_key: "the AI is not switched on yet", model_refused: "the AI declined this question", empty_answer: "the AI gave no answer",
                   too_many_turns: "the AI took too long", api_error: "the AI service did not answer" };
 const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// ---- sounds (off unless switched on). Web Audio only: browsers allow it once the person has clicked or typed on the page.
+const SND = { on: store.get("sound", false), ctx: null };
+function audio() {
+  if (!SND.on) return null;
+  try { SND.ctx = SND.ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  if (SND.ctx.state === "suspended") SND.ctx.resume().catch(() => {});
+  return SND.ctx;
+}
+function playTone(f, at = 0, dur = 0.35, vol = 0.12, type = "sine") {  // one soft note: quick rise, gentle fall, a little filtering so it never sounds harsh
+  const ctx = audio(); if (!ctx) return;
+  const t = ctx.currentTime + at, o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+  o.type = type; o.frequency.value = f; lp.type = "lowpass"; lp.frequency.value = 2400;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp); lp.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+const sound = {
+  tick: () => playTone(1320, 0, 0.05, 0.022, "triangle"),                              // the thinking tick: barely there
+  ready: () => { playTone(659.3, 0, 0.5, 0.1); playTone(880, 0.13, 0.7, 0.09); },          // an answer is waiting on another tab
+  knock: () => { playTone(330, 0, 0.16, 0.12, "triangle"); playTone(392, 0.11, 0.2, 0.1, "triangle"); },  // a new Watchlist alert
+  win: () => { playTone(523.3, 0, 0.3, 0.09); playTone(659.3, 0.09, 0.3, 0.09); playTone(784, 0.18, 0.55, 0.09); },
+  lose: () => { playTone(440, 0, 0.3, 0.07); playTone(370, 0.14, 0.5, 0.06); },
+  paid: () => { playTone(523.3, 0, 0.9, 0.06); playTone(659.3, 0.06, 0.9, 0.05); playTone(784, 0.12, 1.1, 0.05); },
+  sample: () => { playTone(659.3, 0, 0.5, 0.1); playTone(880, 0.13, 0.7, 0.09); playTone(330, 1.0, 0.16, 0.12, "triangle"); playTone(392, 1.11, 0.2, 0.1, "triangle");
+    playTone(523.3, 1.8, 0.3, 0.09); playTone(659.3, 1.89, 0.3, 0.09); playTone(784, 1.98, 0.55, 0.09); },  // ready, alert, win
+};
+function setSound(on) {
+  SND.on = on; store.set("sound", on);
+  document.querySelectorAll("#sndSeg button").forEach(b => b.classList.toggle("on", (b.dataset.snd === "on") === on));
+}
+// While Oikos is thinking: a faint tick that speeds up. Research suggests sound like this makes a wait feel shorter.
+function thinkingTicks() {
+  if (!SND.on || document.hidden) return () => {};
+  let gap = 560, stopped = false, timer = 0; const end = Date.now() + 25000;
+  const step = () => { if (stopped || Date.now() > end || document.hidden) return; sound.tick(); gap = Math.max(210, gap * 0.92); timer = setTimeout(step, gap); };
+  timer = setTimeout(step, 400);
+  return () => { stopped = true; clearTimeout(timer); };
+}
 const sleep = ms => new Promise(r => setTimeout(r, calm ? 0 : ms));
 const hasPrice = () => !!F && F.price != null;
 let research = store.get("research", false);  // Research: longer, more detailed answers from the AI, which use more of the allowance
@@ -827,6 +866,8 @@ function row(who, ...kids) {
 function waiting(text) {
   const label = h("span", {}, text), r = row("bot", h("div", { className: "txt dim wait" }, h("span", { className: "dots" }, h("i"), h("i"), h("i")), label));
   r.set = t => { label.textContent = t; };
+  const stop = thinkingTicks(), rm = r.remove.bind(r);
+  r.remove = () => { stop(); rm(); };
   return r;
 }
 // Type text out a few words at a time, pausing a little at commas and full stops. Click the bubble to finish at once.
@@ -911,7 +952,7 @@ function areaCard(a) {
 async function working(fn) {
   busy = true; $("sendBtn").disabled = true;
   try { await fn(); } catch (e) { await say("Something went wrong: " + e.message); }
-  finally { busy = false; $("sendBtn").disabled = false; if (!matchMedia("(pointer: coarse)").matches) $("msg").focus(); }
+  finally { busy = false; $("sendBtn").disabled = false; if (document.hidden) sound.ready(); if (!matchMedia("(pointer: coarse)").matches) $("msg").focus(); }
 }
 function use(f) { if (F !== f) { F = f; show(); render(); } }  // a card's buttons act on that card's flat
 
@@ -1597,7 +1638,7 @@ const refreshMe = () => api("/api/me").then(showMe).catch(() => {});
   history.replaceState(null, "", location.pathname);
   if (q.get("checkout") === "done" && q.get("session_id")) {
     try { const r = await api("/api/checkout/done", { session_id: q.get("session_id") }); showMe(r.me);
-      toast(r.plan && r.plan !== "free" ? `You're on ${r.me.plan_name} now. Thank you!` : "Payment received. Your plan will update in a moment."); }
+      toast(r.plan && r.plan !== "free" ? `You're on ${r.me.plan_name} now. Thank you!` : "Payment received. Your plan will update in a moment."); if (r.plan && r.plan !== "free") sound.paid(); }
     catch (e) { toast(e.message); }
   } else if (q.get("checkout") === "cancelled") toast("No charge made.");
   else { try { const before = PLAN && PLAN.plan_name, m = await api("/api/billing/sync", {}); showMe(m);
@@ -1702,7 +1743,8 @@ async function loadAlerts() {
     setBadge(d.alerts.reduce((n, a) => n + a.new.length, 0));
   } catch (e) { note.textContent = e.message; }
 }
-const setBadge = n => { $("nAlerts").hidden = !n; $("nAlerts").textContent = n; };
+let lastBadge = null;
+const setBadge = n => { if (lastBadge != null && n > lastBadge) sound.knock(); lastBadge = n; $("nAlerts").hidden = !n; $("nAlerts").textContent = n; };
 const countAlerts = () => ME ? api("/api/alerts").then(d => { const n = d.alerts.reduce((t, a) => t + a.new.length, 0); setBadge(n); return n; }).catch(() => 0) : (setBadge(0), Promise.resolve(0));
 $("alAdd").addEventListener("click", async () => {
   $("alMsg").textContent = "";
@@ -1914,6 +1956,15 @@ function reveal(v) {
   const g = GAME, sc = guessScore(), you = Math.abs(v / g.sold - 1), oik = Math.abs(g.estimate / g.sold - 1);
   sc.rounds++; if (Math.abs(you - oik) < 0.0005) sc.ties++; else if (you < oik) sc.you++; else sc.oikos++;
   store.set("guess", sc); drawGame(v);
+  if (Math.abs(you - oik) >= 0.0005) (you < oik ? sound.win : sound.lose)();
+  if (!SND.on && !store.get("soundAsked", false)) {
+    store.set("soundAsked", true);
+    const yes = h("button", { className: "linkbtn fine", type: "button" }, "Turn on sounds"), no = h("button", { className: "linkbtn fine", type: "button" }, "No thanks");
+    const line = h("div", { className: "fine dim", style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, "Want a little sound with the game?", yes, no);
+    yes.addEventListener("click", () => { setSound(true); sound.win(); line.replaceChildren("Sounds on. You can turn them off in Settings."); });
+    no.addEventListener("click", () => line.remove());
+    $("gameBox").querySelector(".game")?.append(line);
+  }
 }
 $("dealWatch").addEventListener("click", () => { $("alTown").value = $("dealTown").value; $("alType").value = ""; $("alAdd").click(); $("alMsg").scrollIntoView({ block: "center" }); }); $("mTown").addEventListener("change", loadMarket); $("mType").addEventListener("change", loadMarket);
 
@@ -1947,7 +1998,10 @@ $("age").value = $("age0").value = age() || "";
 $("ask").addEventListener("input", () => { if (F) F.price = +$("ask").value; render(); });
 addEventListener("resize", fitVerdict);
 if (document.fonts) document.fonts.addEventListener("loadingdone", fitVerdict);
-$("setNav").addEventListener("click", () => { refreshMe(); $("settings").showModal(); }); $("setX").addEventListener("click", () => $("settings").close());
+$("setNav").addEventListener("click", () => { refreshMe(); $("settings").showModal(); });
+setSound(SND.on);
+$("sndSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; setSound(b.dataset.snd === "on"); if (SND.on) sound.ready(); });
+$("sndTry").addEventListener("click", () => { const was = SND.on; SND.on = true; sound.sample(); SND.on = was; }); $("setX").addEventListener("click", () => $("settings").close());
 $("srcBtn").addEventListener("click", () => $("src").showModal()); $("srcX").addEventListener("click", () => $("src").close());
 // How close our estimates came to what homes sold for, month by month, misses included. Opened from Settings, or with /#accuracy.
 let ACC = null, accKind = "hdb";
