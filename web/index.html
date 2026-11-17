@@ -858,7 +858,7 @@ function wood(f, at = 0, vol = 0.5, len = 0.07) {  // a knock on a wooden door: 
   partial(ctx, f, t, len * 1.8, vol * 0.7, "triangle");
 }
 const sound = {
-  tick: () => { SND.tock = !SND.tock; wood(SND.tock ? 1250 : 940, 0, 0.13, 0.035); },          // the clock: tick, tock
+  tick: () => { SND.tock = !SND.tock; wood(SND.tock ? 760 : 620, 0, 0.04, 0.03); },            // the clock: a quiet, low tick-tock, meant to sit in the background
   ready: () => { bell(659.3, 0, 0.5); bell(523.3, 0.42, 0.5); },                                  // the doorbell: ding... dong
   knock: () => { wood(170, 0, 0.6); wood(165, 0.17, 0.55); },                                     // knock knock
   win: () => { [523.3, 659.3, 784, 1046.5].forEach((f, i) => marimba(f, i * 0.085, 0.42)); bell(2093, 0.36, 0.12); },
@@ -873,9 +873,10 @@ function setSound(on) {
 // While Oikos is thinking: a faint tick that speeds up. Research suggests sound like this makes a wait feel shorter.
 function thinkingTicks() {
   if (!SND.on || document.hidden) return () => {};
-  let gap = 560, stopped = false, timer = 0; const end = Date.now() + 25000;
-  const step = () => { if (stopped || Date.now() > end || document.hidden) return; sound.tick(); gap = Math.max(210, gap * 0.92); timer = setTimeout(step, gap); };
-  timer = setTimeout(step, 400);
+  // gentle on purpose: nothing for the first second (quick answers stay silent), an unhurried pace that only speeds up a little, and silence after 12 seconds
+  let gap = 720, stopped = false, timer = 0; const end = Date.now() + 12000;
+  const step = () => { if (stopped || Date.now() > end || document.hidden) return; sound.tick(); gap = Math.max(420, gap * 0.95); timer = setTimeout(step, gap); };
+  timer = setTimeout(step, 1000);
   return () => { stopped = true; clearTimeout(timer); };
 }
 const sleep = ms => new Promise(r => setTimeout(r, calm ? 0 : ms));
