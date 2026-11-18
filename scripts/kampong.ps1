@@ -64,7 +64,8 @@ if (Server-Pid) {
 } else {
     Write-Host "Starting Kampong..."
     # --proxy-headers: trust what Cloudflare's connector (on this computer) says about https and the visitor
-    Start-Process -FilePath $Python -WorkingDirectory $Root -WindowStyle Minimized `
+    # Hidden, not minimised: a minimised console window in the taskbar is too easy to close, and closing it stops Kampong
+    Start-Process -FilePath $Python -WorkingDirectory $Root -WindowStyle Hidden `
         -ArgumentList "-m", "uvicorn", "api:app", "--host", "127.0.0.1", "--port", "$Port", "--proxy-headers" `
         -RedirectStandardOutput (Join-Path $Logs "kampong.log") -RedirectStandardError (Join-Path $Logs "kampong-errors.log")
     $ok = $false
