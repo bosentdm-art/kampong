@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kampong - HDB and condo price advice</title>
+<meta name="description" content="Is that flat worth the asking price? Paste a listing and Kampong compares it with what similar HDB flats and condos actually sold for.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#1a88d4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kampong">
+<script>
+  // First-time visitors in a browser get the front page (web/welcome.html). Hide the app until it loads so it doesn't flash. Same test as wantWelcome().
+  try { var L = localStorage, q = location, j = function (k, d) { return JSON.parse(L.getItem("oikos-" + k) || d); };
+    if (new URLSearchParams(q.search).has("welcome") || (!(matchMedia("(display-mode: standalone)").matches || navigator.standalone) && q.pathname === "/" && !q.search && !q.hash
+        && !j("visited", "false") && !j("chats", "[]").length && !j("flats", "[]").length)) {
+      document.documentElement.classList.add("w-pending"); setTimeout(function () { document.documentElement.classList.remove("w-pending"); }, 4000);
+    } } catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Atkinson Hyperlegible for figures only: this file holds just the digits and $ % , . so every other character falls through to Lexend. All fonts here are SIL Open Font License 1.1. -->
@@ -28,6 +43,7 @@
     --shadow:0 10px 30px rgba(0,0,0,.45); --shadow2:0 2px 8px rgba(0,0,0,.35); }
   * { box-sizing: border-box; }
   html, body { height:100%; }
+  .w-pending body > *:not(#welcome) { visibility:hidden; }  /* only while the front page loads */
   body { margin:0; display:grid; grid-template-columns:236px 1fr; background:var(--bg); background-image:var(--sky); background-attachment:fixed; color:var(--fg);
          font-family:var(--disp); font-size:15px; line-height:1.5; }
   .hm, .hl, .tkv, .kv b, .tile b, table, .big, .vbig, .accbig b, .use + .fine { font-variant-numeric:tabular-nums; }  /* figures line up; words keep normal spacing */
@@ -383,6 +399,7 @@
       <button class="mi" id="meSignup" type="button" role="menuitem">Create a free account</button>
       <button class="mi" id="plansBtn" type="button" role="menuitem">Plans</button>
       <button class="mi" id="srcBtn" type="button" role="menuitem">Data sources</button>
+      <button class="mi" id="aboutBtn" type="button" role="menuitem">About Kampong</button>
       <button class="mi" id="acctBtn" type="button" role="menuitem">Sign in</button>
     </div>
     <button class="me" id="meBtn" type="button" aria-haspopup="menu" aria-expanded="false"><span class="av" id="meAv" aria-hidden="true">?</span>
@@ -2156,10 +2173,81 @@ async function tickerHomes() {
   if (homes.length) { try { (await api("/api/ticker/homes", { homes })).homes.forEach(r => { if (r.fair) TKH[r.id] = r.fair; }); } catch (e) {} }
   drawTicker();
 }
-api("/api/ticker").then(t => { TK = t; return tickerHomes(); }).catch(() => {});
+const tkLoaded = api("/api/ticker").then(t => { TK = t; tickerHomes(); return t; });
+tkLoaded.catch(() => {});
+
+// ---- the front page (web/welcome.html) for first-time visitors in a browser. The installed app, returning visitors and people
+// signed in go straight to the chat. /?welcome or "About Kampong" in the account menu opens it any time.
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const wForced = new URLSearchParams(location.search).has("welcome");
+let wOpen = false, wInstall = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); wInstall = e; const b = document.querySelector('#welcome [data-w="install"]'); if (b) b.hidden = false; });
+function wantWelcome() {
+  if (wForced) return true;
+  if (standalone || store.get("visited", false) || location.pathname !== "/" || location.search || location.hash) return false;
+  return !flats.length && !localChats().length;
+}
+async function showWelcome() {
+  if (wOpen) return;
+  try {
+    const html = await fetch("/welcome.html", { cache: "no-cache" }).then(r => r.ok ? r.text() : Promise.reject(new Error("no front page")));
+    const box = document.createElement("div"); box.id = "welcome"; box.innerHTML = html; document.body.append(box); wOpen = true; box.scrollTop = 0; wireWelcome(box);
+  } catch (e) {} finally { document.documentElement.classList.remove("w-pending"); }
+}
+function closeWelcome(remember = true) {
+  if (remember) store.set("visited", true);
+  $("welcome")?.remove(); wOpen = false; document.documentElement.classList.remove("w-pending");
+  if (wForced) history.replaceState(null, "", location.pathname);
+}
+function wireWelcome(box) {
+  const q = name => [...box.querySelectorAll(`[data-w="${name}"]`)], on = (name, fn) => q(name).forEach(el => el.addEventListener("click", e => { e.preventDefault(); fn(); }));
+  const ask = q("ask")[0], check = () => { const t = ask.value.trim(); closeWelcome(); if (t) send(t); else $("msg").focus(); };
+  on("check", check); ask.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); check(); } });
+  on("open", () => { closeWelcome(); $("msg").focus(); }); on("signin", () => { closeWelcome(); openAcct("login"); });
+  on("paste", () => { closeWelcome(); $("msg").value = EXAMPLE_LISTING; grow(); $("msg").focus(); toast("An example listing. Press Enter, or paste your own."); });
+  box.querySelectorAll("[data-send]").forEach(b => b.addEventListener("click", () => { closeWelcome(); send(b.dataset.send); }));
+  on("market", () => { closeWelcome(); go("market"); }); on("plans", () => { closeWelcome(); openPlans(); }); on("record", () => { closeWelcome(); openAccuracy(); });
+  on("soon", () => toast("Coming soon."));
+  on("install", async () => { if (!wInstall) return; wInstall.prompt(); await wInstall.userChoice.catch(() => {}); wInstall = null; q("install").forEach(b => b.hidden = true); });
+  if (wInstall) q("install").forEach(b => b.hidden = false);
+  const text = q("install-text")[0], tail = " It opens straight into your chat, and can tell you when a flat you're watching sells.";
+  if (text && /iphone|ipad/i.test(navigator.userAgent)) text.innerHTML = "In Safari, tap Share, then <b>Add to Home Screen</b>." + tail;
+  else if (text && /android/i.test(navigator.userAgent)) text.innerHTML = "Tap <b>Install</b> when Chrome offers it, or open the menu and choose <b>Add to Home screen</b>." + tail;
+  welcomeLive(box);
+}
+// The example answer and the figures are worked out live, so the front page never goes stale.
+const W_EXAMPLE = { town: "ANG MO KIO", street_name: "ANG MO KIO AVE 4", block: "177", flat_type: "4 ROOM", flat_model: "NEW GENERATION", floor_area_sqm: 91, storey_range: "10 TO 12", lease_commence_date: 1981, price: 598000 };
+async function welcomeLive(box) {
+  const els = name => [...box.querySelectorAll(`[data-w="${name}"]`)], set = (name, v) => els(name).forEach(el => { el.textContent = v; });
+  tkLoaded.then(t => {
+    set("when", t.month);
+    const items = t.items.map(x => {
+      const v = x.text || (x.unit === "psf" ? money(x.value) + " psf" : x.unit === "sales" || x.unit === "units" ? x.value.toLocaleString("en-US") : k(x.value));
+      const c = x.change == null || Math.abs(x.change) < 0.05 ? "" : `<span class="${x.change > 0 ? "w-pos" : "w-neg"}">${x.change > 0 ? "\u25B2" : "\u25BC"} ${Math.abs(x.change).toFixed(1)}%</span>`;
+      return `<span><span class="w-dim">${x.label}</span><b>${v}</b>${c}</span>`;
+    }).join("");
+    els("tape").forEach(el => { el.innerHTML = items + items; });
+    const acc = t.items.find(x => x.open === "accuracy"), pct = acc && String(acc.text).match(/[\d.]+%/);
+    if (pct) set("acc", pct[0]);
+  }).catch(() => {});
+  try {
+    const f = await api("/api/assess", W_EXAMPLE); f.price = W_EXAMPLE.price;
+    const v = verdictFor(f, f.price, "buyer"), gap = f.price - f.fair, top = qOf(f, 75);
+    const g = els("gap")[0]; g.textContent = money(near1k(Math.abs(gap))) + (gap > 0 ? " above" : " below"); g.className = gap > 0 ? "w-neg" : "w-pos";
+    set("lo", money(near1k(Math.min(f.fair, f.price)))); set("hi", money(near1k(Math.max(f.fair, Math.min(top, f.price)))));
+    set("ask-price", k(f.price)); set("fair", k(f.fair)); set("max", k(top));
+    let from = 0; const stops = v.R.tones.map(z => { const to = Math.min(z.max, 100), st = `${z.dark} ${from}% ${to}%`; from = to; return st; });
+    els("bar").forEach(b => { b.style.background = `linear-gradient(90deg, ${stops.join(", ")})`; b.querySelector("i").style.left = Math.min(97, Math.max(3, v.p)) + "%"; });
+    if (!f.freehold && f.lease_now < 70) set("lease-text", `${Math.round(f.lease_now)} years of lease left. You may be able to use less CPF and borrow less.`);
+    else els("lease").forEach(n => n.remove());
+    set("caption", `What Kampong says today about a 4-room in Ang Mo Kio listed at ${money(f.price)}, from HDB's resale records.`);
+  } catch (e) {}
+}
+$("aboutBtn").addEventListener("click", () => showWelcome());
 
 persist(); go("chat");
-api("/api/me").then(m => { showMe(m); syncChats(); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
+if (wantWelcome()) showWelcome(); else document.documentElement.classList.remove("w-pending");
+api("/api/me").then(m => { if (m.user && wOpen && !wForced) closeWelcome(); showMe(m); syncChats(); return syncFlats(); }).then(countAlerts).then(n => { if (n) toast(n + (n === 1 ? " new sale matches" : " new sales match") + " your alerts"); }).catch(() => {});
 const authResult = new URLSearchParams(location.search).get("auth");  // back from WorkOS AuthKit
 if (authResult) { toast(authResult === "ok" ? "Signed in" : "Sign-in didn't finish. Try again."); history.replaceState(null, "", location.pathname); }
 const shared = location.pathname.match(/^\/s\/([\w-]{6,16})$/);

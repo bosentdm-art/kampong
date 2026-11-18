@@ -1,0 +1,120 @@
+<!-- Kampong's front page for first-time visitors in a browser (not shown in the installed app, to returning visitors or to people signed in).
+     index.html loads this file into #welcome and wires it up: elements with data-w are filled in or given actions there.
+     Edit the words and layout here freely; keep the data-w attributes so the live figures and buttons keep working.
+     Open it any time with /?welcome, or from the account menu (About Kampong). -->
+<style>
+  #welcome { position:fixed; inset:0; z-index:50; overflow-y:auto; background:var(--bg); color:var(--fg); font-family:var(--disp); font-size:16px; line-height:1.6; }
+  #welcome a { color:var(--hl); text-decoration:none; } #welcome a:hover { text-decoration:underline; }
+  #welcome h1, #welcome h2 { font-family:var(--head); font-weight:600; letter-spacing:-.015em; margin:0; }
+  .w-wrap { max-width:1120px; margin:0 auto; padding:0 20px; }
+  .w-dim { color:var(--dim); } .w-fine { font-size:13px; color:var(--dim); } .w-num { font-variant-numeric:tabular-nums; }
+  .w-neg { color:var(--neg); } .w-pos { color:var(--pos); }
+  .w-btn { font:inherit; font-weight:600; font-size:15px; border:0; border-radius:999px; padding:10px 18px; cursor:pointer; background:var(--accent); color:var(--on-accent); white-space:nowrap; }
+  .w-btn.ghost { background:var(--soft); color:var(--hl); } .w-btn:hover { filter:brightness(.96); }
+  .w-ticker { display:flex; height:36px; align-items:center; background:var(--panel); border-bottom:1px solid var(--line); font-size:13px; overflow:hidden; }
+  .w-when { position:relative; z-index:1; flex:none; align-self:stretch; display:flex; align-items:center; padding:0 14px; background:#2b3036; color:#f5f5f2; font-weight:700; font-size:12px; }
+  .w-tape { display:flex; gap:30px; padding-left:18px; white-space:nowrap; animation:wtape 70s linear infinite; }
+  .w-tape b { font-variant-numeric:tabular-nums; margin:0 6px; }
+  @keyframes wtape { to { transform:translateX(-50%); } } @media (prefers-reduced-motion: reduce) { .w-tape { animation:none; } }
+  .w-top { position:sticky; top:0; z-index:2; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .w-top .w-wrap { display:flex; align-items:center; gap:22px; height:64px; }
+  .w-word { font-family:var(--head); font-weight:600; font-size:26px; color:var(--fg); }
+  .w-links { display:flex; gap:20px; font-size:15px; } .w-links a { color:var(--dim) !important; }
+  .w-right { margin-left:auto; display:flex; gap:10px; align-items:center; }
+  .w-hero { padding:56px 0 40px; }
+  .w-hero .w-wrap { display:grid; grid-template-columns:minmax(0, 1.05fr) minmax(0, .95fr); gap:48px; align-items:center; }
+  .w-hero h1 { font-size:clamp(38px, 5vw, 56px); line-height:1.06; margin:0 0 14px; }
+  .w-lead { font-size:18px; color:var(--dim); margin:0 0 22px; max-width:520px; }
+  .w-ask { background:var(--panel); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); padding:14px 14px 12px 18px; }
+  .w-ask textarea { width:100%; border:0; outline:0; resize:none; font:inherit; font-size:16px; background:none; color:var(--fg); height:60px; overflow:hidden; }
+  .w-row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .w-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .w-chip { font:inherit; font-size:13.5px; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer; }
+  .w-chip:hover { border-color:var(--accent); }
+  .w-card { background:var(--panel); border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow); padding:20px; display:grid; gap:10px; }
+  .w-who { font-size:13px; color:var(--dim); display:flex; justify-content:space-between; gap:8px; }
+  .w-type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; background:var(--t-hdb); }
+  .w-big { font-family:var(--head); font-size:30px; font-weight:600; line-height:1.15; }
+  .w-bar { position:relative; height:10px; border-radius:99px; background:var(--soft); }
+  .w-bar i { position:absolute; top:-5px; width:4px; height:20px; background:var(--fg); border-radius:3px; box-shadow:0 0 0 3px var(--panel); }
+  .w-tiles { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+  .w-tile { border:1px solid var(--line); border-radius:12px; padding:8px 10px; } .w-tile span { display:block; font-size:11.5px; color:var(--dim); } .w-tile b { font-size:17px; font-variant-numeric:tabular-nums; }
+  .w-tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .w-tile.key span { color:var(--on-accent); opacity:.85; }
+  .w-note { background:var(--warn-bg); border-left:4px solid var(--warn); border-radius:4px 12px 12px 4px; padding:8px 12px; font-size:14px; } .w-note b { color:var(--warn-ink); }
+  .w-caption { text-align:center; font-size:12.5px; color:var(--dim); margin-top:8px; }
+  .w-sec { padding:56px 0; } .w-sec.alt { background:color-mix(in srgb, var(--soft) 35%, var(--bg)); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .w-narrow > * { max-width:720px; } .w-narrow p { font-size:17px; margin:10px 0 0; } .w-narrow h2 { font-size:clamp(26px, 3vw, 32px); line-height:1.2; }
+  .w-narrow .w-btn { margin-top:16px; }
+  .w-foot { border-top:1px solid var(--line); padding:36px 0 60px; font-size:14px; color:var(--dim); }
+  .w-foot .w-wrap { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:24px; }
+  .w-foot h4 { margin:0 0 8px; color:var(--fg); font-size:14px; } .w-foot a { color:var(--dim) !important; display:block; padding:2px 0; }
+  @media (max-width:900px) { .w-hero .w-wrap { grid-template-columns:1fr; } .w-links { display:none; } .w-foot .w-wrap { grid-template-columns:1fr 1fr; } .w-hero { padding-top:32px; } }
+  @media (max-width:640px) {
+    #welcome { font-size:15px; } .w-wrap { padding:0 16px; }
+    .w-ticker { height:32px; font-size:12px; } .w-when { padding:0 10px; }
+    .w-top .w-wrap { height:56px; gap:10px; } .w-word { font-size:22px; }
+    .w-right .ghost { display:none; } .w-right .w-btn { padding:8px 14px; font-size:14px; }
+    .w-hero { padding:22px 0 28px; } .w-hero .w-wrap { gap:18px; }
+    .w-hero h1 { font-size:34px; margin-bottom:8px; } .w-lead { font-size:15.5px; margin-bottom:16px; }
+    .w-ask { border-radius:18px; padding:12px 12px 10px 14px; } .w-ask textarea { height:58px; font-size:15px; } .w-ask .w-btn { padding:9px 16px; }
+    .w-chips { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:10px -16px 0; padding:0 16px; } .w-chips::-webkit-scrollbar { display:none; } .w-chip { flex:none; }
+    .w-card { padding:16px; border-radius:18px; } .w-big { font-size:24px; } .w-who { flex-direction:column; gap:2px; }
+    .w-tile { padding:7px 8px; } .w-tile b { font-size:15px; } .w-tile span { font-size:11px; }
+    .w-sec { padding:40px 0; } .w-narrow p { font-size:15.5px; } .w-narrow h2 { font-size:24px; }
+    .w-foot .w-wrap { grid-template-columns:1fr 1fr; gap:18px; } .w-foot .w-wrap > div:first-child { grid-column:1 / -1; }
+  }
+</style>
+
+<div class="w-ticker" aria-label="Resale prices last month"><span class="w-when" data-w="when">Latest</span><div class="w-tape" data-w="tape"></div></div>
+
+<header class="w-top"><div class="w-wrap">
+  <span class="w-word">Kampong</span>
+  <nav class="w-links"><a href="#w-proof">Accuracy</a></nav>
+  <div class="w-right"><button class="w-btn ghost" type="button" data-w="signin">Sign in</button><button class="w-btn" type="button" data-w="open">Open Kampong</button></div>
+</div></header>
+
+<section class="w-hero"><div class="w-wrap">
+  <div>
+    <h1>Is that flat really worth the asking price?</h1>
+    <p class="w-lead">Paste the listing, or just type the block. Kampong compares it with what similar flats actually sold for, and tells you what to offer.</p>
+    <div class="w-ask">
+      <textarea data-w="ask" placeholder="Paste a listing, or try: Blk 177 Ang Mo Kio Ave 4, 4-room, asking $598k" aria-label="Ask Kampong"></textarea>
+      <div class="w-row"><span class="w-fine">Free, no sign-up.</span><button class="w-btn" type="button" data-w="check">Check it</button></div>
+    </div>
+    <div class="w-chips">
+      <button class="w-chip" type="button" data-w="paste">Paste a listing</button>
+      <button class="w-chip" type="button" data-send="Find a 4-room under $600k near an MRT">4-room near an MRT, under $600k</button>
+      <button class="w-chip" type="button" data-send="Help me fill in my HDB resale paperwork">My HDB paperwork</button>
+    </div>
+  </div>
+  <div>
+    <div class="w-card" data-w="example">
+      <div class="w-who"><span><b style="color:var(--fg)">Blk 177 Ang Mo Kio Ave 4</b><span class="w-type">HDB</span></span><span>4-room · 91 sqm · storey 10-12</span></div>
+      <div class="w-big">About <span class="w-neg" data-w="gap">$45,000 above</span> what it's worth.</div>
+      <div>Offer between <b class="w-num" data-w="lo">$553,000</b> and <b class="w-num" data-w="hi">$570,000</b>.</div>
+      <div class="w-bar" data-w="bar"><i style="left:91%"></i></div>
+      <div class="w-tiles"><div class="w-tile"><span>Asking</span><b data-w="ask-price">$598k</b></div><div class="w-tile"><span>Fair value</span><b data-w="fair">$553k</b></div><div class="w-tile key"><span>Don't pay more than</span><b data-w="max">$570k</b></div></div>
+      <div class="w-note" data-w="lease"><b>Check this:</b> <span data-w="lease-text">53 years of lease left. You may be able to use less CPF and borrow less.</span></div>
+    </div>
+    <div class="w-caption" data-w="caption">What Kampong says about a 4-room in Ang Mo Kio listed at $598,000.</div>
+  </div>
+</div></section>
+
+<section class="w-sec" id="w-proof"><div class="w-wrap w-narrow">
+  <h2>How close does it get?</h2>
+  <p>Every month we check our estimates against what flats actually sold for. Last year, half of our HDB estimates were within <b class="w-num" data-w="acc">2.7%</b> of the final price. We'd rather show you where we miss than pretend we don't, so the full record is <a href="#" data-w="record">here</a>.</p>
+  <p class="w-dim">The prices come from HDB's and URA's public sale records. No agent pays us, and there are no ads.</p>
+</div></section>
+
+<section class="w-sec alt"><div class="w-wrap w-narrow">
+  <h2>Use it like an app</h2>
+  <p data-w="install-text">On an iPhone, open this page in Safari, tap Share, then <b>Add to Home Screen</b>. On Android, tap <b>Install</b> when Chrome asks. It opens straight into your chat, and can tell you when a flat you're watching sells.</p>
+  <button class="w-btn ghost" type="button" data-w="install" hidden>Install Kampong</button>
+</div></section>
+
+<footer class="w-foot"><div class="w-wrap">
+  <div><span class="w-word" style="font-size:22px">Kampong</span><p style="margin:8px 0 0">Home prices in Singapore, explained. Kampong is a product of Oiko.</p><p class="w-fine">Estimates from recorded sales, not a licensed valuation or financial advice.</p></div>
+  <div><h4>Product</h4><a href="#" data-w="open">Ask Kampong</a><a href="#" data-w="market">Market and map</a><a href="#" data-w="plans">Plans</a></div>
+  <div><h4>Company</h4><a href="#" data-w="soon">About Oiko</a><a href="#" data-w="soon">Contact</a></div>
+  <div><h4>Legal</h4><a href="#" data-w="soon">Privacy</a><a href="#" data-w="soon">Terms</a><a href="#" data-w="record">Accuracy record</a></div>
+</div></footer>

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kampong mockup: website mode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
+<style>
+  /* Mockup: what Kampong looks like opened as a website in a browser (people who haven't installed it yet).
+     The installed app keeps today's layout and opens straight into the chat. Same colours as the app:
+     blue is Kampong, orange is "check this", green and red are good or bad for you. Figures are Kampong's real ones. */
+  :root { --head:"Newsreader", Georgia, serif; --sans:"Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; }
+  [data-theme="light"] { --bg:#ffffff; --alt:#f6f8fa; --fg:#1f2328; --dim:#5a5f66; --line:#e3e3df; --panel:#ffffff;
+    --accent:#1a88d4; --accent-ink:#0f5e99; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --warn:#f5a55f; --warn-ink:#9a5a0c; --warn-bg:#fdf0e2;
+    --t-condo:#7b4fe0; --shadow:0 10px 30px rgba(20,40,60,.08); }
+  [data-theme="dark"] { --bg:#14171a; --alt:#191d21; --fg:#ecedee; --dim:#a3a9b0; --line:#2e343a; --panel:#1d2125;
+    --accent:#4ba8ec; --accent-ink:#8cc8f5; --on-accent:#0c1116; --soft:#1e2b37; --pos:#4ade80; --neg:#fb7185; --warn:#f5a55f; --warn-ink:#f5a55f; --warn-bg:#33240f;
+    --t-condo:#a88bff; --shadow:0 10px 30px rgba(0,0,0,.4); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:16px; line-height:1.6; }
+  a { color:var(--accent-ink); text-decoration:none; } a:hover { text-decoration:underline; }
+  h1, h2, h3 { font-family:var(--head); font-weight:600; letter-spacing:-.015em; margin:0; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 20px; }
+  .dim { color:var(--dim); } .fine { font-size:13px; color:var(--dim); } .num { font-variant-numeric:tabular-nums; }
+  .pos { color:var(--pos); } .neg { color:var(--neg); }
+  .btn { font:inherit; font-weight:600; font-size:15px; border:0; border-radius:999px; padding:10px 18px; cursor:pointer; background:var(--accent); color:var(--on-accent); display:inline-flex; gap:8px; align-items:center; }
+  .btn.ghost { background:var(--soft); color:var(--accent-ink); } .btn:hover { filter:brightness(.96); text-decoration:none; }
+
+  /* mockup bar */
+  .mock { position:fixed; right:14px; bottom:14px; z-index:30; display:flex; gap:8px; align-items:center; background:#1f2328; color:#fff; padding:8px 12px; border-radius:12px; font-size:12.5px; }
+  .mock button { font:inherit; font-size:12px; border:0; border-radius:8px; padding:4px 10px; cursor:pointer; background:#1a88d4; color:#fff; }
+
+  /* ticker */
+  .ticker { display:flex; height:36px; align-items:center; background:var(--panel); border-bottom:1px solid var(--line); font-size:13px; overflow:hidden; }
+  .when { flex:none; align-self:stretch; display:flex; align-items:center; padding:0 14px; background:#2b3036; color:#f5f5f2; font-weight:700; font-size:12px; }
+  .tape { display:flex; gap:30px; padding-left:18px; white-space:nowrap; animation:tape 60s linear infinite; }
+  .tape span b { font-variant-numeric:tabular-nums; margin:0 6px; }
+  @keyframes tape { to { transform:translateX(-50%); } } @media (prefers-reduced-motion: reduce) { .tape { animation:none; } }
+
+  /* top bar */
+  .top { position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .top .wrap { display:flex; align-items:center; gap:22px; height:64px; }
+  .word { font-family:var(--head); font-weight:600; font-size:26px; color:var(--fg); }
+  .links { display:flex; gap:20px; font-size:15px; } .links a { color:var(--dim); } .links a:hover { color:var(--fg); }
+  .top .right { margin-left:auto; display:flex; gap:10px; align-items:center; }
+
+  /* hero */
+  .hero { padding:56px 0 40px; }
+  .hero .wrap { display:grid; grid-template-columns:minmax(0, 1.05fr) minmax(0, .95fr); gap:48px; align-items:center; }
+  .eyebrow { display:inline-flex; gap:8px; align-items:center; font-size:13px; font-weight:600; color:var(--accent-ink); background:var(--soft); padding:4px 12px; border-radius:99px; }
+  .hero h1 { font-size:clamp(38px, 5vw, 58px); line-height:1.05; margin:16px 0 14px; }
+  .hero h1 em { font-style:normal; color:var(--accent); }
+  .hero p.lead { font-size:18px; color:var(--dim); margin:0 0 22px; max-width:520px; }
+  .ask { background:var(--panel); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); padding:14px 14px 12px 18px; }
+  .ask textarea { width:100%; border:0; outline:0; resize:none; font:inherit; font-size:16px; background:none; color:var(--fg); height:60px; overflow:hidden; }
+  .ask .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .ask .hint { font-size:13px; color:var(--dim); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { font:inherit; font-size:13.5px; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer; }
+  .chip:hover { border-color:var(--accent); }
+  .trustline { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:18px; font-size:13.5px; color:var(--dim); }
+  .trustline b { color:var(--fg); font-variant-numeric:tabular-nums; }
+
+  /* sample verdict */
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow); padding:20px; display:grid; gap:10px; }
+  .card .who { font-size:13px; color:var(--dim); display:flex; justify-content:space-between; }
+  .type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; background:var(--accent); }
+  .card .big { font-family:var(--head); font-size:30px; font-weight:600; line-height:1.15; }
+  .bar { position:relative; height:10px; border-radius:99px; background:linear-gradient(90deg, #22c55e 0 30%, #16a34a 30% 45%, #eab308 45% 65%, #f87171 65% 88%, #ef4444 88%); }
+  .bar i { position:absolute; top:-5px; left:91%; width:4px; height:20px; background:var(--fg); border-radius:3px; box-shadow:0 0 0 3px var(--panel); }
+  .tiles { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+  .tile { border:1px solid var(--line); border-radius:12px; padding:8px 10px; } .tile .k { font-size:11.5px; color:var(--dim); } .tile b { font-size:17px; font-variant-numeric:tabular-nums; }
+  .tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .tile.key .k { color:var(--on-accent); opacity:.85; }
+  .note { background:var(--warn-bg); border-left:4px solid var(--warn); border-radius:4px 12px 12px 4px; padding:8px 12px; font-size:14px; } .note b { color:var(--warn-ink); }
+  .caption { text-align:center; font-size:12.5px; color:var(--dim); margin-top:8px; }
+
+  /* sections */
+  section { padding:64px 0; } section.alt { background:var(--alt); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .shead { max-width:640px; margin-bottom:30px; } .shead h2 { font-size:clamp(28px, 3.4vw, 38px); line-height:1.15; margin-bottom:8px; } .shead p { color:var(--dim); margin:0; font-size:17px; }
+  .steps { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  .step .n { width:30px; height:30px; border-radius:50%; background:var(--soft); color:var(--accent-ink); display:grid; place-items:center; font-weight:700; margin-bottom:10px; }
+  .step h3 { font-size:21px; margin-bottom:4px; }
+  .feats { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:20px; }
+  .feat { display:grid; grid-template-columns:44px 1fr; gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:20px; }
+  .feat .ic { width:44px; height:44px; border-radius:12px; background:var(--soft); color:var(--accent-ink); display:grid; place-items:center; }
+  .feat h3 { font-size:21px; margin-bottom:2px; }
+  .proof { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:22px; }
+  .stat .v { font-size:44px; font-weight:700; line-height:1.05; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .plans { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; }
+  .plan { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:22px; display:grid; gap:8px; align-content:start; }
+  .plan.hl { border:2px solid var(--accent); }
+  .plan .price { font-size:34px; font-weight:700; font-variant-numeric:tabular-nums; } .plan .price small { font-size:14px; color:var(--dim); font-weight:400; }
+  .plan ul { margin:0; padding-left:18px; color:var(--dim); font-size:15px; display:grid; gap:4px; }
+  .install { display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:40px; align-items:center; }
+  .phone { width:240px; height:440px; margin:0 auto; border-radius:36px; border:10px solid #1f2328; background:var(--bg); box-shadow:var(--shadow); display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; }
+  .phone .pt { padding:14px 14px 6px; font-family:var(--head); font-weight:600; font-size:18px; }
+  .phone .pb { padding:8px 12px; display:grid; gap:8px; align-content:start; font-size:12px; }
+  .phone .bub { background:var(--accent); color:var(--on-accent); padding:6px 10px; border-radius:12px 12px 3px 12px; justify-self:end; max-width:80%; }
+  .phone .rep { border:1px solid var(--line); border-radius:3px 12px 12px 12px; padding:8px 10px; }
+  .phone .pc { margin:10px; border:1px solid var(--line); border-radius:14px; padding:8px 10px; font-size:11px; color:var(--dim); }
+  .stores { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .narrow > * { max-width:720px; } .narrow p { font-size:17px; margin:10px 0 0; } h2.plain { font-size:clamp(26px, 3vw, 32px); line-height:1.2; }
+  .narrow .btn { margin-top:16px; }
+  footer { border-top:1px solid var(--line); padding:36px 0 60px; font-size:14px; color:var(--dim); }
+  footer .wrap { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:24px; }
+  footer h4 { margin:0 0 8px; color:var(--fg); font-size:14px; } footer a { color:var(--dim); display:block; padding:2px 0; }
+
+  .btn { white-space:nowrap; }
+  .only-phone { display:none; }
+  @media (max-width:900px) {
+    .hero .wrap, .install { grid-template-columns:1fr; } .steps, .proof, .plans { grid-template-columns:1fr; } .feats { grid-template-columns:1fr; }
+    .links { display:none; } footer .wrap { grid-template-columns:1fr 1fr; } .hero { padding-top:32px; }
+  }
+  /* phones: shorter and tighter, the example answer right after the question, chips in one swipeable row */
+  @media (max-width:640px) {
+    body { font-size:15px; } .wrap { padding:0 16px; }
+    .ticker { height:32px; font-size:12px; } .when { padding:0 10px; }
+    .top .wrap { height:56px; gap:10px; } .word { font-size:22px; }
+    .top .right .ghost { display:none; } .top .right .btn { padding:8px 14px; font-size:14px; }
+    .hero { padding:22px 0 28px; } .hero .wrap { gap:18px; }
+    .eyebrow { font-size:12px; }
+    .hero h1 { font-size:34px; margin:10px 0 8px; }
+    .hero p.lead { font-size:15.5px; margin-bottom:16px; }
+    .ask { border-radius:18px; padding:12px 12px 10px 14px; } .ask textarea { height:48px; font-size:15px; }
+    .ask .btn { padding:9px 16px; }
+    .chips { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:10px -16px 0; padding:0 16px; } .chips::-webkit-scrollbar { display:none; }
+    .chip { flex:none; }
+    .trustline { font-size:12.5px; gap:4px 12px; }
+    .only-wide { display:none; } .only-phone { display:block; }
+    .card { padding:16px; border-radius:18px; } .card .big { font-size:24px; } .card .who { flex-direction:column; gap:2px; }
+    .tile { padding:7px 8px; } .tile b { font-size:15px; } .tile .k { font-size:11px; }
+    section { padding:40px 0; } .shead { margin-bottom:18px; } .shead p { font-size:15.5px; }
+    .step, .feat, .stat, .plan { padding:16px; border-radius:16px; } .stat .v { font-size:36px; }
+    .steps, .feats, .proof, .plans { gap:12px; }
+    .step { display:grid; grid-template-columns:30px 1fr; gap:2px 12px; } .step .n { margin:0; grid-row:span 2; } .step h3 { font-size:19px; margin:3px 0 0; } .step p { margin:0; font-size:14.5px; }
+    .feat { grid-template-columns:38px 1fr; gap:12px; } .feat .ic { width:38px; height:38px; } .feat h3 { font-size:19px; } .feat p { margin:2px 0 0; font-size:14.5px; }
+    .phone { display:none; }
+    footer .wrap { grid-template-columns:1fr 1fr; gap:18px; } footer .wrap > div:first-child { grid-column:1 / -1; }
+    .mock { left:10px; right:auto; bottom:10px; font-size:11px; padding:6px 8px; }
+    .narrow p { font-size:15.5px; } h2.plain { font-size:24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ticker" aria-label="Resale prices last month"><span class="when">Oct 2026</span>
+  <div class="tape" id="tape"></div></div>
+
+<header class="top"><div class="wrap">
+  <span class="word">Kampong</span>
+  <nav class="links"><a href="#proof">Accuracy</a></nav>
+  <div class="right"><a href="#" class="btn ghost">Sign in</a><a href="#" class="btn">Open Kampong</a></div>
+</div></header>
+
+<section class="hero"><div class="wrap">
+  <div>
+    <h1>Is that flat really worth the asking price?</h1>
+    <p class="lead">Paste the listing, or just type the block. Kampong compares it with what similar flats actually sold for, and tells you what to offer.</p>
+    <div class="ask">
+      <textarea placeholder="Paste a listing, or try: Blk 177 Ang Mo Kio Ave 4, 4-room, asking $598k" aria-label="Ask Kampong"></textarea>
+      <div class="row"><span class="hint">Free, no sign-up.</span><button class="btn" type="button">Check it</button></div>
+    </div>
+    <div class="chips"><button class="chip">Paste a listing</button><button class="chip">4-room near an MRT, under $600k</button><button class="chip">My HDB paperwork</button></div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="who"><span><b style="color:var(--fg)">Blk 177 Ang Mo Kio Ave 4</b><span class="type">HDB</span></span><span>4-room · 91 sqm · storey 10-12</span></div>
+      <div class="big">About <span class="neg">$45,000 above</span> what it's worth.</div>
+      <div>Offer between <b class="num">$553,000</b> and <b class="num">$570,000</b>.</div>
+      <div class="bar"><i></i></div>
+      <div class="tiles"><div class="tile"><div class="k">Asking</div><b>$598k</b></div><div class="tile"><div class="k">Fair value</div><b>$553k</b></div><div class="tile key"><div class="k">Don't pay more than</div><b>$570k</b></div></div>
+      <div class="note"><b>Check this:</b> 53 years of lease left. You may be able to use less CPF and borrow less.</div>
+    </div>
+    <div class="caption">What Kampong says about a 4-room in Ang Mo Kio, using sales up to November 2026.</div>
+  </div>
+</div></section>
+
+<section id="proof"><div class="wrap narrow">
+  <h2 class="plain">How close does it get?</h2>
+  <p>Every month we check our estimates against what flats actually sold for. Last year, half of our HDB estimates were within <b class="num">2.7%</b> of the final price. We'd rather show you where we miss than pretend we don't, so the full record is <a href="#">here</a>.</p>
+  <p class="dim">The prices come from HDB's and URA's public sale records. No agent pays us, and there are no ads.</p>
+</div></section>
+
+<section class="alt"><div class="wrap narrow">
+  <h2 class="plain">Use it like an app</h2>
+  <p>On an iPhone, open this page in Safari, tap Share, then <b>Add to Home Screen</b>. On Android, tap <b>Install</b> when Chrome asks. It opens straight into your chat, and can tell you when a flat you're watching sells.</p>
+  <button class="btn ghost" type="button">Install Kampong</button>
+</div></section>
+
+<footer><div class="wrap">
+  <div><span class="word" style="font-size:22px">Kampong</span><p style="margin:8px 0 0">Home prices in Singapore, explained. Kampong is a product of Oiko.</p><p class="fine">Estimates from recorded sales, not a licensed valuation or financial advice.</p></div>
+  <div><h4>Product</h4><a href="#">Ask Kampong</a><a href="#">Market and map</a><a href="#">Plans</a></div>
+  <div><h4>Company</h4><a href="#">About Oiko</a><a href="#">Contact</a></div>
+  <div><h4>Legal</h4><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Data sources</a></div>
+</div></footer>
+
+<div class="mock">Mockup · website mode <button type="button" id="theme">Dark</button></div>
+
+<script>
+  const items = [["3-room HDB median", "$430k", -3.4], ["4-room HDB median", "$629k", -1.7], ["5-room HDB median", "$760k", -0.9], ["HDB resales", "2,173", 21.3],
+    ["Tampines 4-room", "$675k", -0.5], ["Bedok 4-room", "$599k", 0.1], ["Condo resale RCR psf", "$2,003", 2.3], ["Condo resale OCR psf", "$1,538", 2.1], ["Kampong accuracy", "half within 2.7%"]];
+  const one = items.map(([l, v, c]) => `<span><span class="dim">${l}</span><b>${v}</b>${c == null ? "" : `<span class="${c >= 0 ? "pos" : "neg"}">${c >= 0 ? "▲" : "▼"} ${Math.abs(c).toFixed(1)}%</span>`}</span>`).join("");
+  document.getElementById("tape").innerHTML = one + one;
+  const t = document.getElementById("theme");
+  t.onclick = () => { const d = document.documentElement.dataset.theme === "dark"; document.documentElement.dataset.theme = d ? "light" : "dark"; t.textContent = d ? "Dark" : "Light"; };
+</script>
+</body>
+</html>
