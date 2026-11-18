@@ -176,6 +176,32 @@
   .qv { display:grid; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:16px 18px; max-width:100%; }
   .qv .read { display:flex; flex-wrap:wrap; gap:6px; } .qv .read span { font-size:12.5px; padding:3px 10px; border-radius:99px; background:var(--soft); color:var(--accent); font-weight:600; }
   .qv .read span.guess { background:none; border:1px dashed var(--line); color:var(--dim); font-weight:500; }
+  /* the 3D map of a home's surroundings: OneMap underneath, buildings raised from OpenStreetMap, places as labelled pins */
+  .m3card { display:grid; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:6px 22px 22px 22px; padding:14px 14px 12px; width:min(640px, 100%); }
+  .m3card .m3hd { display:flex; align-items:baseline; justify-content:space-between; gap:4px 10px; flex-wrap:wrap; padding:0 4px; }
+  .m3card .m3hd b { font-family:var(--head); font-size:19px; font-weight:600; letter-spacing:-.01em; }
+  .map3d { position:relative; height:min(380px, 62vh); border-radius:14px; overflow:hidden; border:1px solid var(--line); background:var(--soft); }
+  .map3d .m3load { position:absolute; inset:0; display:grid; place-items:center; color:var(--dim); font-size:13.5px; }
+  .m3tools { position:absolute; left:10px; top:10px; display:flex; gap:6px; z-index:2; }
+  .m3tools button { font:600 12.5px var(--disp); border:1px solid var(--line); background:var(--panel); color:var(--fg); border-radius:99px; padding:5px 11px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+  .m3tools button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+  .m3leg { display:flex; flex-wrap:wrap; gap:6px; }
+  .m3leg button { display:inline-flex; align-items:center; gap:6px; font:500 12.5px var(--disp); border:1px solid var(--line); background:none; color:var(--fg); border-radius:99px; padding:4px 10px; cursor:pointer; }
+  .m3leg button i { width:10px; height:10px; border-radius:50%; background:var(--c); flex:none; }
+  .m3leg button span { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .m3leg button[aria-pressed="false"] { opacity:.45; } .m3leg button[aria-pressed="false"] i { background:none; box-shadow:inset 0 0 0 2px var(--c); }
+  .m3 { --c:#555; display:flex; align-items:center; gap:5px; font:600 12px/1 var(--disp); color:#fff; background:var(--c); border-radius:99px; padding:4px 8px 4px 5px;
+        box-shadow:0 1px 5px rgba(0,0,0,.28); white-space:nowrap; cursor:pointer; border:1.5px solid rgba(255,255,255,.9); }
+  .m3 .g { width:15px; height:15px; border-radius:50%; background:rgba(255,255,255,.25); display:grid; place-items:center; font-size:9.5px; font-weight:700; }
+  .m3.dot { padding:0; width:11px; height:11px; border-width:2px; } .m3.dot .g, .m3.dot .t { display:none; }
+  .m3.small { padding:3px; } .m3.small .t { display:none; } .m3.small:hover { padding:4px 8px 4px 5px; z-index:3; } .m3.small:hover .t { display:inline; }
+  .m3.home { font-size:13px; padding:6px 11px 6px 7px; border-width:2px; z-index:4; }
+  .m3.home::after { content:""; position:absolute; left:50%; bottom:-6px; width:9px; height:9px; background:var(--c); transform:translateX(-50%) rotate(45deg); border-right:2px solid #fff; border-bottom:2px solid #fff; }
+  .m3.off { display:none; }
+  .map3d.far .m3:not(.home):not(.dot) { padding:3px; } .map3d.far .m3:not(.home) .t { display:none; } .map3d.far .m3.dot { width:8px; height:8px; }
+  .map3d.far .m3:not(.home):not(.dot):hover { padding:4px 8px 4px 5px; z-index:3; } .map3d.far .m3:not(.home):hover .t { display:inline; }
+  .map3d .maplibregl-popup-content { font:13.5px/1.4 var(--disp); color:#1d2125; border-radius:10px; padding:8px 12px; } .map3d .maplibregl-popup-content b { font-weight:600; }
+  .map3d .maplibregl-ctrl-attrib { font:11px var(--disp); }
   .qv .head { font-family:var(--head); font-weight:600; font-size:clamp(24px, 3.4vw, 30px); line-height:1.15; letter-spacing:-.01em; }
   .qv .offer { font-size:16px; } .qv .offer b { font-size:19px; font-variant-numeric:tabular-nums; }
   .qv .flag { display:grid; grid-template-columns:26px 1fr; gap:10px; padding-top:10px; border-top:1px solid var(--line); font-size:14.5px; }
@@ -1088,7 +1114,9 @@ function aroundBlock(f) {
       .catch(e => box.replaceChildren(h("span", { className: "dim" }, e.message)));
   };
   f.fillCommute = fillCommute; fillCommute();
-  return h("div", { className: "around" }, h("div", { className: "cap dim" }, isCondo(f) ? "Around this home" : "Around this flat"),
+  const see = h("button", { className: "linkbtn", type: "button", style: "float:right" }, "See it in 3D");
+  see.addEventListener("click", () => areaMap(f));
+  return h("div", { className: "around" }, h("div", { className: "cap dim" }, n.lat != null ? see : null, isCondo(f) ? "Around this home" : "Around this flat"),
     n.mrt[0] ? ar(n.mrt[0].rail === "LRT" ? "Nearest LRT" : "Nearest MRT", h("b", {}, n.mrt[0].name), `, ${n.mrt[0].metres} m (about ${n.mrt[0].walk_min} min walk)`,
       ...n.mrt.slice(1).map(x => h("span", { className: "dim" }, `; ${x.name} ${x.rail} ${x.metres} m`))) : null,
     ...n.future_mrt.map(x => ar("Coming", h("span", { className: "soon" }, x.year), h("b", {}, x.name), ` on the ${x.line}, ${x.metres} m` + (x.kind === "new station" ? "" : " (a new line at this station)"))),
@@ -1101,6 +1129,118 @@ function aroundBlock(f) {
       ...needs.map(([l, x]) => h("div", { className: "kv" }, h("span", { className: "dim" }, l), h("span", {}, `${x.name}, ${x.metres} m`))),
       n.schools_2km.length ? h("div", { className: "fine", style: "margin-top:6px" }, "Primary schools 1 to 2 km away: " + n.schools_2km.join(", ") + ".") : null,
       h("div", { className: "fine", style: "margin-top:6px" }, "Distances are straight lines, and walking times are estimates. For Primary 1 registration, confirm the school distance on OneMap's School Query, which uses the official measure. Planned stations and their dates can change.")));
+}
+// ---- the 3D map: zooms onto the home and shows what's around it. MapLibre (loaded only when needed), OneMap's map underneath,
+// buildings raised from OpenStreetMap (OpenFreeMap tiles), and pins for MRT, planned stations, schools, bus stops and daily needs.
+const M3KINDS = [
+  ["mrt", "MRT / LRT", "#1d2125", "M"], ["future_mrt", "Coming MRT", "#e8860c", "+"], ["school", "Primary schools", "#0f9d8a", "S"],
+  ["bus", "Bus stops", "#5b6b7c", "B"], ["hawker", "Hawker centres", "#e0445f", "H"], ["supermarket", "Supermarkets", "#4f55d8", "$"],
+  ["mall", "Malls", "#8a4bd6", "M"], ["park", "Parks", "#2f9e44", "P"], ["clinic", "Clinics", "#b7791f", "+"]];
+function loadMapLibre() {
+  return window.maplibregl ? Promise.resolve() : (window.__mlp = window.__mlp || new Promise((ok, bad) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"; js.onload = ok; js.onerror = () => { window.__mlp = null; bad(); }; document.head.append(js);
+  }));
+}
+function circleGeo(lat, lon, m) {
+  const pts = [];
+  for (let i = 0; i <= 64; i++) { const a = i / 64 * 2 * Math.PI; pts.push([lon + m / (111320 * Math.cos(lat * Math.PI / 180)) * Math.cos(a), lat + m / 110574 * Math.sin(a)]); }
+  return { type: "Feature", geometry: { type: "Polygon", coordinates: [pts] }, properties: {} };
+}
+function areaMap(f) {
+  const n = f.nearby; if (!n || n.lat == null) return null;
+  const lat = n.lat, lon = n.lon, condo = isCondo(f), col = condo ? "#7b4fe0" : "#1a88d4", dark = root.theme === "dark";
+  const box = h("div", { className: "map3d" }, h("div", { className: "m3load" }, "Loading the map..."));
+  const leg = h("div", { className: "m3leg" }), spin = h("button", { type: "button" }, "Spin"), reset = h("button", { type: "button" }, "Recentre");
+  spin.setAttribute("aria-pressed", "false");
+  box.append(h("div", { className: "m3tools" }, spin, reset));
+  const card = h("div", { className: "m3card" },
+    h("div", { className: "m3hd" }, h("b", {}, "Around " + flatName(f)), h("span", { className: "fine dim" }, "Drag to move. Right-drag or two fingers to tilt and turn.")),
+    box, leg,
+    h("div", { className: "fine dim" }, "Places within about 1.2 km (bus stops within 500 m). The dashed ring is 1 km. Distances are straight lines. Building heights come from OpenStreetMap and can be rough. Planned stations and dates can change."));
+  const r = row("bot", card);
+  (async () => {
+    let D;
+    try { await loadMapLibre(); D = await api(`/api/surroundings?lat=${lat}&lon=${lon}`); }
+    catch (e) { box.firstChild.textContent = "The map couldn't load just now."; return; }
+    const ml = window.maplibregl, view = { center: [lon, lat], zoom: 16.4, pitch: 58, bearing: -24 };
+    const map = new ml.Map({ container: box, attributionControl: false, center: [lon, lat], zoom: calm ? view.zoom : 13.4, pitch: calm ? view.pitch : 0, bearing: calm ? view.bearing : 0,
+      maxBounds: [[103.5, 1.1], [104.15, 1.5]], minZoom: 12, maxZoom: 19, maxPitch: 75, cooperativeGestures: matchMedia("(pointer: coarse)").matches,
+      style: { version: 8, sources: {
+        base: { type: "raster", tileSize: 256, maxzoom: 19, tiles: [`https://www.onemap.gov.sg/maps/tiles/${dark ? "Night" : "Grey"}/{z}/{x}/{y}.png`],
+          attribution: '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:14px;width:14px;vertical-align:middle" alt=""/> <a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a> &copy; contributors | <a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>' },
+        ofm: { type: "vector", url: "https://tiles.openfreemap.org/planet",
+          attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' },
+        ring: { type: "geojson", data: circleGeo(lat, lon, 1000) }, home: { type: "geojson", data: { type: "FeatureCollection", features: [] } } },
+      layers: [
+        { id: "base", type: "raster", source: "base" },
+        { id: "ring", type: "line", source: "ring", paint: { "line-color": col, "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.75 } },
+        { id: "bld", type: "fill-extrusion", source: "ofm", "source-layer": "building", minzoom: 13,
+          paint: { "fill-extrusion-color": dark ? "#3b434b" : "#e4e8ec", "fill-extrusion-opacity": 0.86,
+            "fill-extrusion-height": ["coalesce", ["get", "render_height"], 8], "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0] } },
+        { id: "home", type: "fill-extrusion", source: "home", paint: { "fill-extrusion-color": col, "fill-extrusion-opacity": 0.95,
+            "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "b"] } }] } });
+    map.addControl(new ml.AttributionControl({ compact: true }));
+    map.addControl(new ml.NavigationControl({ visualizePitch: true }), "top-right");
+    const walk = m => Math.max(1, Math.round(m * 1.3 / 80)), groups = {};
+    for (const [k, label, c, g] of M3KINDS) {
+      const items = D[k] || []; if (!items.length) continue;
+      groups[k] = items.map(x => {
+        const named = k === "mrt" || k === "future_mrt" || k === "school";
+        const el = h("div", { className: "m3" + (k === "bus" ? " dot" : named ? "" : " small"), title: x.name }, h("span", { className: "g" }, g),
+          h("span", { className: "t" }, k === "future_mrt" ? `${x.name} ${x.year}` : k === "mrt" && x.rail === "LRT" ? x.name + " LRT" : x.name));
+        el.style.setProperty("--c", c);
+        const pop = h("div", {}, h("b", {}, x.name + (k === "mrt" ? " " + x.rail : "")), h("br"),
+          k === "future_mrt" ? `${x.line}, expected ${x.year}. ` : "", `${x.metres.toLocaleString("en-US")} m away, about ${walk(x.metres)} min walk`);
+        new ml.Marker({ element: el, anchor: "center" }).setLngLat([x.lon, x.lat]).setPopup(new ml.Popup({ offset: 12, closeButton: false }).setDOMContent(pop)).addTo(map);
+        return el;
+      });
+      const b = h("button", { type: "button" }, h("i"), label + " ", h("span", {}, items.length));
+      b.setAttribute("aria-pressed", "true"); b.style.setProperty("--c", c);
+      b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", on); groups[k].forEach(el => el.classList.toggle("off", !on)); });
+      leg.append(b);
+    }
+    const homeEl = h("div", { className: "m3 home" }, h("span", { className: "g" }, condo ? "C" : "H"), h("span", { className: "t" }, flatName(f)));
+    homeEl.style.setProperty("--c", col);
+    new ml.Marker({ element: homeEl, anchor: "bottom", offset: [0, -8] }).setLngLat([lon, lat]).addTo(map);
+    // raise the home's own building in its colour: the OpenStreetMap building under the point, else a small column
+    const markHome = () => {
+      const p = map.project([lon, lat]);
+      let hit = map.queryRenderedFeatures(p, { layers: ["bld"] });
+      if (!hit.length) hit = map.queryRenderedFeatures([[p.x - 14, p.y - 14], [p.x + 14, p.y + 14]], { layers: ["bld"] });
+      // tiles can merge many buildings into one shape: keep only the polygon that holds the point (else the nearest one)
+      const inside = (ring, x, y) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+      const mid = ring => ring.reduce((a, p) => [a[0] + p[0] / ring.length, a[1] + p[1] / ring.length], [0, 0]);
+      let best = null, bestD = Infinity;
+      for (const fe of hit.slice(0, 6)) {
+        const polys = fe.geometry.type === "MultiPolygon" ? fe.geometry.coordinates : fe.geometry.type === "Polygon" ? [fe.geometry.coordinates] : [];
+        for (const poly of polys) {
+          const c = mid(poly[0]), d = inside(poly[0], lon, lat) ? -1 : (c[0] - lon) ** 2 + (c[1] - lat) ** 2;
+          if (d < bestD) { bestD = d; best = { poly, fe }; }
+        }
+      }
+      const hgt = best ? (best.fe.properties.render_height || 30) : 40;
+      map.getSource("home").setData({ type: "FeatureCollection", features: [best ? { type: "Feature", geometry: { type: "Polygon", coordinates: best.poly }, properties: { h: hgt + 0.4, b: best.fe.properties.render_min_height || 0 } }
+        : { ...circleGeo(lat, lon, 9), properties: { h: hgt, b: 0 } }] });
+    };
+    let spinning = false;
+    const turn = () => { if (spinning) map.easeTo({ bearing: map.getBearing() + 40, duration: 6000, easing: t => t }); };
+    const stopSpin = () => { if (spinning) { spinning = false; spin.setAttribute("aria-pressed", "false"); map.stop(); } };
+    map.on("moveend", () => { if (spinning) turn(); });
+    const far = () => box.classList.toggle("far", map.getZoom() < 15.3);
+    map.on("zoom", far); far();
+    spin.addEventListener("click", () => { spinning = !spinning; spin.setAttribute("aria-pressed", spinning); if (spinning) turn(); else map.stop(); });
+    reset.addEventListener("click", () => { stopSpin(); map.flyTo({ ...view, duration: calm ? 0 : 1600 }); });
+    ["dragstart", "touchstart", "wheel"].forEach(ev => map.on(ev, e => { if (e.originalEvent) stopSpin(); }));
+    map.once("load", () => {
+      box.querySelector(".m3load")?.remove();
+      if (calm) { map.once("idle", markHome); return; }
+      map.flyTo({ ...view, duration: 3200, curve: 1.3 });
+      map.once("moveend", () => map.once("idle", markHome));
+    });
+    f.map3d = map;
+  })();
+  return r;
 }
 async function sayCommute() {
   try {
@@ -1221,7 +1361,7 @@ function quickVerdict(u) {
       h("div", { className: "fine" }, "You send it yourself. Kampong never contacts agents or sellers.")));
   }) : null;
   box.append(chips, h("div", { className: "head" }, ...head), offer, ...flags,
-    h("div", { className: "pills" }, msgBtn, btn("Save", () => { use(mine); saveFlat(); }), condo ? null : btn("Watch block", () => { use(mine); watchBlock(); }), buyer && !condo ? btn("Help with the paperwork", () => { use(mine); paperCard(); }) : null),
+    h("div", { className: "pills" }, msgBtn, btn("Save", () => { use(mine); saveFlat(); }), condo ? null : btn("Watch block", () => { use(mine); watchBlock(); }), u.pasted ? null : btn("See the area in 3D", () => areaMap(mine)), buyer && !condo ? btn("Help with the paperwork", () => { use(mine); paperCard(); }) : null),
     speed, h("div", { className: "fine" }, (u.via_link ? `Read from the page you linked on ${u.via_link} (just that page). ` : "") + "Listings are kept without agent names or numbers, to make Kampong's estimates better."));
   if (u.pastedText) api("/api/listing", { text: u.pastedText, kind: condo ? "condo" : "hdb", flat: condo ? null : f.flat, condo: condo ? { project: f.project, area: f.condo?.area ?? f.condo?.floor_area_sqm, floor: f.condo?.floor } : null, price: a }).catch(() => {});
   return row("bot", box);
@@ -1280,6 +1420,7 @@ async function loadFlat(spec, price, u = {}, w = waiting("Looking up the flat"))
   await sleep(Math.max(0, 900 - (Date.now() - t0)));
   w.remove(); show(); render();
   if (u.pasted && hasPrice()) { quickVerdict(u); await sleep(700); }
+  if (u.pasted) { areaMap(F); await sleep(500); }
   flatCard(u);
   await sleep(1300);
   await askOikos(null, u.assumed);
@@ -1293,6 +1434,7 @@ async function loadCondo(spec, price, u = {}, w = waiting("Looking up the projec
   await sleep(Math.max(0, 900 - (Date.now() - t0)));
   w.remove(); show();
   if (u.pasted && hasPrice()) { quickVerdict(u); await sleep(700); }
+  if (u.pasted) { areaMap(F); await sleep(500); }
   flatCard(u);
   await sleep(1300);
   await askOikos(null, u.assumed);

@@ -116,6 +116,35 @@ def around(lat, lon):
     return out
 
 
+@functools.lru_cache(maxsize=1)
+def bus_stops():
+    f = AMEN / "osm_bus_stops.json"
+    return pd.DataFrame(json.loads(f.read_text(encoding="utf-8"))) if f.exists() else None
+
+
+@functools.lru_cache(maxsize=256)
+def surroundings(lat, lon, radius=1200):
+    """Every place of each kind within the radius, with its position, for the 3D map. MRT stations as one point each
+    (the middle of their exits). Bus stops within 500 m only: there are too many to show further out."""
+    t = tables()
+
+    def pts(df, r=radius, extra=()):
+        if df is None or not len(df):
+            return []
+        d = metres(lat, lon, df["lat"].to_numpy(), df["lon"].to_numpy())
+        keep = np.argsort(d)[: int((d <= r).sum())]
+        return [dict(name=str(df["name"].iloc[i]), lat=round(float(df["lat"].iloc[i]), 6), lon=round(float(df["lon"].iloc[i]), 6),
+                     metres=int(round(d[i], -1)), **{k: (int(df[k].iloc[i]) if k == "year" else str(df[k].iloc[i])) for k in extra}) for i in keep]
+
+    stations = t["mrt"].groupby(["name", "rail"], as_index=False)[["lat", "lon"]].mean()
+    out = dict(lat=lat, lon=lon, radius=radius, mrt=pts(stations, max(radius, 1500), ("rail",)),
+               future_mrt=pts(t["future"], max(radius, 1500), ("line", "year")) if len(t["future"]) else [],
+               school=pts(t["primary"]), hawker=pts(t["hawker"]), bus=pts(bus_stops(), 500))
+    for kind in ("supermarket", "mall", "park", "clinic"):
+        out[kind] = pts(t["places"].get(kind))
+    return out
+
+
 def around_block(block, street):
     pos = block_coords().get((block, street))
     return dict(around(*pos), lat=pos[0], lon=pos[1]) if pos else None

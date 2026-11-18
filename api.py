@@ -10,6 +10,7 @@ Needs the data and models built first (python src/update.py).
   POST /api/share     make a link to a flat's verdict and advice; GET /api/share/{id} reads it; /s/{id} is the page
   GET/POST /api/alerts  watch a block for new sales, or a town for sales well under our estimate
   POST /api/signup, /api/login, /api/logout, GET /api/me, GET/POST /api/flats   accounts (see src/accounts.py)
+  GET  /api/surroundings  places around a point for the 3D map
   POST /api/assess    a flat (and optionally a price) -> every fact the page shows
   POST /api/compare   two homes side by side: the AI's comparison, every figure checked
   POST /api/find      blocks or condo projects where homes meeting a set of requirements sold in the last 12 months
@@ -1769,6 +1770,14 @@ def compare(c: Pair, request: Request, response: Response):
         text, cost, made = llm.compare(fa, fb, c.role, c.a.price, c.b.price, na, nb_, (c.question or "Which is the better deal?")[:600], detail=c.detail)
     acc.record(who, "ask", cost, made, ip)
     return dict(text=text, source="model" if made else "rules", names=[na, nb_])
+
+
+@app.get("/api/surroundings")
+def surroundings(lat: float, lon: float):
+    """Places around a home for the 3D map: MRT (open and planned), primary schools, bus stops, hawker centres, shops, parks, clinics."""
+    if not (1.15 <= lat <= 1.48 and 103.59 <= lon <= 104.10):
+        raise HTTPException(422, "That point isn't in Singapore.")
+    return nb.surroundings(round(lat, 5), round(lon, 5))
 
 
 @app.post("/api/commute")
