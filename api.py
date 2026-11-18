@@ -52,6 +52,7 @@ import finder as fd  # noqa: E402
 import docs  # noqa: E402
 import billing  # noqa: E402
 import listings  # noqa: E402
+import linkreader  # noqa: E402
 
 app = FastAPI(title="Kampong")
 
@@ -1278,10 +1279,26 @@ LINK = re.compile(r"https?://\S+", re.I)
 @app.post("/api/understand")
 def understand(m: Message, request: Request = None, response: Response = None):
     """Read a chat message (see _understand), and privately log the ones Kampong could not handle, so they can be fixed."""
-    if LINK.search(m.text) and len(LINK.sub("", m.text).strip()) < 40:  # just a link to a listing
-        return dict(found=False, note="I can't open listing links: property portals don't allow automated access, so Kampong doesn't fetch their pages. "
-                    "Copy the listing's text and paste it here, or send a screenshot (the paperclip), and I'll check it straight away.")
+    via = None
+    link = LINK.search(m.text)
+    if link and len(LINK.sub("", m.text).strip()) < 40:  # just a link to a listing: read that one page (src/linkreader.py has the rules)
+        url = link.group().rstrip(").,!?'\"")
+        try:
+            body, site = linkreader.fetch(url, who=visitor(request, response)[0] if request is not None else None)
+            text = linkreader.listing_text(body)
+        except linkreader.Refused as e:
+            return dict(found=False, link_refused=True, note=f"{e} Some sites block automated reading, even when it's for you. "
+                        "Copy the listing's text and paste it here, or send a screenshot (the paperclip), and I'll check it straight away.")
+        if len(text) < 60:
+            return dict(found=False, link_refused=True, note="I opened the page but couldn't find the listing's details on it. "
+                        "Copy the listing's text and paste it here, or send a screenshot (the paperclip), and I'll check it.")
+        m = m.model_copy(update={"text": text})
+        via = site
     out = _understand(m, request, response)
+    if via:
+        out.update(via_link=via, link_text=m.text)
+        if not out.get("found"):
+            out["note"] = (out.get("note") or "") + f" (I read the page on {via}, but couldn't tell which home it is. Paste the listing's text and I'll try again.)"
     if out.get("found") and len(m.text) >= 60:  # a pasted listing: what it says that sale records can't (renovation, view, facing...)
         sig = listings.signals(m.text)
         if sig["found"]:
@@ -1907,6 +1924,12 @@ def deals(town: str):
 @app.get("/api/trend")
 def trend_api(town: str, flat_type: str):
     return clean(trend(town, flat_type))
+
+
+@app.get("/bosan")
+def bosan_page():
+    """What Kampong's link reader is, for site owners who see "Kampong/1.0" in their logs (linkreader.USER_AGENT points here)."""
+    return FileResponse(ROOT / "web/bosan.html")
 
 
 app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")

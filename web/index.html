@@ -1222,7 +1222,7 @@ function quickVerdict(u) {
   }) : null;
   box.append(chips, h("div", { className: "head" }, ...head), offer, ...flags,
     h("div", { className: "pills" }, msgBtn, btn("Save", () => { use(mine); saveFlat(); }), condo ? null : btn("Watch block", () => { use(mine); watchBlock(); }), buyer && !condo ? btn("Help with the paperwork", () => { use(mine); paperCard(); }) : null),
-    speed, h("div", { className: "fine" }, "Listings you paste are kept without contact details, to make Kampong's estimates better."));
+    speed, h("div", { className: "fine" }, (u.via_link ? `Read from the page you linked on ${u.via_link} (just that page). ` : "") + "Listings are kept without agent names or numbers, to make Kampong's estimates better."));
   if (u.pastedText) api("/api/listing", { text: u.pastedText, kind: condo ? "condo" : "hdb", flat: condo ? null : f.flat, condo: condo ? { project: f.project, area: f.condo?.area ?? f.condo?.floor_area_sqm, floor: f.condo?.floor } : null, price: a }).catch(() => {});
   return row("bot", box);
 }
@@ -1417,7 +1417,7 @@ async function send(text, opts = {}) {
   const t0 = Date.now(), pasted = opts.pasted || text.length >= 70 || /\n/.test(text);  // a pasted listing gets the quick verdict first
   return working(async () => {
     await sleep(350);
-    const w = waiting("Reading your message");
+    const w = waiting(/^https?:\/\/\S+$/i.test(text) ? "Reading the listing you linked (just this page)" : "Reading your message");
     let u;
     try { u = await api("/api/understand", { text, current: F ? (isCondo(F) ? { kind: "condo", ...F.condo } : F.flat) : null, history: talk.slice(-6), context: ctx, detail: detail() }); } catch (e) { w.remove(); throw e; }
     talk.push({ role: "user", content: text.slice(0, 800) });
@@ -1428,8 +1428,8 @@ async function send(text, opts = {}) {
     else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Watchlist."); }
     else if (u.found && u.compare && F) await compareWith(u, text, w);
     else if (u.paper && !u.found) { w.remove(); await say("I'll fill in every answer I can for HDB's forms. You copy each one into HDB's site and submit it yourself."); paperCard(); }
-    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0, pastedText: pasted ? text : null }, w);
-    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0, pastedText: pasted ? text : null }, w);
+    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted: pasted || !!u.via_link, t0, pastedText: u.link_text || (pasted ? text : null) }, w);
+    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted: pasted || !!u.via_link, t0, pastedText: u.link_text || (pasted ? text : null) }, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
       w.remove(); talk.push({ role: "assistant", content: t });

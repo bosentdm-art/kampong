@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kampong's link reader</title>
+<style>
+  body { margin:0; font-family:"Segoe UI", Arial, sans-serif; font-size:16px; line-height:1.6; color:#1f2328; background:#fff; }
+  main { max-width:680px; margin:0 auto; padding:40px 20px 60px; }
+  h1 { font-family:Georgia, serif; font-weight:600; font-size:30px; margin:0 0 12px; }
+  h2 { font-family:Georgia, serif; font-weight:600; font-size:21px; margin:28px 0 6px; }
+  code, pre { background:#f3f5f7; border-radius:6px; padding:2px 6px; font-size:14px; }
+  pre { padding:12px 14px; overflow-x:auto; }
+  a { color:#0f5e99; }
+  @media (prefers-color-scheme: dark) { body { background:#14171a; color:#ecedee; } code, pre { background:#1e2b37; } a { color:#8cc8f5; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kampong's link reader</h1>
+  <p>If you've seen <code>Kampong/1.0</code> in your site's logs, this is what it is.</p>
+  <p>Kampong is a home-price assistant for Singapore. When someone pastes a link to a property listing into Kampong, it reads
+     <b>that one page, once, at that person's request</b>, the way a messaging app reads a link to show a preview. It compares the
+     listing with recorded sales and tells the person whether the price is fair.</p>
+
+  <h2>What it does and doesn't do</h2>
+  <ul>
+    <li>It reads only the page a person pasted. It doesn't follow links, search your site or fetch anything in the background.</li>
+    <li>It always says who it is (<code>Kampong/1.0</code>) and never pretends to be a normal browser.</li>
+    <li>If your site refuses (a block, a challenge page or a CAPTCHA), it stops and asks the person to paste the text instead.
+        It doesn't retry or try to get around it.</li>
+    <li>It keeps only the listing's facts (price, address, size, floor, description), with names, phone numbers and emails removed.</li>
+    <li>It reads at most a few dozen links a day for any one person.</li>
+  </ul>
+
+  <h2>To stop Kampong reading your pages</h2>
+  <p>Add this to your <code>robots.txt</code>:</p>
+  <pre>User-agent: Kampong
+Disallow: /</pre>
+  <p>Kampong checks for rules written for it by name before reading a page. You can also block <code>Kampong/1.0</code> outright, or write to us
+     and we'll stop reading your site.</p>
+
+  <p style="margin-top:32px;color:#5a5f66">Kampong is a product of Oiko. <a href="/">Back to Kampong</a></p>
+</main>
+</body>
+</html>
