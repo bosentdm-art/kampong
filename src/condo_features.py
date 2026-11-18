@@ -22,6 +22,13 @@ CATS = ["project", "property_type", "district", "market_segment"]
 NUM = ["area", "floor_low", "floor_mid", "freehold", "lease_start", "lease_left", "t", "sale_month", "x", "y", "dist_cbd", "is_new"]
 LOC = ["dist_mrt", "n_mrt_exits_500m", "dist_hawker", "dist_primary_school", "n_primary_1km"]
 HIST = ["comps_lp", "n_proj_24m", "n_proj_12m"]
+# Added 2026-11 after experiments_condo2.py and experiments_condo3.py (better on all three six-month periods tested):
+#   comps_size_lp / n_size_24m   same-project sales in the 24 months before of units within 20% of this unit's size (latest 12)
+#   dev_lp / dev_selling          the developer's median new-sale price there before this sale, and whether it was still selling
+#                                 in the 6 months before (resales compete with new units)
+#   rel_floor / rel_size          floor over the project's highest recorded floor (the building, not the future), and size
+#                                 over the project's median unit
+HIST2 = ["comps_size_lp", "n_size_24m", "dev_lp", "dev_selling", "rel_floor", "rel_size"]
 CBD = (29800.0, 29700.0)  # Raffles Place, SVY21 metres (approximate)
 T0 = 2021 * 12
 
@@ -123,7 +130,7 @@ def load():
     spots = d[["x", "y"]].drop_duplicates()
     d = d.merge(spots.assign(**surroundings(spots["x"].to_numpy(), spots["y"].to_numpy())), on=["x", "y"], how="left")
     d["lp"] = np.log(d["price_per_sqm"])
-    return add_history(d.sort_values(["sale_date", "project"]).reset_index(drop=True))
+    return add_more_history(add_history(d.sort_values(["sale_date", "project"]).reset_index(drop=True)))
 
 
 def add_history(d):
@@ -140,6 +147,48 @@ def add_history(d):
                 comps[i] = np.median(a[max(lo24, hi - 12):hi]) + market.get(t[j] - 1, market.iloc[0])  # the latest 12 of them, at last month's market
     d["comps_lp"], d["n_proj_24m"], d["n_proj_12m"] = comps, n24, n12
     return d
+
+
+def add_more_history(d):
+    """The HIST2 features for every sale, from earlier sales in the same project only (rel_floor and rel_size use the
+    project's whole record, which describes the building rather than later prices)."""
+    market = market_index(d)
+    adj = (d["lp"] - d["t"].map(market)).to_numpy()
+    t_all, a_all, f_all, new_all = d["t"].to_numpy(), d["area"].to_numpy(), d["floor_mid"].to_numpy(), d["is_new"].to_numpy()
+    out = {k: np.full(len(d), np.nan) for k in HIST2}
+    for _, idx in d.groupby("project", observed=True).indices.items():
+        t, a, f, nw, ad = t_all[idx], a_all[idx], f_all[idx], new_all[idx], adj[idx]
+        top = np.nanmax(f) if np.isfinite(f).any() else np.nan
+        med_area = np.nanmedian(a)
+        for j, i in enumerate(idx):
+            lo, hi = np.searchsorted(t, t[j] - 24), np.searchsorted(t, t[j])
+            mk = market.get(t[j] - 1, market.iloc[0])
+            sz = np.abs(a[lo:hi] / a[j] - 1) <= 0.2
+            out["n_size_24m"][i] = sz.sum()
+            if sz.any():
+                out["comps_size_lp"][i] = np.median(ad[lo:hi][sz][-12:]) + mk
+            dv = nw[:hi] == 1
+            if dv.any():
+                out["dev_lp"][i] = np.median(ad[:hi][dv][-30:]) + mk
+            out["dev_selling"][i] = float((nw[np.searchsorted(t, t[j] - 6):hi] == 1).any())
+            out["rel_floor"][i] = f[j] / top if top and top > 0 else np.nan
+            out["rel_size"][i] = a[j] / med_area if med_area else np.nan
+    return d.assign(**out)
+
+
+def query_history(recent, area, floor_mid, top_floor, typical_area, market_now):
+    """HIST2 for a unit being priced today, from its project's table row (train_condo.project_table)."""
+    import json
+    r = np.array(json.loads(recent)) if isinstance(recent, str) and recent else np.zeros((0, 3))
+    out = dict(n_size_24m=0.0, comps_size_lp=np.nan)
+    if len(r):
+        sz = np.abs(r[:, 1] / area - 1) <= 0.2
+        out["n_size_24m"] = float(sz.sum())
+        if sz.any():
+            out["comps_size_lp"] = float(np.median(r[sz][-12:, 2]) + market_now)
+    out["rel_floor"] = floor_mid / top_floor if top_floor and top_floor > 0 and floor_mid == floor_mid else np.nan
+    out["rel_size"] = area / typical_area if typical_area else np.nan
+    return out
 
 
 def as_categories(d, levels=None):

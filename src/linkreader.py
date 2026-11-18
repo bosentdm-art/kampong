@@ -137,18 +137,23 @@ def _jsonld(body):
             continue
         stack = data if isinstance(data, list) else [data]
         while stack:
-            d = stack.pop()
+            d = stack.pop(0)
             if isinstance(d, list):
                 stack.extend(d)
                 continue
             if not isinstance(d, dict):
                 continue
+            kind = " ".join(d.get("@type", [])) if isinstance(d.get("@type"), list) else str(d.get("@type", ""))
+            if re.search(r"Person|Organization|Agent|Brand|Corporation|ContactPoint", kind):
+                continue  # agents and agencies: rule 4, people's names and contacts are never kept
             stack.extend(v for v in d.values() if isinstance(v, (dict, list)))
-            for k in ("name", "description", "streetAddress", "addressLocality", "postalCode", "price", "floorSize", "numberOfRooms", "value", "unitText"):
+            if kind == "Question":  # FAQ blocks: keep the answer, not the question ("What is the address...?")
+                continue
+            for k in ("description", "streetAddress", "addressLocality", "postalCode", "price", "floorSize", "numberOfRooms", "value", "unitText", "text"):
                 v = d.get(k)
                 if isinstance(v, (str, int, float)) and str(v).strip():
-                    facts.append(f"{k}: {v}")
-    return facts[:40]
+                    facts.append(f"{v}" if k == "text" else f"{k}: {v}")
+    return list(dict.fromkeys(facts))[:40]
 
 
 def listing_text(body):
@@ -158,5 +163,9 @@ def listing_text(body):
     visible = re.sub(r"<(script|style|noscript|svg|nav|footer|header)[^>]*>.*?</\1>", " ", body, flags=re.I | re.S)
     visible = html.unescape(re.sub(r"<[^>]+>", " ", visible))
     visible = re.sub(r"\s+", " ", visible).strip()
-    parts = [html.unescape(str(title)).strip(), desc, ". ".join(_jsonld(body)), visible[:3000]]
-    return listings.scrub(" \n".join(p for p in parts if p))[:9000]
+    facts = ". ".join(_jsonld(body))
+    # the visible text is a fallback only: on listing pages it mixes in agents, ads and other listings
+    parts = [html.unescape(str(title)).strip(), desc, facts] + ([visible[:3000]] if len(desc) + len(facts) < 300 else [])
+    text = " \n".join(p for p in parts if p)
+    text = re.sub(r"\bby\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}(?:\s*\([^)]{0,40}\))?", "by [agent]", text)  # "listed by Jane Tan (Jane)"
+    return listings.scrub(text)[:9000]

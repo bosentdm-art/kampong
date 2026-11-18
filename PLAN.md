@@ -306,3 +306,19 @@ realestateai/
 ## Renamed to Kampong (2026-11-17)
 
 The product is now called Kampong; the company is Oiko. Everything people or the AI see says Kampong. Internal names (cookies, browser storage keys, oikos.db, OIKOS_* settings, Stripe lookup keys) keep the old name so nothing breaks. Domain not bought yet.
+
+## Condo model: more from each project (2026-11-18)
+
+- `src/experiments_condo2.py`, `src/experiments_condo3.py`: added groups tested on three six-month periods. Adopted: same-size comps
+  (units within 20% of the size, latest 12 in 24 months), the developer's new-sale price and whether it is still selling, and the
+  unit's height in its project and size against the typical unit. Floor comps made it worse on their own and were left out.
+- Typical miss: holdout 3.01% -> 2.88%; walk-forward 2.96%; 80% ranges still 10%/10% outside. Thin projects (<3 sales) still ~5.4%.
+- Old model backed up in models/backup-condo-20261118.
+
+## Listings (2026-11-18)
+
+- `src/listings.py`: condition signals from listing text (renovated + year, original, view, corner, facing, keen seller), scrubbed
+  storage with the estimate at the time; `src/listing_outcomes.py` matches them to later HDB sales (needs 30+ per group).
+- `src/linkreader.py`: reads the one listing page a person pastes, as Kampong/1.0 (+https://kampong.com.de/bosan); stops if refused.
+  First real test (PropertyGuru, Bukit Panjang Petir) worked; its postal code was mistyped (570142 = Bishan), so the parser now trusts
+  the named town over a conflicting postal code (HDB postal codes end in the block number).

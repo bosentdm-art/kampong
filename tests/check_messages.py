@@ -32,6 +32,8 @@ CASES = [
     ("looking at 272C Punggol Walk 4 room high floor for 720", None, dict(flat="272C|PUNGGOL WALK", price=720000, role="buyer")),
     ("selling my 4 room at 272C Punggol Walk, 12th floor, agent says list at 720k", None, dict(flat="272C|PUNGGOL WALK", price=720000, role="seller", storey="10 TO 12")),
     ("wah 177 bishan street 13 4rm 800k siao or not", None, dict(flat="177|BISHAN ST 13", price=800000)),
+    # a mistyped postal code (570142 is Bishan) against the town the listing names: trust the words, the block is 142
+    ("Bukit Panjang | Petir | Cashew HDB Flat, 4-room, mid floor, postal code 570142, S$ 530,000", None, dict(flat="142|PETIR RD", price=530000)),
     # a pasted listing's "motivated seller" / "for sale" is someone else selling: it must not switch the person to Selling
     ("4RM for sale! Blk 177 Ang Mo Kio Ave 4, storey 10 to 12, renovated, motivated seller, asking $598k", None, dict(flat="177|ANG MO KIO AVE 4", price=598000, role=None)),
     ("Blk 85 Whampoa Drive 1,200 sqft asking 1.2m", None, dict(flat="85|WHAMPOA DR", price=1200000)),

@@ -741,8 +741,8 @@ def new_flat(p, base):
         assumed.append(f"{round(area)} sqm, the usual size here")
     if p["floor"]:
         storey = band(p["floor"])
-    elif p["storey_hint"] in ("high", "low") and bands:
-        storey = bands[-1] if p["storey_hint"] == "high" else bands[0]
+    elif p["storey_hint"] in ("high", "low", "mid") and bands:
+        storey = bands[-1] if p["storey_hint"] == "high" else bands[0] if p["storey_hint"] == "low" else bands[len(bands) // 2]
         assumed.append(f"storey {storey.replace(' TO ', ' to ')} for a {p['storey_hint']} floor")
     else:
         storey = df["storey_range"]
@@ -1295,6 +1295,11 @@ def understand(m: Message, request: Request = None, response: Response = None):
         m = m.model_copy(update={"text": text})
         via = site
     out = _understand(m, request, response)
+    p = lp.parse(m.text[:20000])
+    if out.get("found") and p.get("postal_fixed"):  # a mistyped postal code: say which flat was used instead
+        out["assumed"] = list(out.get("assumed") or []) + [p["postal_fixed"]]
+    elif not out.get("found") and p.get("postal_conflict"):
+        out["note"] = p["postal_conflict"] + " Which flat is it? Send the block and street and I'll check it."
     if via:
         out.update(via_link=via, link_text=m.text)
         if not out.get("found"):

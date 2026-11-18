@@ -67,6 +67,31 @@ def _place(out, d, blk, name, town):
         out["flat_type"] = hit["flat_type"].iloc[0]
 
 
+def _postal_check(out, t, idx, d):
+    """A postal code can be mistyped (a listing for "Bukit Panjang | Petir" with postal 570142, a Bishan code). If the text
+    names a different HDB town from the one the postal code points to, trust the words: HDB postal codes end in the block
+    number, so look for that block in the named town, preferring a street the text mentions. If nothing fits, drop the
+    postal code's block rather than price the wrong flat, and say so."""
+    towns = places()[0]
+    up = " " + re.sub(r"[^A-Z0-9 ]", " ", t.upper()) + " "
+    named = [tw for tw in towns if f" {tw} " in up and tw != out["town"]]
+    if not named or f" {out['town']} " in up:
+        return
+    code, town = out["postal"], named[0]
+    blk = code[-3:].lstrip("0")
+    hits = [h for h in idx.get(blk, []) if h[2] == town]
+    said = [h for h in hits if any(len(w) >= 4 and f" {w} " in up for w in h[1].split())]
+    pick = said[0] if said else hits[0] if len(hits) == 1 else None
+    wrong = f"{out['block']} {out['street_name'].title()}"
+    for k in ("block", "street_name", "town", "lease_commence_date"):
+        out[k] = None
+    if pick:
+        _place(out, d, blk, pick[1], pick[2])
+        out["postal_fixed"] = f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}, so I've used Blk {blk} {pick[1].title()}."
+    else:
+        out["postal"], out["postal_conflict"] = None, f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}."
+
+
 def match_block(blk, street):
     """(HDB street name, town) for a block and a street as a person or the AI wrote it, forgiving spelling. None if no match."""
     import difflib
@@ -180,7 +205,7 @@ def parse(text):
     t = " ".join(text.split())
     out = dict(block=None, street_name=None, town=None, flat_type=None, flat_model=None, floor_area_sqm=None,
                asking=find_price(t), lease_commence_date=None, top_year=None, storey_hint=None, floor=None, role=None, age=None,
-               town_hint=None, street_hint=None, block_hint=None, postal=None, postal_miss=None)
+               town_hint=None, street_hint=None, block_hint=None, postal=None, postal_miss=None, postal_fixed=None, postal_conflict=None)
 
     m = re.search(r"([\d,]{3,5})\s*sq\s*ft", t, re.I)
     if m:
@@ -250,6 +275,8 @@ def parse(text):
                 break
             if 1 <= int(code[:2]) <= 82 and out["asking"] != int(code):
                 out["postal_miss"] = code
+        if out["postal"]:
+            _postal_check(out, t, idx, d)
     if out["block"] is None:  # no full address: keep whatever the message does say, so the chat can narrow it down
         m = re.search(r"\b(?:blk|block)\.?\s*(\d{1,4}[A-Za-z]?)\b", t, re.I)
         out["block_hint"] = m.group(1).upper() if m else None

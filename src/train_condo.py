@@ -29,7 +29,7 @@ import condo_features as cf
 import recentre as rc
 from geocode_blocks import ROOT
 
-FEATS = cf.CATS + cf.NUM + cf.LOC + cf.HIST
+FEATS = cf.CATS + cf.NUM + cf.LOC + cf.HIST + cf.HIST2
 PARAMS = dict(n_estimators=2000, learning_rate=0.03, num_leaves=255, min_child_samples=10, subsample=0.8, subsample_freq=1,
               colsample_bytree=0.8, cat_smooth=5, reg_lambda=1.0, verbose=-1)
 SEEDS = (0, 1, 2)
@@ -164,11 +164,17 @@ def project_table(d, last):
         r, last_row = g[g["is_new"] == 0], g.iloc[-1]
         h = g[g["t"] >= now_t - 24]
         adj = (h["lp"] - h["t"].map(market)).to_numpy()[-12:]
+        # for the same-size comps at query time: every sale of the last 24 months as [month, area, market-adjusted price]
+        recent = [[int(a), round(float(b), 2), round(float(c), 5)] for a, b, c in zip(h["t"], h["area"], h["lp"] - h["t"].map(market))]
+        dev = g[g["is_new"] == 1]
+        dev_adj = (dev["lp"] - dev["t"].map(market)).to_numpy()[-30:]
         rows.append(dict(project=name, street=last_row["street"], property_type=g["property_type"].mode().iloc[0], district=last_row["district"],
                          market_segment=last_row["market_segment"], tenure=g["tenure"].mode().iloc[0], x=last_row["x"], y=last_row["y"], **{c: last_row[c] for c in cf.LOC},
                          typical_area=float(g["area"].median()), top_floor=float(g["floor_mid"].max()), n_sales=int(len(g)), n_resales=int(len(r)),
                          n_proj_24m=float(len(h)), n_proj_12m=float((g["t"] >= now_t - 12).sum()),
-                         comps_lp=float(np.median(adj) + market.iloc[-1]) if len(adj) else np.nan))
+                         comps_lp=float(np.median(adj) + market.iloc[-1]) if len(adj) else np.nan, recent=json.dumps(recent),
+                         dev_lp=float(np.median(dev_adj) + market.iloc[-1]) if len(dev_adj) else np.nan,
+                         dev_selling=float((dev["t"] >= now_t - 6).any()), market_now=float(market.iloc[-1])))
     return pd.DataFrame(rows)
 
 

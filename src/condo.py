@@ -95,7 +95,10 @@ def assess(project, area, floor, asking=None):
                              floor_low=low, floor_mid=low + 2 if low == low else np.nan, freehold=freehold, lease_start=lease_start, lease_left=lease_left,
                              t=int(cf.month_index(pd.Series([now])).iloc[0]), sale_month=now.month, x=p["x"], y=p["y"],
                              dist_cbd=float(np.hypot(p["x"] - cf.CBD[0], p["y"] - cf.CBD[1]) / 1000), is_new=0, **{c: p[c] for c in cf.LOC},
-                             comps_lp=p["comps_lp"], n_proj_24m=p["n_proj_24m"], n_proj_12m=p["n_proj_12m"])])
+                             comps_lp=p["comps_lp"], n_proj_24m=p["n_proj_24m"], n_proj_12m=p["n_proj_12m"],
+                             dev_lp=p.get("dev_lp", np.nan), dev_selling=p.get("dev_selling", np.nan),
+                             **cf.query_history(p.get("recent"), float(area), low + 2 if low == low else np.nan, p["top_floor"], p["typical_area"],
+                                                p.get("market_now", np.nan)))])
     row = cf.as_categories(row, m["levels"])
     pred_lp = float(np.mean([b.predict(row[m["features"]]) for b in point]))
     fair = float(np.exp(pred_lp) * area)
