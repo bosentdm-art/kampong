@@ -51,6 +51,7 @@ import condo_features as cf  # noqa: E402
 import finder as fd  # noqa: E402
 import docs  # noqa: E402
 import billing  # noqa: E402
+import listings  # noqa: E402
 
 app = FastAPI(title="Kampong")
 
@@ -348,6 +349,39 @@ def read_doc(request: Request, response: Response, file: UploadFile = File(...),
     out.pop("cost_cents", None)
     out.pop("answered", None)
     return out
+
+
+class ListingIn(BaseModel):
+    text: str
+    kind: str = "hdb"
+    flat: dict | None = None
+    condo: dict | None = None
+    price: float
+
+
+@app.post("/api/listing")
+def save_listing(body: ListingIn, request: Request, response: Response):
+    """Keep a pasted listing (contact details removed) with its asking price and Kampong's estimate, to learn from later
+    (src/listing_outcomes.py). Nothing about the person is stored with it."""
+    visitor(request, response)
+    if not (50_000 <= body.price <= 50_000_000) or len(body.text) < 40:
+        return dict(ok=False)
+    try:
+        if body.kind == "condo" and body.condo:
+            c = body.condo
+            f = condo_facts(str(c.get("project", "")), float(c.get("area") or c.get("floor_area_sqm") or 0), c.get("floor"), body.price)
+            spec = {k: c.get(k) for k in ("project", "area", "floor")}
+        elif body.flat:
+            fl = Flat(**{**body.flat, "price": body.price})
+            f = facts_for(*flat_key(fl))
+            spec = fl.model_dump(exclude={"price"})
+        else:
+            return dict(ok=False)
+    except (HTTPException, ValueError, TypeError):
+        return dict(ok=False)
+    q = dict(f.get("quantiles") or [])
+    sig = listings.save("condo" if body.kind == "condo" else "hdb", spec, body.price, dict(fair=f.get("fair"), q25=q.get(0.25), q75=q.get(0.75)), body.text)
+    return dict(ok=True, signals=sig)
 
 
 @app.post("/api/feedback")
@@ -1238,10 +1272,20 @@ def num(x, lo, hi, kind=float):
         return None
 
 
+LINK = re.compile(r"https?://\S+", re.I)
+
+
 @app.post("/api/understand")
 def understand(m: Message, request: Request = None, response: Response = None):
     """Read a chat message (see _understand), and privately log the ones Kampong could not handle, so they can be fixed."""
+    if LINK.search(m.text) and len(LINK.sub("", m.text).strip()) < 40:  # just a link to a listing
+        return dict(found=False, note="I can't open listing links: property portals don't allow automated access, so Kampong doesn't fetch their pages. "
+                    "Copy the listing's text and paste it here, or send a screenshot (the paperclip), and I'll check it straight away.")
     out = _understand(m, request, response)
+    if out.get("found") and len(m.text) >= 60:  # a pasted listing: what it says that sale records can't (renovation, view, facing...)
+        sig = listings.signals(m.text)
+        if sig["found"]:
+            out["listing"] = sig
     if request is not None and not m.current and not out.get("found") and not out.get("work") and not out.get("watch") and not out.get("paper") and (out.get("note") or not out.get("reply")):
         acc.log_feedback(visitor(request, response)[0], "miss", m.text, out.get("note"))
     return out

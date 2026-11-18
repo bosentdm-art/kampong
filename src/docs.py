@@ -90,7 +90,7 @@ The person has uploaded a document. Read it and answer with one JSON object and 
  "blanks": [{"label": string, "answer": string or null, "from": string}] (each empty field or blank the person has to fill in, with the answer \
 if CONTEXT or the document gives it, and where it came from: "your flat", "your profile", "this document", "today's date"; null when unknown, never guessed),
  "fill": {field name: value} (only when FIELDS are listed: values for those exact field names you can fill from CONTEXT or the document, each just what that box asks for, e.g. an address box gets only the address; leave out the rest),
- "listing_text": string or null (for a property listing only: the listing's details as one line, e.g. "Blk 177 Ang Mo Kio Ave 4, 4-room, 91 sqm, storey 10 to 12, asking $598,000"),
+ "listing_text": string or null (for a property listing only: the listing's details as one line, e.g. "Blk 177 Ang Mo Kio Ave 4, 4-room, 91 sqm, storey 10 to 12, asking $598,000, renovated 2022, unblocked view", including anything it says about renovation, condition, view, facing, corner unit or how keen the seller is, but never names or phone numbers),
  "text": string (the document's text as you read it, up to 3000 characters)}
 
 Rules: copy figures exactly as the document writes them. Never invent an amount, a date or a name. Write money as $598,000. \

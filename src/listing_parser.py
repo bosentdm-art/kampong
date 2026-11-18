@@ -213,7 +213,11 @@ def parse(text):
          or re.search(r"\b(?:floor|storey|level|lvl|flr)\s*(\d{1,2})\b(?![.,]\d)", t, re.I) or re.search(r"\b(\d{1,2})\s*(?:f|/f|flr)\b", t, re.I))
     if m and 1 <= int(m.group(1)) <= 60:
         out["floor"] = int(m.group(1))
-    if re.search(r"\b(sell|selling|seller|my flat|my unit|my home|i own|list(?:ing)? (?:it|mine|my))\b", t, re.I):
+    # A pasted listing talks about its seller in the third person ("motivated seller", "for sale", "priced to sell"):
+    # that's someone else selling, so drop those phrases before deciding whether the person writing is the seller.
+    own = re.sub(r"\b(?:(?:motivated|keen|urgent|genuine|serious|willing|eager|anxious|owner|direct)\s+)?sellers?(?:'s)?\b|\bfor sale\b|"
+                 r"\b(?:priced|must|need|needs|keen|eager|looking) to sell\b|\b(?:must|quick|fast) sell\b|\bsell(?:ing)? (?:fast|quick(?:ly)?)\b", " ", t, flags=re.I)
+    if re.search(r"\b(sell|selling|my flat|my unit|my home|i own|list(?:ing)? (?:it|mine|my))\b", own, re.I):
         out["role"] = "seller"
     elif re.search(r"\b(buy|buying|buyer|offer|looking at|viewing|viewed)\b", t, re.I):
         out["role"] = "buyer"

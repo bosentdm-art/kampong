@@ -1201,6 +1201,15 @@ function quickVerdict(u) {
   const m = marketLine(f), last = sameFloors(f);
   if (m || last) flags.push(flag("", m && m.pct < 0 ? "\u2198" : "\u2197", m && m.pct < 0 ? "No need to rush" : "Prices here are holding up",
     (m ? `${m.label} are ${m.pct < 0 ? "down" : "up"} ${Math.abs(m.pct)}% on a year ago, like for like.` : "") + (last ? ` The last sale on these floors was ${money(last.price)}, in ${month(last.month)}.` : "")));
+  const L = u.listing;
+  if (L && L.labels?.length) {
+    const has = k => L.found.includes(k), notes = [];
+    if (has("renovated")) notes.push("Kampong's estimate assumes typical condition, so a renovated home can fairly sell above it.");
+    if (has("original")) notes.push("Budget for renovation on top of the price.");
+    if (has("keen_seller") || has("negotiable")) notes.push("There's room to negotiate.");
+    if (has("unblocked") || has("corner") || has("facing")) notes.push("Views and facing aren't in sale records, so they're not in the estimate.");
+    flags.push(flag("", "i", "The listing mentions " + L.labels.join(", "), notes.join(" ")));
+  }
   const secs = u.t0 ? ((Date.now() - u.t0) / 1000).toFixed(1) : null;
   const speed = h("div", { className: "speed" }, `Checked ${f.recent.length} sales here` + (f.track ? `, ${f.track.sales_we_estimated_beforehand} past estimates for homes like this` : "")
     + (flags.some(x => x.querySelector(".amb")) ? ", and the lease rules" : "") + (secs ? ` in ${secs} seconds.` : "."));
@@ -1213,7 +1222,8 @@ function quickVerdict(u) {
   }) : null;
   box.append(chips, h("div", { className: "head" }, ...head), offer, ...flags,
     h("div", { className: "pills" }, msgBtn, btn("Save", () => { use(mine); saveFlat(); }), condo ? null : btn("Watch block", () => { use(mine); watchBlock(); }), buyer && !condo ? btn("Help with the paperwork", () => { use(mine); paperCard(); }) : null),
-    speed);
+    speed, h("div", { className: "fine" }, "Listings you paste are kept without contact details, to make Kampong's estimates better."));
+  if (u.pastedText) api("/api/listing", { text: u.pastedText, kind: condo ? "condo" : "hdb", flat: condo ? null : f.flat, condo: condo ? { project: f.project, area: f.condo?.area ?? f.condo?.floor_area_sqm, floor: f.condo?.floor } : null, price: a }).catch(() => {});
   return row("bot", box);
 }
 
@@ -1418,8 +1428,8 @@ async function send(text, opts = {}) {
     else if (u.watch && !u.found) { w.remove(); if (F) await watchBlock(); else await say("Tell me which flat first, then I can watch its block for new sales. For a whole town, use the Watchlist."); }
     else if (u.found && u.compare && F) await compareWith(u, text, w);
     else if (u.paper && !u.found) { w.remove(); await say("I'll fill in every answer I can for HDB's forms. You copy each one into HDB's site and submit it yourself."); paperCard(); }
-    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0 }, w);
-    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0 }, w);
+    else if (u.found && u.kind === "condo") await loadCondo(u.condo, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0, pastedText: pasted ? text : null }, w);
+    else if (u.found) await loadFlat(u.flat, u.price ?? (u.changed.length && hasPrice() ? F.price : null), { ...u, pasted, t0, pastedText: pasted ? text : null }, w);
     else if (u.reply || u.note || !F) {
       const t = u.reply || u.note || "I need to know which flat first. Give me the block and street, for example \"Blk 85 Whampoa Drive, 3-room, 8th floor, asking $420k\", or paste the listing.";
       w.remove(); talk.push({ role: "assistant", content: t });
