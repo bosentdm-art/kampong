@@ -1299,7 +1299,7 @@ def understand(m: Message, request: Request = None, response: Response = None):
     if out.get("found") and p.get("postal_fixed"):  # a mistyped postal code: say which flat was used instead
         out["assumed"] = list(out.get("assumed") or []) + [p["postal_fixed"]]
     elif not out.get("found") and p.get("postal_conflict"):
-        out["note"] = p["postal_conflict"] + " Which flat is it? Send the block and street and I'll check it."
+        out["note"] = p["postal_conflict"] + ". Which flat is it? Send the block and street and I'll check it."
     if via:
         out.update(via_link=via, link_text=m.text)
         if not out.get("found"):

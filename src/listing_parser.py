@@ -87,9 +87,9 @@ def _postal_check(out, t, idx, d):
         out[k] = None
     if pick:
         _place(out, d, blk, pick[1], pick[2])
-        out["postal_fixed"] = f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}, so I've used Blk {blk} {pick[1].title()}."
+        out["postal_fixed"] = f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}, so I've used Blk {blk} {pick[1].title()}"
     else:
-        out["postal"], out["postal_conflict"] = None, f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}."
+        out["postal"], out["postal_conflict"] = None, f"The listing's postal code {code} belongs to Blk {wrong}, but it says {town.title()}"
 
 
 def match_block(blk, street):
