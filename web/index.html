@@ -34,7 +34,7 @@
   /* HDB colours, picked from the painted panels on HDB blocks. Blue is Kampong (buttons, links, the active section, your messages).
      Orange means "check this" and nothing else (short lease, notes to check, the alerts badge). Green and red are good or bad for you. */
   [data-theme="light"] { --bg:#ffffff; --sky:none; --fg:#1f2328; --dim:#5a5f66; --line:#e3e3df; --panel:#ffffff; --glass:#ffffff;
-    --accent:#1a88d4; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --hl:#0f5e99; --hlbg:#e6f1fa; --mk:#e6f1fa;
+    --accent:#0f6db3; --on-accent:#ffffff; --soft:#e6f1fa; --pos:#15803d; --neg:#b42318; --hl:#0f5e99; --hlbg:#e6f1fa; --mk:#e6f1fa;
     --warn:#f5a55f; --warn-ink:#9a5a0c; --warn-bg:#fdf0e2; --t-hdb:#1a88d4; --t-condo:#7b4fe0; --t-landed:#e0a400;
     --shadow:0 10px 30px rgba(20,40,60,.08); --shadow2:0 2px 8px rgba(20,40,60,.06); }
   [data-theme="dark"]  { --bg:#14171a; --sky:none; --fg:#ecedee; --dim:#a3a9b0; --line:#2e343a; --panel:#1d2125; --glass:#1d2125;
@@ -1153,9 +1153,10 @@ function areaMap(f) {
   const box = h("div", { className: "map3d" }, h("div", { className: "m3load" }, "Loading the map..."));
   const leg = h("div", { className: "m3leg" }), spin = h("button", { type: "button" }, "Spin"), reset = h("button", { type: "button" }, "Recentre");
   spin.setAttribute("aria-pressed", "false");
+  box.setAttribute("role", "region"); box.setAttribute("aria-label", "3D map around " + flatName(f));
   box.append(h("div", { className: "m3tools" }, spin, reset));
   const card = h("div", { className: "m3card" },
-    h("div", { className: "m3hd" }, h("b", {}, "Around " + flatName(f)), h("span", { className: "fine dim" }, "Drag to move. Right-drag or two fingers to tilt and turn.")),
+    h("div", { className: "m3hd" }, h("b", {}, "Around " + flatName(f)), h("span", { className: "fine dim" }, "Drag to move. Right-drag or two fingers to tilt and turn. Keyboard: arrows move, + and - zoom, Shift + arrows tilt and turn, Tab goes through the places.")),
     box, leg,
     h("div", { className: "fine dim" }, "Places within about 1.2 km (bus stops within 500 m). The dashed ring is 1 km. Distances are straight lines. Building heights come from OpenStreetMap and can be rough. Planned stations and dates can change."));
   const r = row("bot", card);
@@ -1192,7 +1193,10 @@ function areaMap(f) {
         el.style.setProperty("--c", c);
         const pop = h("div", {}, h("b", {}, x.name + (k === "mrt" ? " " + x.rail : "")), h("br"),
           k === "future_mrt" ? `${x.line}, expected ${x.year}. ` : "", `${x.metres.toLocaleString("en-US")} m away, about ${walk(x.metres)} min walk`);
-        new ml.Marker({ element: el, anchor: "center" }).setLngLat([x.lon, x.lat]).setPopup(new ml.Popup({ offset: 12, closeButton: false }).setDOMContent(pop)).addTo(map);
+        const mk = new ml.Marker({ element: el, anchor: "center" }).setLngLat([x.lon, x.lat]).setPopup(new ml.Popup({ offset: 12, closeButton: false }).setDOMContent(pop)).addTo(map);
+        el.tabIndex = 0; el.setAttribute("role", "button");  // reachable with Tab, named for screen readers, Enter or Space opens it
+        el.setAttribute("aria-label", `${label.replace(/s$/, "")}: ${x.name}${k === "future_mrt" ? `, expected ${x.year}` : ""}, ${x.metres} metres away`);
+        el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mk.togglePopup(); } });
         return el;
       });
       const b = h("button", { type: "button" }, h("i"), label + " ", h("span", {}, items.length));
