@@ -33,13 +33,13 @@
   .w-chip:hover { border-color:var(--accent); }
   .w-card { background:var(--panel); border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow); padding:20px; display:grid; gap:10px; }
   .w-who { font-size:13px; color:var(--dim); display:flex; justify-content:space-between; gap:8px; }
-  .w-type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; background:var(--t-hdb); }
+  .w-type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; background:var(--accent); }
   .w-big { font-family:var(--head); font-size:30px; font-weight:600; line-height:1.15; }
   .w-bar { position:relative; height:10px; border-radius:99px; background:var(--soft); }
   .w-bar i { position:absolute; top:-5px; width:4px; height:20px; background:var(--fg); border-radius:3px; box-shadow:0 0 0 3px var(--panel); }
   .w-tiles { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
   .w-tile { border:1px solid var(--line); border-radius:12px; padding:8px 10px; } .w-tile span { display:block; font-size:11.5px; color:var(--dim); } .w-tile b { font-size:17px; font-variant-numeric:tabular-nums; }
-  .w-tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .w-tile.key span { color:var(--on-accent); opacity:.85; }
+  .w-tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .w-tile.key span { color:var(--on-accent); }
   .w-note { background:var(--warn-bg); border-left:4px solid var(--warn); border-radius:4px 12px 12px 4px; padding:8px 12px; font-size:14px; } .w-note b { color:var(--warn-ink); }
   .w-caption { text-align:center; font-size:12.5px; color:var(--dim); margin-top:8px; }
   .w-sec { padding:56px 0; } .w-sec.alt { background:color-mix(in srgb, var(--soft) 35%, var(--bg)); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
@@ -47,7 +47,7 @@
   .w-narrow .w-btn { margin-top:16px; }
   .w-foot { border-top:1px solid var(--line); padding:36px 0 60px; font-size:14px; color:var(--dim); }
   .w-foot .w-wrap { display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:24px; }
-  .w-foot h4 { margin:0 0 8px; color:var(--fg); font-size:14px; } .w-foot a { color:var(--dim) !important; display:block; padding:2px 0; }
+  .w-foot .w-fh { margin:0 0 8px; color:var(--fg); font:600 14px var(--disp); letter-spacing:0; } .w-foot a { color:var(--dim) !important; display:block; padding:2px 0; }
   @media (max-width:900px) { .w-hero .w-wrap { grid-template-columns:1fr; } .w-links { display:none; } .w-foot .w-wrap { grid-template-columns:1fr 1fr; } .w-hero { padding-top:32px; } }
   @media (max-width:640px) {
     #welcome { font-size:15px; } .w-wrap { padding:0 16px; }
@@ -65,11 +65,11 @@
   }
 </style>
 
-<div class="w-ticker" aria-label="Resale prices last month"><span class="w-when" data-w="when">Latest</span><div class="w-tape" data-w="tape"></div></div>
+<div class="w-ticker" role="region" aria-label="Latest resale prices"><span class="w-when" data-w="when">Latest</span><div class="w-tape" data-w="tape"></div></div>
 
 <header class="w-top"><div class="w-wrap">
   <span class="w-word">Kampong</span>
-  <nav class="w-links"><a href="#w-proof">Accuracy</a></nav>
+  <nav class="w-links" aria-label="Front page"><a href="#w-proof">Accuracy</a></nav>
   <div class="w-right"><button class="w-btn ghost" type="button" data-w="signin">Sign in</button><button class="w-btn" type="button" data-w="open">Open Kampong</button></div>
 </div></header>
 
@@ -114,7 +114,7 @@
 
 <footer class="w-foot"><div class="w-wrap">
   <div><span class="w-word" style="font-size:22px">Kampong</span><p style="margin:8px 0 0">Home prices in Singapore, explained. Kampong is a product of Oiko.</p><p class="w-fine">Estimates from recorded sales, not a licensed valuation or financial advice.</p></div>
-  <div><h4>Product</h4><a href="#" data-w="open">Ask Kampong</a><a href="#" data-w="market">Market and map</a><a href="#" data-w="plans">Plans</a></div>
-  <div><h4>Company</h4><a href="#" data-w="soon">About Oiko</a><a href="#" data-w="soon">Contact</a></div>
-  <div><h4>Legal</h4><a href="#" data-w="soon">Privacy</a><a href="#" data-w="soon">Terms</a><a href="#" data-w="record">Accuracy record</a></div>
+  <div><h2 class="w-fh">Product</h2><a href="#" data-w="open">Ask Kampong</a><a href="#" data-w="market">Market and map</a><a href="#" data-w="plans">Plans</a></div>
+  <div><h2 class="w-fh">Company</h2><a href="#" data-w="soon">About Oiko</a><a href="#" data-w="soon">Contact</a></div>
+  <div><h2 class="w-fh">Legal</h2><a href="#" data-w="soon">Privacy</a><a href="#" data-w="soon">Terms</a><a href="#" data-w="record">Accuracy record</a></div>
 </div></footer>

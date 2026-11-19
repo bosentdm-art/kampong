@@ -6,7 +6,7 @@
 <title>Kampong - HDB and condo price advice</title>
 <meta name="description" content="Is that flat worth the asking price? Paste a listing and Kampong compares it with what similar HDB flats and condos actually sold for.">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="icon" href="/icons/logo.svg" type="image/svg+xml"><link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png"><link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#1a88d4">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,7 +71,7 @@
   #nav button, .newchat { font:inherit; font-size:15px; text-align:left; padding:9px 12px; background:none; color:var(--fg); border:0; border-radius:14px; cursor:pointer; display:flex; justify-content:space-between; }
   #nav button { display:grid; grid-template-columns:22px 1fr auto; align-items:center; gap:10px; color:var(--dim); border:1px solid transparent; transition:color .25s, background .25s; }
   #nav .ni { display:grid; place-items:center; opacity:.5; transform:translateX(-3px); transition:transform .35s cubic-bezier(.2,.8,.2,1.2), opacity .25s, color .25s; }
-  #nav .nl sup { font-family:var(--mono); font-size:9.5px; margin-left:3px; letter-spacing:.04em; opacity:.7; }
+  #nav .nl sup { font-family:var(--mono); font-size:9.5px; margin-left:3px; letter-spacing:.04em; color:var(--dim); }
   #nav button:hover, .newchat:hover { background:var(--soft); }
   #nav button.sub { display:flex; padding:6px 12px 6px 44px; font-size:13.5px; margin-top:-2px; white-space:nowrap; overflow:hidden; } #nav button.sub > span:empty { display:none; } #nav button.sub .nl { overflow:hidden; text-overflow:ellipsis; } #nav button.sub .nl::before { content:"\21B3  "; color:var(--dim); }  /* the open flat's breakdown, under Ask Kampong */
   #nav button:hover { color:var(--fg); } #nav button:hover .ni { opacity:.85; transform:none; }
@@ -198,6 +198,7 @@
   .m3.home { font-size:13px; padding:6px 11px 6px 7px; border-width:2px; z-index:4; }
   .m3.home::after { content:""; position:absolute; left:50%; bottom:-6px; width:9px; height:9px; background:var(--c); transform:translateX(-50%) rotate(45deg); border-right:2px solid #fff; border-bottom:2px solid #fff; }
   .m3.off { display:none; }
+  .maplist { width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; } .maplist caption { text-align:left; font-weight:600; padding:4px 0; } .maplist td { padding:3px 0; border-top:1px solid var(--line); } .maplist td:last-child { text-align:right; white-space:nowrap; }
   .map3d.far .m3:not(.home):not(.dot) { padding:3px; } .map3d.far .m3:not(.home) .t { display:none; } .map3d.far .m3.dot { width:8px; height:8px; }
   .map3d.far .m3:not(.home):not(.dot):hover { padding:4px 8px 4px 5px; z-index:3; } .map3d.far .m3:not(.home):hover .t { display:inline; }
   .map3d .maplibregl-popup-content { font:13.5px/1.4 var(--disp); color:#1d2125; border-radius:10px; padding:8px 12px; } .map3d .maplibregl-popup-content b { font-weight:600; }
@@ -225,7 +226,7 @@
   .doc .due { color:var(--neg); font-weight:600; }
   /* home types: blue HDB, purple condo, gold landed. The colour is the type; the word says it too. */
   .type { display:inline-block; vertical-align:2px; margin-left:8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; color:#fff; line-height:1.4; }
-  .type.hdb { background:var(--t-hdb); } .type.condo { background:var(--t-condo); } .type.landed { background:var(--t-landed); color:#1f2328; }
+  .type.hdb { background:var(--accent); } .type.condo { background:var(--t-condo); } .type.landed { background:var(--t-landed); color:#1f2328; }
   [data-theme="dark"] .type.hdb, [data-theme="dark"] .type.condo { color:#0c1116; }
   #mapKind button[data-k="hdb"].on { background:var(--t-hdb); color:#fff; } #mapKind button[data-k="condo"].on { background:var(--t-condo); color:#fff; }
   /* the paperwork helper */
@@ -242,7 +243,7 @@
   .vbig { font-size:clamp(30px, 4vw, 44px); font-weight:700; line-height:1.05; letter-spacing:-.01em; }
   .mini { position:relative; height:12px; border-radius:999px; margin:4px 0; } .mini i { position:absolute; top:50%; width:22px; height:22px; border-radius:50%; background:var(--panel); border:5px solid var(--fg); transform:translate(-50%, -50%); box-shadow:var(--shadow2); }
   .tiles { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; } .tile { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 14px; }
-  .tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .tile.key .cap { color:var(--on-accent); opacity:.8; } .tile.key b { color:var(--on-accent) !important; }  /* the one fact to remember */ .tile b { display:block; font-size:20px; white-space:nowrap; }
+  .tile.key { background:var(--accent); border-color:var(--accent); color:var(--on-accent); } .tile.key .cap { color:var(--on-accent); } .tile.key b { color:var(--on-accent) !important; }  /* the one fact to remember */ .tile b { display:block; font-size:20px; white-space:nowrap; }
   .note { background:var(--warn-bg); border-left:4px solid var(--warn); border-radius:4px 14px 14px 4px; padding:10px 14px; font-size:14px; } .note > b:first-child { color:var(--warn-ink); }
   dialog { border:0; border-radius:28px; padding:22px; width:min(580px, 94vw); background:var(--panel); color:var(--fg); box-shadow:var(--shadow); }
   dialog::backdrop { background:rgba(20,24,28,.38); }
@@ -411,7 +412,7 @@
   <div class="brand"><span class="word">Kampong</span></div>
   <button class="newchat" id="newChat" type="button">+ New chat</button>
   <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-  <nav id="nav">
+  <nav id="nav" aria-label="Main">
     <button data-go="chat"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5l1.9 5.1L18 10.5l-5.1 1.9L11 17.5l-1.9-5.1L4 10.5l5.1-1.9z"/><path d="M19 15v6M16 18h6"/></svg></span><span class="nl">Ask Kampong<sup>01</sup></span><span></span></button>
     <button data-go="check" class="sub" id="bdNav" hidden><span></span><span class="nl" id="bdName">Full breakdown</span><span></span></button>
     <button data-go="flats"><span class="ni" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1V21"/><path d="M15 10h3a1 1 0 0 1 1 1v10M3 21h18M8.5 7.5h0M11.5 7.5h0M8.5 11.5h0M11.5 11.5h0M8.5 15.5h0M11.5 15.5h0"/></svg></span><span class="nl">My homes<sup>02</sup></span><span id="nFlats"></span></button>
@@ -433,7 +434,7 @@
   </div>
 </aside>
 
-<div class="work">
+<main class="work">
   <div class="ticker" id="ticker" role="region" aria-label="Resale prices last month" hidden><span class="when" id="tkWhen"></span><div class="track"><div class="tape" id="tape"></div></div></div>
   <div class="bar" id="bar" hidden>
     <div><div class="cap dim" id="crumb"></div><div class="bartitle" id="flatcap"></div></div>
@@ -549,7 +550,7 @@
     <div style="display:grid;grid-template-columns:minmax(0,320px) minmax(0,220px);gap:12px"><label><span class="cap dim">Town</span><select id="mTown"></select></label><label><span class="cap dim">Flat type</span><select id="mType"></select></label></div>
     <div class="panel" style="margin-top:16px"><div class="bd"><div id="mText"></div><svg id="mTrend" viewBox="0 0 700 120" width="100%" style="max-width:900px;margin-top:8px" role="img" aria-label="Price per square metre by year"></svg></div></div>
   </div>
-</div>
+</main>
 
 <!-- Flat details: pick a flat from lists, or correct what Kampong read -->
 <dialog id="sheet" aria-label="Flat details">
@@ -2130,6 +2131,19 @@ function drawMap() {
     : [`Under ${fmt(cuts[0])}`, `${fmt(cuts[0])}-${fmt(cuts[1])}`, `${fmt(cuts[1])}-${fmt(cuts[2])}`, `${fmt(cuts[2])}-${fmt(cuts[3])}`, `${fmt(cuts[3])}+`].map((t, i) => h("span", {}, h("i", { style: `background:${PRICE_COLS[mapKind][i]}` }), t + " " + unitName()))));
   $("mapNote").textContent = `Recorded sales, ${MAPD.months}: ${use.length.toLocaleString("en-US")} ${mapKind === "hdb" ? "HDB blocks" : "condo projects"} with 3 or more sales.` +
     (chg ? " Change compares each one's median price per sqm with the 12 months before, where both years had 3 or more sales. What has happened, not a forecast." : "");
+  // the same facts as a list, for keyboards and screen readers: thousands of dots can't each be a Tab stop
+  const key = r => chg ? r[3] : unitPrice(r[2]), sorted = [...use].sort((a, b) => key(a) - key(b));
+  const name = r => mapKind === "hdb" ? `Blk ${r[5]} ${r[6]}, ${r[7]}` : `${r[5]}, ${r[6]}`;
+  const val = r => chg ? `${r[3] >= 0 ? "▲ up" : "▼ down"} ${Math.abs(r[3]).toFixed(1)}%` : `${fmt(unitPrice(r[2]))} ${unitName()}`;
+  const tbl = (cap, rs) => h("table", { className: "maplist" }, h("caption", {}, cap), h("tbody", {}, ...rs.map(r => {
+    const b = h("button", { className: "linkbtn", type: "button" }, name(r));
+    b.addEventListener("click", () => { MAP.setView([r[0], r[1]], 16); L.popup().setLatLng([r[0], r[1]]).setContent(mapPopup(r)).openOn(MAP); });
+    return h("tr", {}, h("td", {}, b), h("td", {}, val(r)));
+  })));
+  const old = $("mapList"); if (old) old.remove();
+  $("mapNote").after(h("details", { id: "mapList", className: "more" }, h("summary", {}, "See it as a list"),
+    h("div", { className: "fine dim" }, "Map keys: Tab to the map, arrows move, + and - zoom. Pick a name below to jump to it on the map."),
+    tbl(chg ? "Biggest falls" : "Lowest", sorted.slice(0, 10)), tbl(chg ? "Biggest rises" : "Highest", sorted.slice(-10).reverse())));
 }
 function mapPopup(r) {
   const hdb = mapKind === "hdb", name = hdb ? `Blk ${r[5]} ${r[6]}` : r[5], b = h("button", { className: "btn", type: "button" }, hdb ? "Check a flat here" : "Check a unit here");
@@ -2347,7 +2361,7 @@ async function showWelcome() {
   if (wOpen) return;
   try {
     const html = await fetch("/welcome.html", { cache: "no-cache" }).then(r => r.ok ? r.text() : Promise.reject(new Error("no front page")));
-    const box = document.createElement("div"); box.id = "welcome"; box.innerHTML = html; document.body.append(box); wOpen = true; box.scrollTop = 0; wireWelcome(box);
+    const box = document.createElement("div"); box.id = "welcome"; box.setAttribute("role", "region"); box.setAttribute("aria-label", "Welcome to Kampong"); box.innerHTML = html; document.body.append(box); wOpen = true; box.scrollTop = 0; wireWelcome(box);
   } catch (e) {} finally { document.documentElement.classList.remove("w-pending"); }
 }
 function closeWelcome(remember = true) {
