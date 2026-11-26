@@ -38,6 +38,95 @@ LTA/OpenStreetMap, all public.
 
 The original modelling plan and its go/no-go decisions are in [PLAN.md](PLAN.md).
 
+## How it works
+
+```mermaid
+flowchart LR
+    A[Pasted listing,<br>link or message] --> B[Listing parser<br>block, size, floor, price,<br>condition, contacts scrubbed]
+    B --> C[Price engine<br>LightGBM models]
+    C --> D[Verdict<br>fair value, likely range,<br>offer range, lease checks]
+    D --> E[AI explanation<br>Claude + tools]
+    E --> F{Every figure<br>checked against<br>the facts}
+    F -- pass --> G[Answer in chat]
+    F -- fail twice --> H[Rule-based text]
+    C --> I[Area data<br>MRT, schools, shops,<br>bus stops, 3D map]
+    I --> G
+```
+
+1. **Understand the message.** `src/listing_parser.py` turns free text (a pasted PropertyGuru-style listing, or
+   just "blk 177 amk ave 4, 4 room, asking 598k") into a flat: town, street, block, flat type, size, floor and
+   price. It fills gaps with sensible defaults and says what it assumed. Mistyped postal codes are corrected
+   from the block number. Agent names, phone numbers and emails are removed before anything is stored.
+2. **Price it.** The engine (`api.py`, `src/train_production.py`, `src/condo.py`) predicts a fair value and a
+   likely range, and compares the asking price with recent sales in the same block and nearby.
+3. **Give a verdict.** Fair value, the range most sales land in, an offer range, the cash a buyer would need
+   above the bank's valuation, lease checks against the buyer's age, and recent sales on the same floors.
+4. **Explain it.** `src/llm.py` hands Claude the flat's facts and two tools that query the engine. The reply is
+   scanned for numbers; any dollar figure, percentage, year or size not found in the facts fails the check.
+5. **Show the area.** `src/nearby.py` finds the nearest MRT (and planned stations with opening years), primary
+   schools, hawker centres, supermarkets, parks, clinics and bus stops. The front end draws them on a 3D map.
+
+## The price model
+
+| | HDB resale | Private condos |
+|---|---|---|
+| Training data | every resale since 2017 (~245,000) | URA caveats (transactions) |
+| Model | average of 3 LightGBM models (different seeds) | LightGBM with comparable-sales features |
+| Key inputs | flat type, town, model, size, storey, remaining lease, location, distance to MRT / hawker / schools / CBD, sale month | project, size, floor, tenure, recent sales of similar size in the project, the developer's own prices, the unit's size and floor relative to its project |
+| Typical miss (median, unseen months) | **2.7%** (naive baseline 5.1%) | **2.9%** |
+
+- **Recency weighting:** recent sales count more (36-month half-life), so the model follows the market.
+- **Common-sense constraint:** price is not allowed to rise as the remaining lease falls (a monotone constraint).
+- **Honest testing:** every figure above comes from training only on sales before a cut-off and testing on the
+  months after it. New features must win on more than one such period before they are adopted.
+- **Likely ranges** come from a separate range model and are checked so that they hold about as often as they claim.
+- **Track record:** each month, estimates made beforehand are compared with what flats actually sold for.
+
+**What didn't work** (kept in the repo on purpose):
+- Long-range forecasts of a flat's future value: the lease-decay effect failed back-testing, so the app shows
+  scenarios, not predictions (`src/backtest_forecast.py`).
+- Block height, new supply nearby and planned MRT lines made the HDB model no better (`src/experiments_hdb_extra.py`).
+- Macro indicators (GDP growth, inflation, interest rates) didn't make long-run growth assumptions any better
+  in leave-one-year-out tests (`src/backtest_macro.py`).
+
+## Repository layout
+
+| Path | What's there |
+|---|---|
+| `api.py` | FastAPI app: chat understanding, assessments, maps, accounts, billing |
+| `web/` | the single-page front end (vanilla JS), front page, icons |
+| `src/download_*.py`, `geocode_*.py` | data downloads from data.gov.sg, URA, OneMap and OpenStreetMap |
+| `src/build_features.py`, `neighbor_features.py`, `condo_features.py` | feature engineering |
+| `src/train_*.py`, `range_model.py` | model training |
+| `src/experiments_*.py`, `backtest*.py` | experiments and back-tests, including the rejected ideas |
+| `src/listing_parser.py`, `linkreader.py`, `listings.py` | reading pasted listings and links |
+| `src/llm.py` | the AI explanations and their fact checks |
+| `src/nearby.py` | what is around a home, and commute times via OneMap |
+| `tests/check_messages.py` | 77 chat-understanding cases |
+| `scripts/` | start/stop scripts, backups to Cloudflare R2, logo generator |
+| `design/` | mockups made along the way |
+
+## Design decisions
+
+- **Chat first.** People paste a listing or type the block, rather than filling in a form.
+- **Explain, don't just score.** Every verdict says why, and what Kampong assumed.
+- **Trust over polish.** The AI can't invent figures; when it fails the check, plain rule-based text is used instead.
+- **Privacy.** No agent or seller contact details are kept. Links are read once, only when a person pastes them,
+  with a user agent that names Kampong, and sites can opt out in robots.txt.
+- **Cheap to run.** One machine, SQLite, public data and free map tiles. The AI is the only running cost, with
+  daily budgets and a rule-based fallback.
+- **Colour means something.** Blue for HDB, purple for condos, orange only for "check this", green and red only
+  for money going up or down.
+
+## Limitations
+
+- Estimates assume typical condition. Renovation, views and facing aren't in sale records, so they are flagged
+  from the listing text, not priced.
+- Landed homes aren't covered yet.
+- Distances are straight lines. For Primary 1 registration, OneMap's School Query is the official measure.
+- Building heights on the 3D map come from OpenStreetMap and can be rough.
+- This is a personal project, not financial advice.
+
 ## Setup (any machine)
 ```
 python -m venv .venv
