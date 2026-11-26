@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oikos mockup: paste a listing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
+<style>
+  /* Mockup: paste a listing, get a verdict in seconds. Figures are Oikos's real output for Blk 177 Ang Mo Kio Ave 4 (Nov 2026 data).
+     The listing text is made up. The buyer's age (32) is an example; Oikos only uses age when the person has given it. */
+  :root { --serif:"Newsreader", Georgia, serif; --sans:"Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; }
+  [data-theme="light"] { --bg:#ffffff; --panel:#ffffff; --soft:#f1eeff; --line:#e7e4ef; --ink:#16132b; --dim:#615b78; --faint:#8d87a3;
+    --violet:#5b3df5; --violet-ink:#3b22c9; --on-violet:#ffffff; --amber:#a86a12; --amber-bg:#fbf3d9;
+    --good:#15803d; --good-bg:#e7f5ec; --bad:#b42318; --bad-bg:#fcebea; }
+  [data-theme="dark"] { --bg:#100e1c; --panel:#191629; --soft:#241f3d; --line:#2e2949; --ink:#ece9f7; --dim:#a39dbd; --faint:#7b7598;
+    --violet:#8b76ff; --violet-ink:#b3a6ff; --on-violet:#120f24; --amber:#f0b45a; --amber-bg:#332a0e;
+    --good:#4ade80; --good-bg:#14301f; --bad:#fb7185; --bad-bg:#3a1a20; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; }
+  .dim { color:var(--dim); } .fine { font-size:12.5px; color:var(--dim); }
+  .good { color:var(--good); } .bad { color:var(--bad); }
+  button { font:inherit; cursor:pointer; }
+
+  .mock { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; padding:10px 16px;
+    background:var(--soft); border-bottom:1px solid var(--line); font-size:13px; }
+  .mock b { color:var(--violet-ink); margin-right:6px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:99px; overflow:hidden; background:var(--panel); }
+  .seg button, .mock > button { border:0; background:none; color:var(--dim); padding:5px 12px; }
+  .mock > button { border:1px solid var(--line); border-radius:99px; background:var(--panel); }
+  .seg button.on { background:var(--violet); color:var(--on-violet); }
+
+  .page { max-width:720px; margin:0 auto; padding:32px 16px 72px; display:grid; gap:18px; }
+  .word { font-family:var(--serif); font-weight:600; font-size:22px; }
+  h1 { font-family:var(--serif); font-weight:500; font-size:clamp(28px, 4vw, 38px); line-height:1.12; letter-spacing:-.015em; margin:0; }
+  h1 .accent { color:var(--violet); }
+  .sub { margin:6px 0 0; color:var(--dim); font-size:16px; }
+
+  /* the paste box */
+  .paste { border:1px solid var(--line); border-radius:18px; background:var(--panel); padding:14px; display:grid; gap:10px; box-shadow:0 1px 0 var(--line); }
+  .paste:focus-within { border-color:var(--violet); box-shadow:0 0 0 3px color-mix(in srgb, var(--violet) 18%, transparent); }
+  textarea { width:100%; min-height:118px; resize:vertical; border:0; outline:0; background:none; color:var(--ink); font:inherit; font-size:15px; line-height:1.5; }
+  .prow { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .hint { font-size:12.5px; color:var(--dim); }
+  .go { border:0; border-radius:12px; padding:10px 18px; background:var(--violet); color:var(--on-violet); font-weight:600; }
+  .go:disabled { opacity:.6; cursor:default; }
+
+  /* reading steps */
+  .reading { display:grid; gap:6px; padding:4px 4px; font-size:14px; }
+  .step { display:flex; gap:10px; align-items:center; color:var(--faint); transition:color .2s; }
+  .step i { width:16px; height:16px; border-radius:50%; border:2px solid currentColor; flex:none; position:relative; }
+  .step.on { color:var(--ink); } .step.on i { border-color:var(--violet); border-top-color:transparent; animation:spin .7s linear infinite; }
+  .step.done { color:var(--dim); } .step.done i { background:var(--violet); border-color:var(--violet); animation:none; }
+  .step.done i::after { content:""; position:absolute; left:4px; top:1px; width:4px; height:8px; border:solid var(--on-violet); border-width:0 2px 2px 0; transform:rotate(45deg); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .step.on i { animation:none; } }
+
+  /* the verdict */
+  .verdict { border:1px solid var(--line); border-radius:20px; background:var(--panel); overflow:hidden; }
+  .vtop { padding:20px 22px 16px; display:grid; gap:8px; }
+  .what { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px; }
+  .chip { padding:3px 10px; border-radius:99px; background:var(--soft); color:var(--violet-ink); font-weight:600; border:0; font-size:12.5px; }
+  .chip.filled { background:none; border:1px dashed var(--line); color:var(--dim); font-weight:500; }
+  .chip.edit { cursor:pointer; } .chip.edit:hover { outline:1px solid var(--violet); }
+  .headline { font-family:var(--serif); font-weight:600; font-size:clamp(26px, 4.2vw, 34px); line-height:1.12; letter-spacing:-.01em; margin:4px 0 0; }
+  .headline .bad { color:var(--bad); } .headline .good { color:var(--good); }
+  .offer { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:baseline; font-size:16px; }
+  .offer b { font-size:20px; font-variant-numeric:tabular-nums; }
+  .meter { position:relative; height:46px; margin:4px 2px 0; }
+  .meter .rail { position:absolute; left:0; right:0; top:20px; height:6px; border-radius:99px; background:var(--soft); }
+  .meter .zone { position:absolute; top:17px; height:12px; border-radius:99px; background:var(--good); opacity:.85; }
+  .meter .pin { position:absolute; top:8px; width:2px; height:30px; transform:translateX(-1px); background:var(--bad); }
+  .meter .pin span { position:absolute; bottom:31px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:12px; font-weight:700; color:var(--bad); }
+  .meter .lab { position:absolute; top:31px; font-size:11.5px; color:var(--dim); transform:translateX(-50%); white-space:nowrap; }
+
+  .flags { display:grid; border-top:1px solid var(--line); }
+  .flag { display:grid; grid-template-columns:28px 1fr; gap:10px; padding:12px 22px; border-top:1px solid var(--line); align-items:start; }
+  .flag:first-child { border-top:0; }
+  .ico { width:28px; height:28px; border-radius:9px; display:grid; place-items:center; font-size:14px; font-weight:700; }
+  .ico.bad { background:var(--bad-bg); color:var(--bad); } .ico.amber { background:var(--amber-bg); color:var(--amber); } .ico.soft { background:var(--soft); color:var(--violet-ink); }
+  .flag b { display:block; }
+  .flag span { color:var(--dim); font-size:14px; }
+
+  .acts { display:flex; flex-wrap:wrap; gap:8px; padding:14px 22px 18px; border-top:1px solid var(--line); background:color-mix(in srgb, var(--soft) 45%, var(--panel)); }
+  .btn { border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:10px; padding:8px 14px; font-size:14px; }
+  .btn.pri { background:var(--violet); color:var(--on-violet); border-color:transparent; font-weight:600; }
+  .speed { padding:0 22px 16px; font-size:12.5px; color:var(--dim); background:color-mix(in srgb, var(--soft) 45%, var(--panel)); }
+
+  .msg { border:1px solid var(--line); border-radius:16px; padding:16px 18px; background:var(--panel); display:grid; gap:10px; }
+  .msg pre { margin:0; white-space:pre-wrap; font:inherit; font-size:14.5px; background:var(--soft); border-radius:12px; padding:12px 14px; }
+  .note { font-size:12.5px; color:var(--dim); border-left:3px solid var(--line); padding-left:12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="mock">
+  <b>Mockup</b>
+  <div class="seg" id="theme"><button class="on" data-t="light" type="button">Light</button><button data-t="dark" type="button">Dark</button></div>
+  <button type="button" id="replay">Replay</button>
+</div>
+
+<main class="page">
+  <div class="word">Oikos</div>
+  <div>
+    <h1>Paste a listing. <span class="accent">Know in seconds.</span></h1>
+    <p class="sub">Copy the text from any listing, a WhatsApp from an agent, or just type what you know.</p>
+  </div>
+
+  <div class="paste">
+    <textarea id="txt" aria-label="Listing text">🏠 RARE 4RM @ AMK Ave 4 for SALE!! Blk 177, high floor (10-12), 91sqm New Gen layout, well kept, 4 mins to Mayflower MRT. Asking $598,000 nego. Call/WA now!</textarea>
+    <div class="prow"><span class="hint">We read the block, size, floor and price. Nothing is sent to the agent.</span><button class="go" id="go" type="button">Get verdict</button></div>
+  </div>
+
+  <div class="reading" id="reading" hidden>
+    <div class="step"><i></i>Reading the listing</div>
+    <div class="step"><i></i>Matching it to HDB records</div>
+    <div class="step"><i></i>Checking 8 sales in this block</div>
+    <div class="step"><i></i>Applying the lease and CPF rules</div>
+  </div>
+
+  <div id="result" hidden>
+    <div class="verdict">
+      <div class="vtop">
+        <div class="what" id="what"></div>
+        <div class="headline" id="headline"></div>
+        <div class="offer"><span>Offer between</span><b id="offer">$553,000 and $570,000</b></div>
+        <div class="meter" id="meter"></div>
+      </div>
+      <div class="flags">
+        <div class="flag" id="cashFlag"><div class="ico bad">$</div><div><b id="cashT"></b><span id="cashS"></span></div></div>
+        <div class="flag"><div class="ico amber">!</div><div><b>Short lease: 53 years left</b><span>At 32 you'd be 86 when it ends, so you can use less CPF and borrow less. Flats with this lease sell for about 66% of a fresh-lease flat.</span></div></div>
+        <div class="flag"><div class="ico soft">↘</div><div><b>No need to rush</b><span>4-room prices in Ang Mo Kio are <span class="bad">▼ 1.7%</span> on a year ago. The last sale on these floors was $560,000, in Nov 2026.</span></div></div>
+      </div>
+      <div class="acts">
+        <button class="btn pri" type="button" id="draft">Draft my offer message</button>
+        <button class="btn" type="button">Save to My homes</button>
+        <button class="btn" type="button">Watch this block</button>
+        <button class="btn" type="button">Ask a question</button>
+      </div>
+      <div class="speed" id="speed">Checked 8 sales here, 252 past estimates for flats like this, and the lease rules in 1.4 seconds.</div>
+    </div>
+
+    <div class="msg" id="msgBox" hidden>
+      <b>Your offer message</b>
+      <pre id="msgText"></pre>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" type="button" id="copy">Copy</button><button class="btn" type="button">Make it firmer</button><button class="btn" type="button">Make it softer</button></div>
+      <div class="fine">You send it yourself. Oikos never contacts agents or sellers.</div>
+    </div>
+
+    <p class="note">An estimate from HDB's recorded sales, not a licensed valuation. Lease year and flat model were filled in from HDB records, so tap a detail to correct it.</p>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = v => "$" + Math.round(v).toLocaleString("en-US");
+const EST = 553000, LO = 553000, HI = 570000, Q10 = 516807, Q90 = 586212;
+let ASK = 598000;
+
+function draw() {
+  const gap = ASK - EST, pct = gap / EST * 100;
+  $("what").innerHTML = `<span class="chip">Blk 177 Ang Mo Kio Ave 4</span><span class="chip">4-room</span><span class="chip">91 sqm</span><span class="chip">Storey 10–12</span>
+    <button class="chip edit" type="button" id="askChip" title="Change the asking price">Asking ${money(ASK)} ✎</button>
+    <span class="chip filled" title="Filled in from HDB records">New Generation</span><span class="chip filled" title="Filled in from HDB records">Lease from 1981</span>`;
+  $("askChip").onclick = () => { const v = prompt("Asking price", ASK); const n = +String(v || "").replace(/[^\d.]/g, ""); if (n > 50000) { ASK = n; draw(); } };
+  $("headline").innerHTML = Math.abs(pct) < 2 ? `About what it's worth.`
+    : gap > 0 ? `About <span class="bad">${money(Math.round(gap / 1000) * 1000)} above</span> what it's worth.`
+    : `About <span class="good">${money(Math.round(-gap / 1000) * 1000)} below</span> what it's worth.`;
+  const cov = Math.max(0, ASK - EST);
+  $("cashT").textContent = cov ? `About ${money(Math.round(cov / 1000) * 1000)} in cash at the asking price` : "Little or no cash over valuation";
+  $("cashS").textContent = cov ? `If HDB values it near our estimate, the difference can't come from CPF or a loan. At $570,000 it drops to about ${money(Math.max(0, 570000 - EST))}.`
+    : "At this price, HDB's valuation is likely to cover it, so CPF and your loan can pay for it.";
+  const lo = 500000, hi = Math.max(620000, ASK + 15000), x = v => ((v - lo) / (hi - lo) * 100) + "%";
+  $("meter").innerHTML = `<div class="rail"></div><div class="zone" style="left:${x(LO)};width:calc(${x(HI)} - ${x(LO)})"></div>
+    <div class="pin" style="left:${x(ASK)}"><span>Asking ${money(ASK)}</span></div>
+    <span class="lab" style="left:${x(LO)}">${money(LO)}</span><span class="lab" style="left:${x(HI)}">${money(HI)}</span>`;
+  $("msgText").textContent = `Hi, I'm interested in Blk 177 Ang Mo Kio Ave 4 (storey 10–12). Recent sales on the same floors were $560,000 in Nov 2026, and 4-room prices in Ang Mo Kio are down about 1.7% on last year. With 53 years left on the lease, would the seller consider $560,000?`;
+}
+
+function run() {
+  $("result").hidden = true; $("msgBox").hidden = true; $("go").disabled = true;
+  const steps = [...$("reading").children]; steps.forEach(s => s.className = "step"); $("reading").hidden = false;
+  steps.forEach((s, i) => {
+    setTimeout(() => { s.className = "step on"; if (i) steps[i - 1].className = "step done"; }, i * 330);
+  });
+  setTimeout(() => { steps.at(-1).className = "step done"; }, steps.length * 330);
+  setTimeout(() => { $("reading").hidden = true; draw(); $("result").hidden = false; $("go").disabled = false; }, steps.length * 330 + 250);
+}
+
+$("go").onclick = run;
+$("replay").onclick = () => { scrollTo({ top: 0 }); run(); };
+$("draft").onclick = () => { $("msgBox").hidden = false; $("msgBox").scrollIntoView({ behavior: "smooth", block: "nearest" }); };
+$("copy").onclick = e => { navigator.clipboard?.writeText($("msgText").textContent).catch(() => {}); e.target.textContent = "Copied"; setTimeout(() => e.target.textContent = "Copy", 1500); };
+$("theme").onclick = e => { const b = e.target.closest("button"); if (!b) return; [...$("theme").children].forEach(x => x.classList.toggle("on", x === b)); document.documentElement.dataset.theme = b.dataset.t; };
+run();
+</script>
+</body>
+</html>

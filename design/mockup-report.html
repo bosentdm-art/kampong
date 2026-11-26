@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oikos mockup: price report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&text=0123456789%24%25%2C.&display=swap" rel="stylesheet">
+<style>
+  /* Mockup of the pay-per-flat report. Figures are Oikos's real output for Blk 177 Ang Mo Kio Ave 4 (Nov 2026 data),
+     with an example asking price of $598,000 and an example buyer aged 32. Anything not yet built is marked "to build". */
+  :root { --serif:"Newsreader", Georgia, serif; --sans:"Atkinson Hyperlegible", "Lexend", "Segoe UI", Arial, sans-serif; }
+  [data-theme="light"] { --bg:#ffffff; --panel:#ffffff; --soft:#f1eeff; --line:#e7e4ef; --ink:#16132b; --dim:#615b78; --faint:#8d87a3;
+    --violet:#5b3df5; --violet-ink:#3b22c9; --on-violet:#ffffff; --amber:#c98a2e; --amber-bg:#fbf3d9;
+    --good:#15803d; --good-bg:#e7f5ec; --bad:#b42318; --bad-bg:#fcebea; }
+  [data-theme="dark"] { --bg:#100e1c; --panel:#191629; --soft:#241f3d; --line:#2e2949; --ink:#ece9f7; --dim:#a39dbd; --faint:#7b7598;
+    --violet:#8b76ff; --violet-ink:#b3a6ff; --on-violet:#120f24; --amber:#f0b45a; --amber-bg:#332a0e;
+    --good:#4ade80; --good-bg:#14301f; --bad:#fb7185; --bad-bg:#3a1a20; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; }
+  .num { font-variant-numeric:tabular-nums; }
+  .dim { color:var(--dim); } .fine { font-size:12.5px; color:var(--dim); }
+  .good { color:var(--good); } .bad { color:var(--bad); }
+  h1, h2 { font-family:var(--serif); font-weight:500; letter-spacing:-.01em; margin:0; }
+  h1 { font-size:clamp(28px, 4vw, 40px); line-height:1.1; }
+  h2 { font-size:24px; line-height:1.2; }
+
+  /* mockup controls: not part of the report */
+  .mock { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; padding:10px 16px;
+    background:var(--soft); border-bottom:1px solid var(--line); font-size:13px; }
+  .mock b { color:var(--violet-ink); margin-right:6px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:99px; overflow:hidden; background:var(--panel); }
+  .seg button, .mock > button { font:inherit; border:0; background:none; color:var(--dim); padding:5px 12px; cursor:pointer; }
+  .mock > button { border:1px solid var(--line); border-radius:99px; background:var(--panel); }
+  .seg button.on { background:var(--violet); color:var(--on-violet); }
+
+  .page { max-width:820px; margin:0 auto; padding:28px 16px 64px; display:grid; gap:22px; }
+
+  /* report header */
+  .rhead { display:grid; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--line); }
+  .rtop { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .word { font-family:var(--serif); font-weight:600; font-size:22px; }
+  .word small { font-family:var(--sans); font-weight:500; font-size:12px; color:var(--dim); margin-left:8px; letter-spacing:.06em; text-transform:uppercase; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:12.5px; padding:3px 10px; border-radius:99px; background:var(--soft); color:var(--violet-ink); font-weight:600; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:12.5px; color:var(--dim); }
+
+  /* sections */
+  section { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:22px; display:grid; gap:14px; }
+  .sh { display:flex; gap:12px; align-items:baseline; }
+  .sn { flex:none; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; background:var(--soft); color:var(--violet-ink); font-weight:700; font-size:13px; }
+  .lede { font-size:16px; }
+
+  /* 1. the answer */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+  .tile { border:1px solid var(--line); border-radius:14px; padding:14px 16px; display:grid; gap:2px; }
+  .tile .k { font-size:12.5px; color:var(--dim); }
+  .tile .v { font-size:28px; font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .tile.hl { background:var(--soft); border-color:transparent; } .tile.hl .v { color:var(--violet-ink); }
+  .tile.warn { background:var(--bad-bg); border-color:transparent; } .tile.warn .v { color:var(--bad); }
+  .band { position:relative; height:64px; margin:6px 4px 0; }
+  .band .rail { position:absolute; left:0; right:0; top:26px; height:8px; border-radius:99px; background:var(--soft); }
+  .band .wide { position:absolute; top:26px; height:8px; border-radius:99px; background:color-mix(in srgb, var(--violet) 25%, transparent); }
+  .band .likely { position:absolute; top:24px; height:12px; border-radius:99px; background:var(--violet); }
+  .band .pin { position:absolute; top:12px; width:2px; height:36px; transform:translateX(-1px); }
+  .band .pin span { position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:12px; font-weight:600; }
+  .band .pin.est { background:var(--ink); } .band .pin.est span { top:40px; }
+  .band .pin.ask { background:var(--bad); } .band .pin.ask span { bottom:40px; color:var(--bad); }
+  .keys { margin:0; padding-left:20px; display:grid; gap:6px; }
+
+  /* tables and rows */
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-weight:600; font-size:12.5px; color:var(--dim); padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  td.r, th.r { text-align:right; }
+  tr.same td { background:var(--soft); }
+  .kv { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--line); }
+  .kv:first-child { border-top:0; } .kv b { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .kv.total { border-top:2px solid var(--ink); font-weight:700; }
+  .callout { border-radius:14px; padding:14px 16px; display:grid; gap:4px; }
+  .callout.bad { background:var(--bad-bg); color:var(--ink); } .callout.bad b.big { color:var(--bad); }
+  .callout.amber { background:var(--amber-bg); }
+  .callout.soft { background:var(--soft); }
+  .big { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .tobuild { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--amber); border:1px solid currentColor; border-radius:6px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
+
+  /* 4. why this price */
+  .wf { display:grid; gap:6px; }
+  .wrow { display:grid; grid-template-columns:minmax(0,190px) 1fr 70px; gap:10px; align-items:center; font-size:14px; }
+  .wbar { position:relative; height:14px; background:var(--soft); border-radius:4px; }
+  .wbar i { position:absolute; top:0; bottom:0; border-radius:4px; }
+  .wbar .mid { position:absolute; left:50%; top:-3px; bottom:-3px; width:1px; background:var(--faint); }
+  .wrow b { text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* 5. lease */
+  .lease { display:grid; grid-template-columns:150px 1fr; gap:18px; align-items:center; }
+
+  /* 7. area */
+  .two { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; }
+  .chart svg { width:100%; height:auto; display:block; }
+  .places { margin:0; padding:0; list-style:none; display:grid; gap:6px; font-size:14px; }
+  .places li { display:flex; justify-content:space-between; gap:10px; } .places span:last-child { color:var(--dim); white-space:nowrap; }
+
+  /* paywall preview */
+  .lock { display:none; }
+  body.preview section.paid { position:relative; max-height:150px; overflow:hidden; }
+  body.preview section.paid > * { filter:blur(5px); user-select:none; pointer-events:none; }
+  body.preview section.paid::after { content:""; position:absolute; inset:auto 0 0 0; height:80px; background:linear-gradient(transparent, var(--panel)); }
+  body.preview .lock { display:grid; }
+  .lock { gap:12px; text-align:center; background:var(--soft); border-radius:18px; padding:26px 22px; justify-items:center; }
+  .lock ul { text-align:left; margin:0; padding-left:20px; display:grid; gap:4px; }
+  .buy { font:inherit; font-weight:600; font-size:16px; border:0; border-radius:12px; padding:12px 22px; background:var(--violet); color:var(--on-violet); cursor:pointer; }
+  .opts { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; font-size:13px; color:var(--dim); }
+
+  .foot { font-size:12.5px; color:var(--dim); display:grid; gap:6px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn2 { font:inherit; font-size:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:10px; padding:8px 14px; cursor:pointer; }
+
+  @media (max-width:560px) { .lease { grid-template-columns:1fr; justify-items:center; } .wrow { grid-template-columns:minmax(0,120px) 1fr 56px; font-size:13px; } section { padding:18px 16px; } }
+  @media print {
+    .mock, .actions, .lock { display:none !important; }
+    body { font-size:12px; } .page { max-width:none; padding:0; gap:12px; }
+    section { break-inside:avoid; border-color:#ccc; padding:14px; }
+    [data-theme] { --bg:#fff; --panel:#fff; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mock">
+  <b>Mockup</b>
+  <div class="seg" id="mode"><button class="on" data-m="full" type="button">Paid report</button><button data-m="preview" type="button">Free preview</button></div>
+  <div class="seg" id="theme"><button class="on" data-t="light" type="button">Light</button><button data-t="dark" type="button">Dark</button></div>
+  <button type="button" onclick="print()">Print / PDF</button>
+</div>
+
+<main class="page">
+
+  <header class="rhead">
+    <div class="rtop">
+      <div class="word">Oikos<small>Price report</small></div>
+      <div class="actions"><button class="btn2" type="button" onclick="print()">Download PDF</button><button class="btn2" type="button">Share link</button></div>
+    </div>
+    <h1>Blk 177 Ang Mo Kio Ave 4</h1>
+    <div class="chips"><span class="chip">4-room</span><span class="chip">New Generation</span><span class="chip">91 sqm</span><span class="chip">Storey 10 to 12</span><span class="chip">Lease from 1981</span></div>
+    <div class="meta"><span>Prepared 17 Nov 2026</span><span>Sales data to Nov 2026</span><span>Report OK-2611-0177</span><span>Figures fixed on this date · free refresh until 17 Dec 2026</span></div>
+  </header>
+
+  <!-- 1. free in the preview -->
+  <section>
+    <div class="sh"><span class="sn">1</span><h2>The short answer</h2></div>
+    <div class="tiles">
+      <div class="tile"><span class="k">Asking price</span><span class="v">$598,000</span></div>
+      <div class="tile hl"><span class="k">Oikos estimate</span><span class="v">$553,000</span></div>
+      <div class="tile warn"><span class="k">Asking vs estimate</span><span class="v">▲ 8.1%</span><span class="fine">$45,000 above</span></div>
+    </div>
+    <div class="band" id="band" aria-label="Likely price range"></div>
+    <div class="fine">Dark bar: half of likely outcomes ($534,000 to $570,000). Light bar: 8 in 10 ($517,000 to $586,000). The asking price is above both.</div>
+    <ul class="keys">
+      <li>The asking price is <b class="bad">higher than 9 in 10</b> of the prices Oikos thinks are likely.</li>
+      <li>If HDB values it near our estimate, you'd pay about <b>$45,000 in cash</b> on top of your loan and CPF.</li>
+      <li>53 years of lease are left. At 32, <b>the lease ends when you're 86</b>, which cuts back how much CPF and loan you can use.</li>
+    </ul>
+  </section>
+
+  <div class="lock">
+    <h2>The full report</h2>
+    <ul>
+      <li>Before you offer: the cash you'd need above the valuation</li>
+      <li>Every recent sale in this block, and why this flat is priced as it is</li>
+      <li>The lease: what it does to the price, your CPF and your loan</li>
+      <li>Cash needed upfront, from stamp duty to fees</li>
+      <li>The area: prices over 10 years, MRT, schools, food</li>
+      <li>How accurate Oikos has been on flats like this one</li>
+    </ul>
+    <button class="buy" type="button">Unlock this report · S$19</button>
+    <div class="opts"><span>3 flats · S$49</span><span>·</span><span>30-day pass · S$39</span><span>·</span><span>PayNow, cards, Apple Pay</span></div>
+    <div class="fine">Kept in My homes, with a PDF to share. Not a licensed valuation.</div>
+  </div>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">2</span><h2>Before you offer</h2></div>
+    <p class="lede" style="margin:0">HDB only values the flat after you've taken the seller's Option to Purchase. If its valuation is below the price, the difference has to be paid in cash, with no CPF and no loan.</p>
+    <div class="callout bad">
+      <span>Cash over valuation if HDB values it near our estimate</span>
+      <b class="big">about $45,000</b>
+      <span class="fine">$598,000 asking − $553,000 estimate. HDB's valuation can differ from ours. Offering $570,000, the top of the likely range, would bring this down to about $17,000.</span>
+    </div>
+    <div class="two">
+      <div><div class="kv"><span>Offer at our estimate</span><b>$553,000</b></div><div class="kv"><span>Top of likely range</span><b>$570,000</b></div><div class="kv"><span>Highest sale here in 12 months</span><b>$580,000</b></div></div>
+      <div class="fine">Asking prices usually leave room to negotiate. The latest sale in this block, on the same floors, was $560,000 in Nov 2026.</div>
+    </div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">3</span><h2>Recent sales in this block</h2></div>
+    <table>
+      <thead><tr><th>Sold</th><th>Storey</th><th class="r">Size</th><th class="r">Price</th><th class="r">Per sqm</th></tr></thead>
+      <tbody id="sales"></tbody>
+    </table>
+    <div class="fine">Highlighted: the same storey range as this flat. All sales are from HDB's resale records.</div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">4</span><h2>Why this price</h2></div>
+    <p style="margin:0">Starting from a typical flat of this type, about <b class="num">$611,800</b>, here's what moves this one up or down:</p>
+    <div class="wf" id="wf"></div>
+    <div class="fine">The lease does the most damage: −14.9%. Location helps most: +11.0%, mainly the 4-minute walk to Mayflower MRT.</div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">5</span><h2>The lease</h2></div>
+    <div class="lease">
+      <div id="dial"></div>
+      <div style="display:grid;gap:8px">
+        <div><b>53 of 99 years left.</b> The lease ends in 2080.</div>
+        <div>Flats with this much lease have sold for about <b>66%</b> of what a similar flat with a fresh 99-year lease fetches.</div>
+        <div class="callout amber"><b>You'd be 86 when it ends.</b><span>The lease doesn't last until the youngest buyer turns 95, so the CPF you can use and the HDB loan are both scaled down. <span class="tobuild">to build</span></span><span class="fine">The report will work out the exact amounts from your age, using CPF Board's and HDB's published rules.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">6</span><h2>Cash you'd need upfront</h2></div>
+    <div>
+      <div class="kv"><span>Cash over valuation (estimate)</span><b>$45,000</b></div>
+      <div class="kv"><span>Buyer's stamp duty</span><b>$12,540</b></div>
+      <div class="kv"><span>HDB request for value + resale admin fee</span><b>$200</b></div>
+      <div class="kv"><span>Legal fees</span><b class="dim">about $2,000 to $3,000 <span class="tobuild">to build</span></b></div>
+      <div class="kv total"><span>Cash before the down payment</span><b>about $60,000</b></div>
+    </div>
+    <div class="callout soft"><span><b>Down payment and monthly instalment</b> <span class="tobuild">to build</span></span><span class="fine">These depend on the lease cut-back above, your income and whether you take an HDB or bank loan. Each figure would show the rule it uses and the date that rule was checked.</span></div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">7</span><h2>The area</h2></div>
+    <div class="two">
+      <div class="chart"><div class="fine" style="margin-bottom:6px">4-room resale price per sqm in Ang Mo Kio</div><div id="trend"></div></div>
+      <div style="display:grid;gap:10px">
+        <div class="callout soft"><span>Aug to Oct 2026 against a year before, like for like</span><span><b class="bad">▼ 1.7%</b> 4-room flats in Ang Mo Kio (67 sales)</span><span><b class="bad">▼ 1.7%</b> 4-room flats across Singapore</span><span><b class="bad">▼ 2.9%</b> flats over 20 years old</span></div>
+        <ul class="places">
+          <li><span>Mayflower MRT</span><span>260 m · 4 min walk</span></li>
+          <li><span>Mayflower Market (hawker)</span><span>190 m</span></li>
+          <li><span>Giant supermarket</span><span>220 m</span></li>
+          <li><span>Ang Mo Kio Town Garden West</span><span>550 m</span></li>
+          <li><span>Broadway Plaza</span><span>970 m</span></li>
+          <li><span>Primary schools within 1 km</span><span>4</span></li>
+        </ul>
+        <div class="fine">Within 1 km: CHIJ St. Nicholas Girls', Mayflower, Ang Mo Kio and Anderson Primary.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">8</span><h2>Looking ahead</h2></div>
+    <div class="kv"><span>In 3 years, middle case</span><b>about $564,000</b></div>
+    <div class="fine">The range is wide, and Oikos doesn't project further: within 5 years the lease would be under 50 years, and there are too few sales of flats like that to project from. This is a projection, not a promise.</div>
+  </section>
+
+  <section class="paid">
+    <div class="sh"><span class="sn">9</span><h2>How sure we are</h2></div>
+    <p style="margin:0">Over the last 18 months, Oikos estimated <b>252</b> sales of flats like this one (4-room flats in Ang Mo Kio, 37 to 53 years old) <b>before they sold</b>.</p>
+    <div class="tiles">
+      <div class="tile"><span class="k">Half were within</span><span class="v">3.2%</span></div>
+      <div class="tile"><span class="k">Within 5%</span><span class="v">67%</span></div>
+      <div class="tile"><span class="k">Off by more than 10%</span><span class="v">1 in 18</span></div>
+    </div>
+    <div class="fine">Reliability for this flat: Medium. Short-lease flats vary more in price.</div>
+  </section>
+
+  <section class="foot">
+    <b style="color:var(--ink)">What this report is and isn't</b>
+    <span>An estimate from recorded sales and Oikos's model. It isn't a valuation by a licensed valuer, and it isn't financial advice. Check the flat's condition in person: it isn't in the data.</span>
+    <span>Data: HDB resale flat prices (data.gov.sg, Singapore Open Data Licence). Map data: OneMap, Singapore Land Authority. Rules for stamp duty, CPF and loans are as published on 17 Nov 2026.</span>
+  </section>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const money = v => "$" + Math.round(v).toLocaleString("en-US");
+
+// price band: 500k to 610k
+(function band() {
+  const lo = 500000, hi = 610000, x = v => ((v - lo) / (hi - lo) * 100) + "%";
+  $("band").innerHTML = `<div class="rail"></div><div class="wide" style="left:${x(516807)};width:calc(${x(586212)} - ${x(516807)})"></div>
+    <div class="likely" style="left:${x(534346)};width:calc(${x(569920)} - ${x(534346)})"></div>
+    <div class="pin est" style="left:${x(553323)}"><span>Estimate $553,000</span></div>
+    <div class="pin ask" style="left:${x(598000)}"><span>Asking $598,000</span></div>`;
+})();
+
+// sales in the block
+[["Nov 2026","10–12",91,560000],["Mar 2026","07–09",91,558000],["Feb 2026","07–09",91,580000],["Dec 2025","01–03",92,540000],
+ ["Oct 2025","01–03",91,525000],["Sep 2025","10–12",92,625000],["Jun 2025","07–09",92,555000],["Nov 2024","07–09",91,529800]]
+ .forEach(([m, s, a, p]) => $("sales").insertAdjacentHTML("beforeend",
+   `<tr class="${s === "10–12" ? "same" : ""}"><td>${m}</td><td>${s}</td><td class="r">${a} sqm</td><td class="r">${money(p)}</td><td class="r">${money(p / a)}</td></tr>`));
+
+// why this price
+[["Location and surroundings", .1102], ["Floor level", .0216], ["Size", -.0300], ["Flat type and model", -.0345], ["Lease and age", -.1486]]
+ .forEach(([k, e]) => {
+   const w = Math.abs(e) / .16 * 50, col = e >= 0 ? "var(--good)" : "var(--bad)";
+   $("wf").insertAdjacentHTML("beforeend", `<div class="wrow"><span>${k}</span><div class="wbar"><span class="mid"></span><i style="background:${col};${e >= 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`}"></i></div>
+     <b class="${e >= 0 ? "good" : "bad"}">${e >= 0 ? "▲" : "▼"} ${Math.abs(e * 100).toFixed(1)}%</b></div>`);
+ });
+
+// lease dial: a clock face from 0 to 99 years
+function dial() {
+  const S = 150, c = S / 2, r = 58, left = 53.25, a0 = -225, sweep = 270;
+  const pt = (deg, rad) => [c + rad * Math.cos(deg * Math.PI / 180), c + rad * Math.sin(deg * Math.PI / 180)];
+  const arc = (y0, y1, rad) => { const d0 = a0 + sweep * y0 / 99, d1 = a0 + sweep * y1 / 99, [x0, yy0] = pt(d0, rad), [x1, yy1] = pt(d1, rad);
+    return `M${x0} ${yy0} A${rad} ${rad} 0 ${d1 - d0 > 180 ? 1 : 0} 1 ${x1} ${yy1}`; };
+  let ticks = "";
+  for (let y = 0; y <= 99; y += 11) { const d = a0 + sweep * y / 99, [x0, y0] = pt(d, r - 14), [x1, y1] = pt(d, r - 8); ticks += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${css("--faint")}" stroke-width="1.5"/>`; }
+  const [nx, ny] = pt(a0 + sweep * left / 99, r - 18), [sx, sy] = pt(a0 + sweep * left / 99, 26);
+  $("dial").innerHTML = `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" role="img" aria-label="53 of 99 years of lease left">
+    <path d="${arc(0, 99, r)}" fill="none" stroke="${css("--soft")}" stroke-width="10" stroke-linecap="round"/>
+    <path d="${arc(0, 60, r + 9)}" fill="none" stroke="${css("--amber")}" stroke-width="3" opacity=".6"/>
+    <path d="${arc(0, left, r)}" fill="none" stroke="${css("--amber")}" stroke-width="10" stroke-linecap="round"/>
+    ${ticks}<line x1="${sx}" y1="${sy}" x2="${nx}" y2="${ny}" stroke="${css("--ink")}" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="${c}" y="${c + 6}" text-anchor="middle" font-size="26" font-weight="700" fill="${css("--ink")}" font-family="Atkinson Hyperlegible, Lexend, sans-serif">53</text>
+    <text x="${c}" y="${c + 22}" text-anchor="middle" font-size="10" fill="${css("--dim")}" font-family="Lexend, sans-serif">years left</text>
+    <text x="${c}" y="${S - 8}" text-anchor="middle" font-size="10" fill="${css("--amber")}" font-family="Lexend, sans-serif">short lease: under 60</text></svg>`;
+}
+
+// 10-year trend
+function trendChart() {
+  const ys = [2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026], vs = [4978,4947,4728,4293,4348,4793,5495,5771,6098,6369,6473];
+  const W = 320, H = 150, p = 28, lo = 4000, hi = 6800, x = i => p + i * (W - p - 8) / (ys.length - 1), y = v => H - 22 - (v - lo) / (hi - lo) * (H - 34);
+  const line = vs.map((v, i) => `${i ? "L" : "M"}${x(i)} ${y(v)}`).join(" ");
+  const grid = [4000, 5000, 6000].map(g => `<line x1="${p}" x2="${W - 8}" y1="${y(g)}" y2="${y(g)}" stroke="${css("--line")}"/><text x="${p - 4}" y="${y(g) + 4}" text-anchor="end" font-size="9" fill="${css("--dim")}">${g / 1000}k</text>`).join("");
+  $("trend").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="From $4,978 per sqm in 2016 to $6,473 in 2026">${grid}
+    <path d="${line}" fill="none" stroke="${css("--violet")}" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="${x(10)}" cy="${y(6473)}" r="4" fill="${css("--violet")}"/>
+    <text x="${x(10) - 6}" y="${y(6473) - 10}" text-anchor="end" font-size="11" font-weight="700" fill="${css("--ink")}">$6,473</text>
+    <text x="${x(0)}" y="${H - 6}" font-size="9" fill="${css("--dim")}">2016</text><text x="${x(10)}" y="${H - 6}" text-anchor="end" font-size="9" fill="${css("--dim")}">2026, to Oct</text></svg>`;
+}
+
+function draw() { dial(); trendChart(); }
+draw();
+$("mode").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  [...$("mode").children].forEach(x => x.classList.toggle("on", x === b)); document.body.classList.toggle("preview", b.dataset.m === "preview"); });
+$("theme").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  [...$("theme").children].forEach(x => x.classList.toggle("on", x === b)); document.documentElement.dataset.theme = b.dataset.t; draw(); });
+</script>
+</body>
+</html>

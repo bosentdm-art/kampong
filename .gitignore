@@ -10,3 +10,6 @@ reports/*.csv
 
 # local run logs from scripts/kampong.ps1
 logs/
+
+# desktop shortcuts
+*.lnk

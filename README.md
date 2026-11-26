@@ -1,6 +1,42 @@
-# realestateai
+<img src="web/icons/logo.svg" width="56" alt="Kampong logo: a grid of HDB windows with one lit">
 
-Singapore HDB resale price and future-value model. See [PLAN.md](PLAN.md).
+# Kampong
+
+**Is that flat really worth the asking price?** Kampong is a chat-first price checker for Singapore homes.
+Paste a property listing (or a link to one) and it compares the flat with what similar flats actually sold for,
+then gives a verdict, an offer range and what's around the home on an interactive 3D map.
+
+A personal project, built end to end: data pipeline, machine-learning models, API, front end, AI chat and deployment.
+
+![3D map of the area around an HDB block, with MRT, schools, bus stops and shops pinned](docs/map3d.jpg)
+
+## Highlights
+
+- **Accurate prices.** LightGBM models trained on every HDB resale since 2017 (about 245,000 sales) and on
+  URA condo transactions. Half of HDB estimates land within **2.7%** of the price the flat later sold for, tested
+  on months the model had never seen (a naive baseline misses by 5.1%). Condos: 2.9%. Price ranges are calibrated,
+  and each month's estimates are checked against real sales.
+- **Honest experiments.** New features are only adopted if they beat the current model on more than one held-out
+  period. For example, block height, nearby new supply and planned MRT lines were tested and rejected
+  (`src/experiments_hdb_extra.py`).
+- **AI that can't make numbers up.** The chat uses Claude with tools that call the price engine. Every dollar figure,
+  percentage and date in an answer is checked against the facts; a failed check is retried, then replaced with
+  rule-based text.
+- **Reads real listings.** Pasted listings are parsed into facts (block, size, floor, price, renovation, view),
+  with contact details scrubbed. A pasted link is read once, with an honest user agent, respecting robots.txt
+  ([how](web/bosan.html)).
+- **3D area map.** MapLibre GL over OneMap tiles, with OpenStreetMap buildings, the home's own block highlighted,
+  and MRT, planned stations, schools, bus stops and daily needs pinned.
+- **Accessible.** Checked with GovTech's Oobee scanner (0 must-fix issues): keyboard-usable maps, screen-reader
+  labels, 4.5:1 contrast, reduced-motion support.
+- **Runs cheaply.** FastAPI + SQLite on one machine, exposed through a Cloudflare Tunnel, with nightly backups to
+  Cloudflare R2. Optional Stripe billing and WorkOS sign-in.
+
+**Stack:** Python, pandas, LightGBM, FastAPI, SQLite, vanilla JavaScript, MapLibre GL, Leaflet, Claude API,
+Cloudflare (Tunnel, R2, Turnstile), Stripe. **Data:** data.gov.sg (HDB resale, HDB property information), URA, OneMap,
+LTA/OpenStreetMap, all public.
+
+The original modelling plan and its go/no-go decisions are in [PLAN.md](PLAN.md).
 
 ## Setup (any machine)
 ```
